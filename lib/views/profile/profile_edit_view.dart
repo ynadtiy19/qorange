@@ -67,7 +67,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
 
   Future<void> _loadCurrentProfile() async {
     try {
-      final res = await HttpClient.instance.get<Map<String, dynamic>>('/api-users/profile');
+      final res = await HttpClient.instance.get<Map<String, dynamic>>('/api-users/profile-edit');
       if (res.datas != null) {
         final profile = res.datas!;
         setState(() {

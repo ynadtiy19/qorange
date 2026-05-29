@@ -49,6 +49,7 @@ dependencies:
   flutter_quill_extensions: ^11.0.0
   image_picker: ^1.2.1
   url_launcher: ^6.3.2
+  open_filex: ^4.7.0
 
   flutter_local_notifications: ^19.5.0
   at_client: ^3.9.2

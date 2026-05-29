@@ -1,4 +1,4 @@
-// lib/services/notification_handler_service.dart (社交通知与落地页跳转完全体)
+// lib/services/notification_handler_service.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,12 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:open_filex/open_filex.dart'; // 🌟 引入打开文件的插件
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart'; // 🌟 用于三方落地页链接安全调起
+import 'package:url_launcher/url_launcher.dart';
 
-import '../views/post_detail/post_detail_view.dart'; // 🌟 帖子详情视图路径
+import '../views/post_detail/post_detail_view.dart';
 import '../views/profile/profile_view.dart';
-import 'push_notification_model.dart'; // 🌟 用户空间专页路径
+import 'push_notification_model.dart';
 
 class NotificationHandlerService extends GetxService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -65,12 +66,24 @@ class NotificationHandlerService extends GetxService {
       showBadge: true,
     );
 
-    await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    // 🌟 新增：独立创建一个用于更新下载进度的低重要度通道（不发出持续的响铃打扰用户）
+    const AndroidNotificationChannel updateChannel = AndroidNotificationChannel(
+      'app_update_channel',
+      '应用更新下载',
+      description: '软件更新下载进度通知',
+      importance: Importance.low, // 设为 low，防止进度每次变更都发出叮咚声
+      playSound: false,
+      enableVibration: false,
+    );
+
+    final androidImplementation = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidImplementation?.createNotificationChannel(channel);
+    await androidImplementation?.createNotificationChannel(updateChannel);
   }
 
-  /// 🌟 处理系统通知栏点击行为，智能分发路由跳转 [2]
+  /// 🌟 处理系统通知栏点击行为，智能分发路由跳转与更新下载 [2]
   void _onNotificationTap(NotificationResponse response) async {
     if (response.payload == null) return;
 
@@ -80,9 +93,21 @@ class NotificationHandlerService extends GetxService {
       final String targetId = data['target_id'] ?? '';
       final String targetType = data['target_type'] ?? '';
       final String customUrl = data['custom_url'] ?? '';
+      final String filePath = data['file_path'] ?? '';
+
+      // 🌟 新增 A：点击更新通知，启动后台流式下载
+      if (type == 'appUpdate' && customUrl.isNotEmpty) {
+        _startAppUpdateDownload(customUrl);
+        return;
+      }
+
+      // 🌟 新增 B：点击下载完成的通知，直接重新拉起安装界面
+      if (type == 'installApk' && filePath.isNotEmpty) {
+        _installApk(filePath);
+        return;
+      }
 
       if (type == 'externalLink' && customUrl.isNotEmpty) {
-        // 场景 A: 外部落地页推送，安全唤起移动端默认浏览器
         final Uri url = Uri.parse(customUrl);
         if (await canLaunchUrl(url)) {
           await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -91,15 +116,161 @@ class NotificationHandlerService extends GetxService {
       }
 
       if (targetType == 'user' || type == 'recommendUser') {
-        // 场景 B: 用户、粉丝相关通知，一键路由跳转至对应学者空间 [2]
         Get.to(() => ProfileView(profileId: targetId));
       } else if (targetType == 'post' || type == 'recommendPost' || type == 'comment') {
-        // 场景 C: 点赞、评论、分享等，一键路由到对应的帖子细节页中 [2]
         Get.to(() => PostDetailView(postId: targetId));
       }
     } catch (e) {
       debugPrint("❌ [NotificationHandler] 路由跳转分发异常: $e");
     }
+  }
+
+  // 🌟 新增：执行 OTA 下载主逻辑
+  Future<void> _startAppUpdateDownload(String url) async {
+    const int updateNotificationId = 8888; // 固定的下载通知 ID
+    try {
+      // 1. 初始化通知栏进度为 0%
+      await _updateDownloadNotification(0, updateNotificationId);
+
+      // 2. 获取临时存储目录并建立 APK 文件，确保覆盖旧文件
+      final Directory tempDir = await getTemporaryDirectory();
+      final String filePath = '${tempDir.path}/qorange_update.apk';
+      final File file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+
+      // 3. 建立流式 HTTP 下载请求
+      final http.Client client = http.Client();
+      final http.Request request = http.Request('GET', Uri.parse(url));
+      final http.StreamedResponse response = await client.send(request);
+
+      if (response.statusCode != 200) {
+        throw HttpException('下载失败，状态码: ${response.statusCode}');
+      }
+
+      final int totalBytes = response.contentLength ?? 0;
+      int downloadedBytes = 0;
+      final List<int> bytes = [];
+      int lastProgressPercent = -1;
+
+      // 4. 流式接收数据，并在收到时计算进度
+      await for (final List<int> chunk in response.stream) {
+        bytes.addAll(chunk);
+        downloadedBytes += chunk.length;
+
+        if (totalBytes > 0) {
+          final int percentage = ((downloadedBytes / totalBytes) * 100).toInt();
+          // 🌟 节流优化：只有百分比整数变动时才调用 show()，避免卡顿
+          if (percentage > lastProgressPercent) {
+            lastProgressPercent = percentage;
+            await _updateDownloadNotification(percentage, updateNotificationId);
+          }
+        } else {
+          // 如果服务器没有返回真实长度，显示无上限的默认进度条
+          await _updateDownloadNotification(-1, updateNotificationId);
+        }
+      }
+
+      // 5. 保存字节数组为本地 APK 文件
+      await file.writeAsBytes(bytes);
+
+      // 6. 成功下载后清除下载进度通知
+      await _notificationsPlugin.cancel(updateNotificationId);
+
+      // 7. 调用安装逻辑（直接拉起底部安装询问弹窗）
+      await _installApk(filePath);
+
+      // 8. 同时在通知栏展现“下载完成”，万一用户在弹窗中不小心取消了，还可以通过通知点击重新调起
+      await _showDownloadCompleteNotification(filePath);
+
+    } catch (e) {
+      debugPrint("❌ [AppUpdate] 后台下载失败: $e");
+      await _showDownloadFailedNotification(updateNotificationId);
+    }
+  }
+
+  // 🌟 新增：向通知栏发送并刷新当前的下载进度
+  Future<void> _updateDownloadNotification(int progress, int notificationId) async {
+    final bool isIndeterminate = progress < 0; // 是否显示无进度滚动条
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'app_update_channel',
+      '应用更新下载',
+      channelDescription: '显示更新包的实时下载进度',
+      importance: Importance.low,
+      priority: Priority.low,
+      showProgress: true,
+      maxProgress: 100,
+      progress: isIndeterminate ? 0 : progress,
+      indeterminate: isIndeterminate,
+      ongoing: true, // 强制常驻通知栏，不允许用户通过左滑手势删除
+      onlyAlertOnce: true, // 确保进度刷新时手机不会重复响铃/振动
+    );
+
+    final NotificationDetails platformDetails = NotificationDetails(android: androidDetails);
+    await _notificationsPlugin.show(
+      notificationId,
+      '正在下载系统更新...',
+      isIndeterminate ? '下载中...' : '已完成 $progress%',
+      platformDetails,
+    );
+  }
+
+  // 🌟 新增：唤起系统 PackageInstaller 开始安装
+  Future<void> _installApk(String filePath) async {
+    try {
+      final File file = File(filePath);
+      if (await file.exists()) {
+        // 利用 open_filex 安全唤起系统安装面板
+        final result = await OpenFilex.open(filePath);
+        debugPrint("ℹ️ [AppUpdate] 系统安装面板调用结果: ${result.message} (ResultType: ${result.type})");
+      } else {
+        debugPrint("❌ [AppUpdate] 未能找到 APK 文件");
+      }
+    } catch (e) {
+      debugPrint("❌ [AppUpdate] 唤起系统安装弹窗异常: $e");
+    }
+  }
+
+  // 🌟 新增：下载成功但用户取消后，常驻在通知栏的备份入口
+  Future<void> _showDownloadCompleteNotification(String filePath) async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'app_update_channel',
+      '应用更新下载',
+      channelDescription: '下载完毕提示安装',
+      importance: Importance.max,
+      priority: Priority.high,
+      ongoing: false,
+    );
+
+    await _notificationsPlugin.show(
+      8889, // 独立 ID
+      '🎉 更新包已准备就绪',
+      '点击此处立即安装最新版本',
+      NotificationDetails(android: androidDetails),
+      payload: jsonEncode({
+        'type': 'installApk',
+        'file_path': filePath,
+      }),
+    );
+  }
+
+  // 🌟 新增：下载失败处理通知
+  Future<void> _showDownloadFailedNotification(int notificationId) async {
+    await _notificationsPlugin.show(
+      notificationId,
+      '❌ 更新包下载失败',
+      '网络异常，请稍后重试',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'app_update_channel',
+          '应用更新下载',
+          importance: Importance.max,
+          priority: Priority.high,
+          ongoing: false,
+        ),
+      ),
+    );
   }
 
   Future<String?> _downloadAndSaveFile(String? url, String fileName) async {
@@ -124,7 +295,7 @@ class NotificationHandlerService extends GetxService {
     final nickname = note.sender.nickname;
     final targetTitle = note.target.title;
 
-    // 1. 根据可扩展消息类别动态装配文案
+    // 1. 根据消息类别动态装配文案
     if (note.category == 'social') {
       switch (note.type) {
         case 'like':
@@ -160,17 +331,21 @@ class NotificationHandlerService extends GetxService {
       title = '🌐 推荐落地页';
       body = targetTitle.isNotEmpty ? targetTitle : '点击查看最新推荐文章与落地页。';
     } else if (note.category == 'system') {
-      title = '📢 系统广播通知';
-      body = targetTitle;
+      // 🌟 新增：支持后端发送 appUpdate 类型
+      if (note.type == 'appUpdate') {
+        title = '🚀 发现新版本';
+        body = targetTitle.isNotEmpty ? targetTitle : '点击立即下载更新最新版本';
+      } else {
+        title = '📢 系统广播通知';
+        body = targetTitle;
+      }
     }
 
-    // 2. 异步下载大图标（用户头像）
     final String? avatarPath = await _downloadAndSaveFile(
       note.sender.avatar,
       'avatar_${note.sender.id}.png',
     );
 
-    // 3. 注入系统级高阶通知配置
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'googlechat_alerts',
       '同频社交动态',
@@ -199,14 +374,14 @@ class NotificationHandlerService extends GetxService {
       iOS: iosDetails,
     );
 
-    // 4. 发送通知给本地底层
+    // 🌟 发送通知给本地底层
     await _notificationsPlugin.show(
       note.hashCode,
       title,
       body,
       platformDetails,
       payload: jsonEncode({
-        'type': note.type,
+        'type': note.type, // 🌟 如果 note.type 为 'appUpdate'，则在点击时启动下载
         'target_id': note.target.id,
         'target_type': note.target.type,
         'custom_url': note.customData['url'] ?? '',

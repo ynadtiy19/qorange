@@ -691,15 +691,21 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
     });
   }
 
-  // 🌟 设计的高质感、大面积轻拟物列表卡片（带缩略图剪裁与分类高亮标签）
+  // 🌟 修改后：个人主页高质感、大面积轻拟物列表卡片（深度对接 50 字 content_min 快照）
   Widget _buildAestheticPostCard(dynamic postData, {String? datePrefix, bool showLeftBorder = false, List<List<dynamic>>? cardIcon}) {
     final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
     if (postData == null || postData['id'] == null) return const SizedBox.shrink();
 
     final type = postData['post_type'] ?? 'quill';
     final titleStr = postData['title'] ?? '';
-    final contentStr = postData['content'] ?? '';
-    final previewText = titleStr.isNotEmpty ? titleStr : (type == 'quill' ? "深度富文本文章" : contentStr);
+
+    // 🌟 核心改进：全面换用 50 字 content_min 快照，避免加载重度 Delta 原文数据
+    final contentMin = postData['content_min'] ?? '';
+
+    // 如果大标题为空（例如图文说说），自适应采用 50 字正文快照作为粗体大字展示
+    final mainHeading = titleStr.isNotEmpty ? titleStr : contentMin;
+    final hasSubtitle = titleStr.isNotEmpty && contentMin.isNotEmpty;
+
     final createTime = postData['created_at'] != null ? postData['created_at'].toString().substring(0, 10) : '';
     final thumbnail = postData['thumbnail'] as String? ?? '';
     final category = postData['category'] as String? ?? 'general';
@@ -732,7 +738,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 分类微型高亮微卡片
+                        // 分类微型高亮微标签
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
@@ -745,14 +751,27 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           ),
                         ),
                         const SizedBox(height: 10),
-                        // 帖子大字粗体标题
+
+                        // 帖子大字粗体标题（或说说快照）
                         Text(
-                          previewText,
+                          mainHeading,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Colors.black87, height: 1.35),
                         ),
+
+                        // 副标题展示（仅在有标题且有正文快照时呈现，形成双层精致版面）
+                        if (hasSubtitle) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            contentMin,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.3),
+                          ),
+                        ],
                         const SizedBox(height: 12),
+
                         // 底部说明条
                         Row(
                           children: [
@@ -772,6 +791,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                     ),
                   ),
                   const SizedBox(width: 16),
+
                   // 精致缩略图
                   if (thumbnail.isNotEmpty)
                     ClipRRect(
