@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../network/http_client.dart';
+import '../../user_controller.dart';
 import '../post_detail/post_detail_view.dart';
 import '../publish/publish_view.dart';
 
@@ -241,13 +242,21 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
           ),
         ),
         actions: [
-          IconButton(
-            onPressed: () => Get.to(() => const PublishView()),
-            icon: const HugeIcon(
-              icon: HugeIcons.strokeRoundedQuillWrite02,
-              color: Color.fromRGBO(44, 123, 109, 1.0),
-            ),
-          ),
+          Obx(() {
+            // 如果没有登录，则返回一个空占位组件，隐藏按钮
+            if (!UserController.to.isLoggedIn) {
+              return const SizedBox.shrink();
+            }
+
+            // 已登录状态下显示发布按钮
+            return IconButton(
+              onPressed: () => Get.to(() => const PublishView()),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedQuillWrite02,
+                color: Color.fromRGBO(44, 123, 109, 1.0),
+              ),
+            );
+          }),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50),

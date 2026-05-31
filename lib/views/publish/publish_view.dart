@@ -82,7 +82,6 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
 
   bool _isPublishing = false;
 
-
   final FocusNode _editorFocusNode = FocusNode();
 
   @override
@@ -99,7 +98,6 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     _shortTagsController.dispose();
     super.dispose();
   }
-
 
   void _openEmojiPicker() {
     showModalBottomSheet(
@@ -503,6 +501,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     }
   }
 
+  // 1. 📂 quill（深度富文本文章）参数构建
   Future<void> _submitQuill() async {
     if (_quillTitleController.text.trim().isEmpty) {
       Fluttertoast.showToast(msg: "请填写标题");
@@ -513,6 +512,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     final jsonContent = jsonEncode(delta.toJson());
     final plainText = extractPureText(_quillController.document);
 
+    // 扫描 Delta，抓取其中第一张含有 "image" 属性的 Cloudinary 链接
     String? firstImage;
     for (var op in delta.toList()) {
       if (op.isInsert && op.data is Map) {
@@ -530,12 +530,13 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
       content: jsonContent,
       plainText: plainText,
       tags: _parseTags(_quillTagsController.text),
-      category: _quillCategory,
-      thumbnail: firstImage ?? '',
+      category: _quillCategory, // 用户选中的专业领域分类
+      thumbnail: firstImage ?? '', // 如果没有插图，传空字符串
       status: _quillStatus,
     );
   }
 
+  // 3. 📂 poll（学术/日常投票）参数构建
   Future<void> _submitPoll() async {
     if (_pollQuestionController.text.isEmpty) {
       Fluttertoast.showToast(msg: "请填写投票主题");
@@ -553,16 +554,17 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     }
     _submitPost(
       postType: 'poll',
-      title: _pollQuestionController.text,
-      content: "请参与投票：${_pollQuestionController.text}",
+      title: _pollQuestionController.text, // 用户书写的投票议题作为 title
+      content: "请参与投票：${_pollQuestionController.text}", // 固定拼装提示文本
       plainText: "请参与投票：${_pollQuestionController.text}",
-      pollQuestion: _pollQuestionController.text,
-      pollOptions: options,
-      category: 'news',
+      pollQuestion: _pollQuestionController.text, // poll_question 与 title 一致
+      pollOptions: options, // 选项数组
+      category: 'news', // 固定归类为 "news"
       status: _pollStatus,
     );
   }
 
+  // 2. 📂 short_post（图文说说）参数构建
   Future<void> _submitShort() async {
     if (_shortContentController.text.isEmpty && _shortImages.isEmpty) {
       Fluttertoast.showToast(msg: "说点什么或者添加图片吧...");
@@ -570,13 +572,14 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     }
     _submitPost(
       postType: 'short_post',
-      content: _shortContentController.text,
+      title: '', // 说说无标题框，固定传空字符串 ""
+      content: _shortContentController.text, // 说说正文内容
       plainText: _shortContentController.text,
       tags: _parseTags(_shortTagsController.text),
-      category: 'general',
+      category: 'general', // 固定归类为 "general"
       status: _shortStatus,
-      thumbnail: _shortImages.isNotEmpty ? _shortImages.first : '',
-      images: _shortImages,
+      thumbnail: _shortImages.isNotEmpty ? _shortImages.first : '', // 如果 images 不为空，抓取 images[0] 作为缩略图
+      images: _shortImages, // 高清大图 URL 数组
     );
   }
 
@@ -1002,68 +1005,68 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
               children: [
                 // 1. 使用 Expanded 让滚动区域占据剩余空间，保持右侧状态按钮固定
                 if (_activeFormIndex == 0)
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(), // 增加横向滚动的物理回弹效果
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedHashtag, color: Color(0xFF9CA3AF), size: 22.0),
-                          onPressed: () {
-                            if (_activeFormIndex == 0) {
-                              _quillController.replaceText(_quillController.selection.baseOffset, 0, '#', null);
-                            } else if (_activeFormIndex == 2) {
-                              _shortContentController.text += '#';
-                            }
-                          },
-                        ),
-                        IconButton(
-                          icon: HugeIcon(
-                            icon: HugeIcons.strokeRoundedSquareArrowMoveDownLeft,
-                            color: const Color(0xFF9CA3AF),
-                            size: 22,
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(), // 增加横向滚动的物理回弹效果
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedHashtag, color: Color(0xFF9CA3AF), size: 22.0),
+                            onPressed: () {
+                              if (_activeFormIndex == 0) {
+                                _quillController.replaceText(_quillController.selection.baseOffset, 0, '#', null);
+                              } else if (_activeFormIndex == 2) {
+                                _shortContentController.text += '#';
+                              }
+                            },
                           ),
-                          onPressed: () {
-                            if (_activeFormIndex == 0) {
-                              final index = _quillController.selection.baseOffset;
-                              _quillController.replaceText(index, 0, '\n', null);
-                              _quillController.updateSelection(
-                                TextSelection.collapsed(offset: index + 1),
-                                quill.ChangeSource.local,
-                              );
-                            } else if (_activeFormIndex == 2) {
-                              _shortContentController.text += '\n';
-                            }
-                          },
-                        ),
-                        IconButton(
-                          icon: HugeIcon(
-                            icon: HugeIcons.strokeRoundedCancelCircle,
-                            color: const Color(0xFF9CA3AF),
-                            size: 22,
+                          IconButton(
+                            icon: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedSquareArrowMoveDownLeft,
+                              color: Color(0xFF9CA3AF),
+                              size: 22,
+                            ),
+                            onPressed: () {
+                              if (_activeFormIndex == 0) {
+                                final index = _quillController.selection.baseOffset;
+                                _quillController.replaceText(index, 0, '\n', null);
+                                _quillController.updateSelection(
+                                  TextSelection.collapsed(offset: index + 1),
+                                  quill.ChangeSource.local,
+                                );
+                              } else if (_activeFormIndex == 2) {
+                                _shortContentController.text += '\n';
+                              }
+                            },
                           ),
-                          onPressed: () {
-                            FocusScope.of(context).unfocus();
-                            _editorFocusNode.unfocus();
-                          },
-                        ),
-                        IconButton(
-                          icon: HugeIcon(icon: HugeIcons.strokeRoundedChatQuestion, color: const Color(0xFF9CA3AF), size: 22.0),
-                          onPressed: () => setState(() => _activeFormIndex = 1),
-                        ),
-                        IconButton(
-                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedInLove, color: Color(0xFF9CA3AF), size: 22.0),
-                          onPressed: _openEmojiPicker,
-                        ),
-                        IconButton(
-                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedMenuSquare, color: Color(0xFF9CA3AF), size: 22.0),
-                          onPressed: _showStatusSelector,
-                        ),
-                      ],
+                          IconButton(
+                            icon: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedCancelCircle,
+                              color: Color(0xFF9CA3AF),
+                              size: 22,
+                            ),
+                            onPressed: () {
+                              FocusScope.of(context).unfocus();
+                              _editorFocusNode.unfocus();
+                            },
+                          ),
+                          IconButton(
+                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedChatQuestion, color: Color(0xFF9CA3AF), size: 22.0),
+                            onPressed: () => setState(() => _activeFormIndex = 1),
+                          ),
+                          IconButton(
+                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedInLove, color: Color(0xFF9CA3AF), size: 22.0),
+                            onPressed: _openEmojiPicker,
+                          ),
+                          IconButton(
+                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedMenuSquare, color: Color(0xFF9CA3AF), size: 22.0),
+                            onPressed: _showStatusSelector,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 if (_activeFormIndex == 0) ...[const SizedBox(width: 8), // 2. 替换掉原本的 Spacer，用固定间距隔开左右两边
                   GestureDetector(
                     onTap: _showStatusSelector,
@@ -1129,7 +1132,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
 
   Widget _buildPillButton({
     required int index,
-    required List<List<dynamic>> icon,
+    required dynamic icon, // 使用 dynamic 保持与不同版本 HugeIcons 传参类型的最高兼容度
     required String text,
     required Color bgColor,
     required Color textColor,

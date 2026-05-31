@@ -319,7 +319,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                             Text(
                               "删除",
                               style: TextStyle(
-                                color: Colors.white,
+                                color: Colors.black,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                               ),
