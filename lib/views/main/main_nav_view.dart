@@ -6,6 +6,7 @@ import '../../user_controller.dart';
 import '../home/home_view.dart';
 import '../login/login_view.dart';
 import '../profile/profile_view.dart';
+import '../shop/shop_view.dart'; // 🌟 引入新商店页面
 
 class MainNavView extends StatefulWidget {
   const MainNavView({super.key});
@@ -18,12 +19,13 @@ class _MainNavViewState extends State<MainNavView> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = [
-    const HomeView(), // 容纳 For You && Featured 双流混合式帖子主页列表
-    const ProfileView(), // 仅登录可见，或显示指定 profile_id 个人主页
+    const HomeView(), // 首页列表
+    const ShopView(), // 🌟 细节精美交互舒爽的商店页面
+    const ProfileView(), // 个人主页
   ];
 
   void _onTap(int index) {
-    if (index == 1) {
+    if (index == 2) { // 将"我的"检查迁移至索引 2
       if (!UserController.to.isLoggedIn) {
         Get.to(
               () => const LoginView(),
@@ -72,20 +74,31 @@ class _MainNavViewState extends State<MainNavView> {
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedHome01,
-                color: Colors.grey,
+                color: Colors.grey.shade400,
               ),
-              activeIcon: HugeIcon(
+              activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedHome01,
-                color: const Color.fromRGBO(44, 123, 109, 1.0),
+                color: Color.fromRGBO(44, 123, 109, 1.0),
               ),
               label: '首页',
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedUser,
-                color: Colors.grey,
+                icon: HugeIcons.strokeRoundedShoppingBag01, // 🌟 使用精美商店图标
+                color: Colors.grey.shade400,
               ),
               activeIcon: HugeIcon(
+                icon: HugeIcons.strokeRoundedShoppingBag01,
+                color: const Color.fromRGBO(44, 123, 109, 1.0),
+              ),
+              label: '商店',
+            ),
+            BottomNavigationBarItem(
+              icon: HugeIcon(
+                icon: HugeIcons.strokeRoundedUser,
+                color: Colors.grey.shade400,
+              ),
+              activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedUser,
                 color: Color.fromRGBO(44, 123, 109, 1.0),
               ),
