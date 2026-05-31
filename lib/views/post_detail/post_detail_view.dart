@@ -39,6 +39,10 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
   int likeCount = 0;
   bool isCollected = false;
 
+  // 🌟 新增定义：付费状态与购买状态
+  bool isPaid = false;
+  bool isPurchased = false;
+
   // 翻译响应状态
   bool isTranslating = false;
   bool isShowingTranslation = false;
@@ -100,6 +104,10 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           likeCount = (postData['likes'] as List?)?.length ?? 0;
           isCollected = postData['is_collected'] ?? false;
           isLiked = postData['is_liked'] ?? false;
+
+          // 🌟 追加读取文章详情返回的付费/购买属性
+          isPaid = postData['is_paid'] ?? false;
+          isPurchased = postData['is_purchased'] ?? false;
         });
         _loadQuillContent(postData);
       }
@@ -835,6 +843,96 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     }
   }
 
+
+
+  /// 🌟 绘制 Medium 级别高质感文本渐隐模糊遮罩 [1]
+  Widget _buildPaidContentBlurPreview(BuildContext context, String previewText, Color themeColor) {
+    return Stack(
+      children: [
+        // 1. 被限制高度的 50 字精简文字快照
+        Container(
+          width: double.infinity,
+          height: 180,
+          padding: const EdgeInsets.only(bottom: 30),
+          child: Text(
+            previewText,
+            style: const TextStyle(
+              fontSize: 17.0,
+              color: Colors.black87,
+              height: 1.6,
+              fontFamily: 'ShantellSans',
+            ),
+          ),
+        ),
+        // 2. 渐变模糊遮罩（从完全透明平滑过渡到纯白底色）
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 140,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.0),
+                  Colors.white.withOpacity(0.85),
+                  Colors.white,
+                ],
+              ),
+            ),
+          ),
+        ),
+        // 3. 悬浮的去商店解锁引导动作按钮面板
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const HugeIcon(
+                  icon: HugeIcons.strokeRoundedLockPassword,
+                  color: Color.fromRGBO(44, 123, 109, 1.0),
+                  size: 26.0,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "本篇为优质付费内容，阅读全文请前往商店解锁",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // 🌟 吐司提示去商店购买
+                    Fluttertoast.showToast(msg: "请前往系统商店购买该文章以解锁全文");
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: themeColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                  icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 16),
+                  label: const Text(
+                    "去商店购买",
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTranslateButton() {
     if (isTranslating) {
       return const SizedBox(
@@ -1019,7 +1117,10 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                     const SizedBox(height: 16),
                     if (_post!['poll'] != null) _buildPollSection(themeColor),
                   ] else ...[
-                    if (_quillController != null)
+                    // 🌟 统一下单付费拦截：如果属于付费文章且未购（且非作者本人），展示 Medium 渐变遮罩
+                    if (isPaid && !isPurchased && !isMe)
+                      _buildPaidContentBlurPreview(context, _post!['content_min'] ?? '', themeColor)
+                    else if (_quillController != null)
                       AnimatedOpacity(
                         duration: const Duration(milliseconds: 300),
                         opacity: isTranslating ? 0.3 : 1.0,

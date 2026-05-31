@@ -26,6 +26,10 @@ class PublishView extends StatefulWidget {
 class _PublishViewState extends State<PublishView> with SingleTickerProviderStateMixin {
   int _activeFormIndex = 2; // 0: 深度文章, 1: 投票发布, 2: 图文说说 (默认聚焦于图文说说写想法)
 
+
+  // 🌟 追加：Quill 深度文章特有的付费价格控制器
+  final TextEditingController _quillPriceController = TextEditingController();
+
   // Quill 深度文章表单
   final TextEditingController _quillTitleController = TextEditingController();
   final quill.QuillController _quillController = quill.QuillController.basic();
@@ -524,6 +528,16 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
       }
     }
 
+    // 🌟 自动格式化机制：提交时强制限制合法范围并自动保留两位小数点
+    final priceRaw = _quillPriceController.text.trim();
+    double priceValue = 0.0;
+    if (priceRaw.isNotEmpty) {
+      priceValue = double.tryParse(priceRaw) ?? 0.0;
+      if (priceValue > 50.0) priceValue = 50.0;
+      if (priceValue < 0.0) priceValue = 0.0;
+    }
+    final formattedPrice = priceValue.toStringAsFixed(2);
+
     _submitPost(
       postType: 'quill',
       title: _quillTitleController.text.trim(),
@@ -533,6 +547,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
       category: _quillCategory, // 用户选中的专业领域分类
       thumbnail: firstImage ?? '', // 如果没有插图，传空字符串
       status: _quillStatus,
+      price: formattedPrice, // 🌟 传入文章付费价格参数
     );
   }
 
@@ -600,6 +615,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     String? pollQuestion,
     List<String>? pollOptions,
     List<String>? images,
+    String? price, // 🌟 新增支持价格
   }) async {
     setState(() => _isPublishing = true);
     try {
@@ -615,6 +631,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
         if (pollQuestion != null) 'poll_question': pollQuestion,
         if (pollOptions != null) 'poll_options': pollOptions,
         if (images != null) 'images': images,
+        if (price != null && price.isNotEmpty) 'price': price, // 🌟 仅在价格非空时提交
       };
 
       final res = await HttpClient.instance.post('/api-posts', data: body);
@@ -776,6 +793,45 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                   decoration: InputDecoration(
                     hintText: "添加检索标签 (以英文逗号分割，如: tech, ai)",
                     hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ),
+              // 🌟 新增：付费阅读价格输入（仅在深度文章表单中展示，带限制与自动纠偏机制）
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                child: TextField(
+                  controller: _quillPriceController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')), // 限制只能输入数字且最多两位小数
+                  ],
+                  style: const TextStyle(fontSize: 14),
+                  onChanged: (value) {
+                    if (value.isEmpty) return;
+                    final double? parsed = double.tryParse(value);
+                    if (parsed != null) {
+                      if (parsed > 50.0) {
+                        _quillPriceController.text = "50.00";
+                        // 保持光标定位在文本最后一位
+                        _quillPriceController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: _quillPriceController.text.length),
+                        );
+                        Fluttertoast.showToast(msg: "付费价格最大限制为 50.00 元");
+                      } else if (parsed < 0.0) {
+                        _quillPriceController.text = "0.00";
+                        _quillPriceController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: _quillPriceController.text.length),
+                        );
+                      }
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: "设置付费阅读价格 (最大 50.00 元，留空或 0 代表免费)",
+                    hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                    prefixIcon: const Icon(Icons.attach_money_rounded, color: Color(0xFF0066FF), size: 18),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

@@ -692,7 +692,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     }
 
     return RefreshIndicator(
-      onRefresh: () => _loadCategoryData(categoryCode),
+      onRefresh: _loadAllShopData,
       color: primaryColor,
       child: GridView.builder(
         controller: scrollController,
@@ -713,6 +713,9 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
           final item = goods[index];
           final price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
           final category = item['category']?.toString() ?? 'virtual';
+
+          // 🌟 读取后端同步重组装回来的帖子封面/商品大图 URL
+          final imageUrl = item['image_url']?.toString() ?? '';
 
           return Container(
             decoration: BoxDecoration(
@@ -740,31 +743,52 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                         topRight: Radius.circular(20),
                       ),
                     ),
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: HugeIcon(
-                            icon: _getCategoryIcon(category),
-                            color: primaryColor.withOpacity(0.8),
-                            size: 48,
-                          ),
-                        ),
-                        Positioned(
-                          left: 12,
-                          top: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(8),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand, // 使大图完美平铺铺满卡片顶部
+                        children: [
+                          // 🌟 核心美化升级：若该付费帖子或常规商品在云端含有真实大图封面，优先渲染封面，实现小红书/美学商店级别的高级质感；无图则无缝降级展示大类默认小图标
+                          if (imageUrl.isNotEmpty)
+                            Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, e, s) => Center(
+                                child: HugeIcon(
+                                  icon: _getCategoryIcon(category),
+                                  color: primaryColor.withOpacity(0.8),
+                                  size: 48,
+                                ),
+                              ),
+                            )
+                          else
+                            Center(
+                              child: HugeIcon(
+                                icon: _getCategoryIcon(category),
+                                color: primaryColor.withOpacity(0.8),
+                                size: 48,
+                              ),
                             ),
-                            child: Text(
-                              item['tag']?.toString() ?? '热卖',
-                              style: TextStyle(color: primaryColor, fontSize: 9, fontWeight: FontWeight.bold),
+                          Positioned(
+                            left: 12,
+                            top: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                item['tag']?.toString() ?? '热卖',
+                                style: TextStyle(color: primaryColor, fontSize: 9, fontWeight: FontWeight.bold),
+                              ),
                             ),
-                          ),
-                        )
-                      ],
+                          )
+                        ],
+                      ),
                     ),
                   ),
                 ),
