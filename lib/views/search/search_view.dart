@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🌟 引入共享首选项用于本地游客数据持久化
 import '../../network/http_client.dart';
+import '../../user_controller.dart'; // 🌟 引入用户状态管理器
 import '../post_detail/post_detail_view.dart';
 
 class SearchView extends StatefulWidget {
@@ -16,9 +18,14 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
+  // 动画控制器，用于舒适的页面初始化入场动效
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+
   List<dynamic> _searchResults = [];
-  List<String> _searchHistory = ["学术", "说说", "投票", "设计", "青橙"];
-  final List<String> _trendingTags = ["news", "general", "aviation", "technology", "business"];
+  List<String> _searchHistory = [];
+  final List<String> _trendingTags = [];
 
   bool _isSearching = false;
   bool _hasSearched = false;
@@ -26,24 +33,140 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+
+    // 初始化入场精细物理微动作动画
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0.0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutQuart,
+    ));
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeIn,
+    );
+
+    // 监听输入框焦点变动，实时驱动微动效边框与柔和微光阴影
+    _focusNode.addListener(() {
+      setState(() {});
+    });
+
+    _loadSearchTrends();
+
     // 自动聚焦搜索框以提供更舒适的入场微动作
     Future.delayed(const Duration(milliseconds: 200), () {
-      _focusNode.requestFocus();
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
     });
+
+    // 启动动画入场
+    _animationController.forward();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _focusNode.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
-  // 🌟 执行搜索并与后端对齐强检索约束逻辑
-  Future<void> _performSearch(String keyword) async {
-    if (keyword.trim().isEmpty) return;
+  // 自适应加载历史搜索：用户走网络云同步，游客走本地磁盘持久化
+  Future<void> _loadSearchTrends() async {
+    final bool isLoggedIn = UserController.to.isLoggedIn;
 
-    _searchController.text = keyword;
+    if (isLoggedIn) {
+      try {
+        final res = await HttpClient.instance.get<Map<String, dynamic>>(
+          '/api-posts/search-trends',
+        );
+        if (res.datas != null) {
+          final List<dynamic> history = res.datas!['search_history'] as List? ?? [];
+          final List<dynamic> trends = res.datas!['trending_tags'] as List? ?? [];
+          setState(() {
+            _searchHistory = history.cast<String>();
+            _trendingTags.clear();
+            _trendingTags.addAll(trends.cast<String>());
+          });
+          return;
+        }
+      } catch (e) {
+        // 网络请求故障，安全降级到本地加载
+      }
+    }
+
+    // 游客模式或网络故障：读取本地设备磁盘数据
+    await _loadLocalHistory();
+  }
+
+  // 游客模式加载设备本地历史记录
+  Future<void> _loadLocalHistory() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String>? localHistory = prefs.getStringList('guest_search_history');
+      setState(() {
+        _searchHistory = localHistory ?? ["学术", "说说", "投票", "设计", "青橙"];
+      });
+    } catch (_) {
+      setState(() {
+        _searchHistory = ["学术", "说说", "投票", "设计", "青橙"];
+      });
+    }
+  }
+
+  // 游客模式写入/重排本地历史数据
+  Future<void> _saveLocalHistory(String keyword) async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      // 先移出已有重合，重新压入首部实现 LRU 时效重拍
+      _searchHistory.remove(keyword);
+      _searchHistory.insert(0, keyword);
+      if (_searchHistory.length > 8) {
+        _searchHistory.removeLast();
+      }
+
+      await prefs.setStringList('guest_search_history', _searchHistory);
+      setState(() {});
+    } catch (_) {}
+  }
+
+  // 🌟 清空搜索历史（自适应处理）
+  Future<void> _clearHistory() async {
+    setState(() {
+      _searchHistory.clear();
+    });
+
+    final bool isLoggedIn = UserController.to.isLoggedIn;
+    if (!isLoggedIn) {
+      try {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.remove('guest_search_history');
+      } catch (_) {}
+    } else {
+      // 🌟 登录用户：发起 DELETE 请求，清除云端的搜索历史记录
+      try {
+        await HttpClient.instance.delete(
+          '/api-posts/search-trends',
+        );
+      } catch (_) {
+        // 容错捕获
+      }
+    }
+  }
+
+  // 执行搜索并与后端对齐强检索约束逻辑
+  Future<void> _performSearch(String keyword) async {
+    final trimmed = keyword.trim();
+    if (trimmed.isEmpty) return;
+
+    _searchController.text = trimmed;
     _focusNode.unfocus();
 
     setState(() {
@@ -51,21 +174,27 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
       _hasSearched = true;
     });
 
-    // 记录到历史搜索记录
-    if (!_searchHistory.contains(keyword)) {
-      setState(() {
-        _searchHistory.insert(0, keyword);
-        if (_searchHistory.length > 8) {
-          _searchHistory.removeLast();
-        }
-      });
+    final bool isLoggedIn = UserController.to.isLoggedIn;
+    if (isLoggedIn) {
+      // 登录用户：更新内存历史（后端会在请求 api-posts 自动完成云同步记录）
+      if (!_searchHistory.contains(trimmed)) {
+        setState(() {
+          _searchHistory.insert(0, trimmed);
+          if (_searchHistory.length > 8) {
+            _searchHistory.removeLast();
+          }
+        });
+      }
+    } else {
+      // 游客用户：调用 SharedPreferences 本地落盘
+      await _saveLocalHistory(trimmed);
     }
 
     try {
       final res = await HttpClient.instance.get<Map<String, dynamic>>(
         '/api-posts',
         queryParameters: {
-          'keyword': keyword,
+          'keyword': trimmed,
           'page': 1,
           'pageSize': 50, // 约束搜集下尽可能全量拉取
         },
@@ -121,42 +250,93 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                 ),
               ),
               Expanded(
-                child: Container(
-                  height: 40,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: 46, // 稍微拉高高度，视觉上更显宽松舒适
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade100, width: 0.8),
+                    color: _focusNode.hasFocus ? Colors.white : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(23), // 完美的圆角胶囊造型
+                    border: Border.all(
+                      color: _focusNode.hasFocus ? themeColor : Colors.grey.shade200,
+                      width: _focusNode.hasFocus ? 1.5 : 1.0,
+                    ),
+                    boxShadow: [
+                      if (_focusNode.hasFocus)
+                        BoxShadow(
+                          color: themeColor.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        )
+                    ],
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const SizedBox(width: 12),
-                      Icon(Icons.search, size: 18, color: Colors.grey.shade400),
-                      const SizedBox(width: 8),
+                      // 左侧搜索图标
+                      const SizedBox(width: 14),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedSearch01, // 与返回按钮风格统一的线性图标
+                        color: _focusNode.hasFocus ? themeColor : Colors.grey.shade400,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+
+                      // 中间输入框区域
                       Expanded(
                         child: TextField(
                           controller: _searchController,
                           focusNode: _focusNode,
                           onSubmitted: _performSearch,
                           textInputAction: TextInputAction.search,
+                          textAlign: TextAlign.start, // 🌟 完美对齐：确保输入文本、Hint 及光标指示全靠左对齐 [1]
                           style: const TextStyle(fontSize: 14, color: Colors.black87),
                           decoration: InputDecoration(
-                            hintText: "搜索你感兴趣的内容...",
-                            hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                            hintText: "搜索感兴趣的高能知识与说说...",
+                            hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
                             border: InputBorder.none,
                             isDense: true,
                             contentPadding: EdgeInsets.zero,
                           ),
                         ),
                       ),
-                      if (_searchController.text.isNotEmpty)
-                        GestureDetector(
-                          onTap: _clearSearch,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Icon(Icons.cancel, size: 16, color: Colors.grey.shade400),
-                          ),
-                        ),
+
+                      // 右侧清空按钮 (同样固定占宽 42，与左侧对称，确保 TextField 始终处于精确几何中心)
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _searchController,
+                        builder: (context, value, child) {
+                          final hasText = value.text.isNotEmpty;
+                          return SizedBox(
+                            width: 42,
+                            child: Center(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 150),
+                                transitionBuilder: (child, animation) {
+                                  return ScaleTransition(scale: animation, child: child);
+                                },
+                                child: hasText
+                                    ? GestureDetector(
+                                  key: const ValueKey('clearButton'),
+                                  onTap: _clearSearch,
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.close_rounded,
+                                      size: 13,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                )
+                                    : const SizedBox.shrink(key: ValueKey('emptyPlaceholder')),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -188,8 +368,8 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.search_off_outlined, size: 56, color: Colors.grey.shade200),
-              const SizedBox(height: 12),
+              Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade200),
+              const SizedBox(height: 14),
               Text(
                 "没有搜到匹配的结果，换个词试试吧",
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
@@ -210,82 +390,94 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
       );
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 搜索历史
-          if (_searchHistory.isNotEmpty) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "搜索历史",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+    // 🌟 采用呼吸感淡入与缓升（Slide & Fade）效果进行舒适入场包装
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 搜索历史
+              if (_searchHistory.isNotEmpty) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "最近搜索",
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    GestureDetector(
+                      onTap: _clearHistory,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Text(
+                          "清空",
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade400, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _searchHistory.clear();
-                    });
-                  },
-                  child: Text(
-                    "清除历史",
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                  ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: _searchHistory.map((history) {
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _performSearch(history),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade100, width: 0.8),
+                          ),
+                          child: Text(
+                            history,
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
+                const SizedBox(height: 32),
               ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _searchHistory.map((history) {
-                return GestureDetector(
-                  onTap: () => _performSearch(history),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: Colors.grey.shade100, width: 0.8),
-                    ),
-                    child: Text(
-                      history,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 28),
-          ],
 
-          // 热门探索
-          const Text(
-            "热门推荐分类",
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+              // 热门探索
+              const Text(
+                "热门推荐分类",
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: _trendingTags.map((tag) {
+                  return ActionChip(
+                    onPressed: () => _performSearch(tag),
+                    label: Text(
+                      tag.toUpperCase(),
+                      style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold),
+                    ),
+                    backgroundColor: themeColor.withOpacity(0.06),
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
+                    pressElevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  );
+                }).toList(),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _trendingTags.map((tag) {
-              return ActionChip(
-                onPressed: () => _performSearch(tag),
-                label: Text(
-                  tag.toUpperCase(),
-                  style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold),
-                ),
-                backgroundColor: themeColor.withOpacity(0.06),
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-              );
-            }).toList(),
-          ),
-        ],
+        ),
       ),
     );
   }
