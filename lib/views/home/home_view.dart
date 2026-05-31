@@ -6,6 +6,7 @@ import '../../network/http_client.dart';
 import '../../user_controller.dart';
 import '../post_detail/post_detail_view.dart';
 import '../publish/publish_view.dart';
+import '../search/search_view.dart'; // 🌟 引入新设计的搜索页面
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -40,6 +41,10 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
   bool _isLoadingMoreForYou = false;
   bool _isLoadingMoreFeatured = false;
+
+  // 🌟 核心增强：实时过滤筛选器状态
+  String? _selectedTag;
+  String? _selectedCategory;
 
   @override
   void initState() {
@@ -97,13 +102,23 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
       _hasMoreForYou = true;
     }
     try {
+      final Map<String, dynamic> queryParams = {
+        'feed_type': 'for_you',
+        'page': _forYouPage,
+        'pageSize': _pageSize,
+      };
+
+      // 🌟 深度适配后端多路召回：若有激活的局部过滤标签，无感并入请求参数
+      if (_selectedTag != null && _selectedTag!.isNotEmpty) {
+        queryParams['tag'] = _selectedTag;
+      }
+      if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+        queryParams['category'] = _selectedCategory;
+      }
+
       final res = await HttpClient.instance.get<Map<String, dynamic>>(
         '/api-posts',
-        queryParameters: {
-          'feed_type': 'for_you',
-          'page': _forYouPage,
-          'pageSize': _pageSize,
-        },
+        queryParameters: queryParams,
       );
       if (res.datas != null) {
         final List<dynamic> newPosts = res.datas!['posts'] as List? ?? [];
@@ -148,13 +163,22 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
       _hasMoreFeatured = true;
     }
     try {
+      final Map<String, dynamic> queryParams = {
+        'feed_type': 'featured',
+        'page': _featuredPage,
+        'pageSize': _pageSize,
+      };
+
+      if (_selectedTag != null && _selectedTag!.isNotEmpty) {
+        queryParams['tag'] = _selectedTag;
+      }
+      if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+        queryParams['category'] = _selectedCategory;
+      }
+
       final res = await HttpClient.instance.get<Map<String, dynamic>>(
         '/api-posts',
-        queryParameters: {
-          'feed_type': 'featured',
-          'page': _featuredPage,
-          'pageSize': _pageSize,
-        },
+        queryParameters: queryParams,
       );
       if (res.datas != null) {
         final List<dynamic> newPosts = res.datas!['posts'] as List? ?? [];
@@ -189,38 +213,26 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     await _fetchFeatured(isRefresh: false);
   }
 
-  // 搜索处理
-  void _onSearch(String keyword) async {
-    if (keyword.isEmpty) {
-      _loadFeeds();
-      return;
-    }
+  // 🌟 静默重置所有局部筛选，恢复全量漏斗推荐流
+  void _clearActiveFilters() {
     setState(() {
+      _selectedTag = null;
+      _selectedCategory = null;
       _isLoadingForYou = true;
       _isLoadingFeatured = true;
-      _hasMoreForYou = false;
-      _hasMoreFeatured = false;
     });
-    try {
-      final res = await HttpClient.instance.get<Map<String, dynamic>>(
-        '/api-posts',
-        queryParameters: {'keyword': keyword, 'page': 1, 'pageSize': 50},
-      );
-      if (res.datas != null) {
-        final searchPosts = res.datas!['posts'] as List? ?? [];
-        setState(() {
-          _forYouPosts = List.from(searchPosts);
-          _featuredPosts = List.from(searchPosts);
-          _isLoadingForYou = false;
-          _isLoadingFeatured = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _isLoadingForYou = false;
-        _isLoadingFeatured = false;
-      });
-    }
+    _loadFeeds();
+  }
+
+  // 🌟 点击标签实现的主页即时内页过滤
+  void _onTagSelected(String tag) {
+    setState(() {
+      _selectedTag = tag;
+      _selectedCategory = null; // 清除分类筛选
+      _isLoadingForYou = true;
+      _isLoadingFeatured = true;
+    });
+    _loadFeeds();
   }
 
   @override
@@ -242,6 +254,14 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
           ),
         ),
         actions: [
+          // 🌟 核心设计：美观温润的搜索入口
+          IconButton(
+            onPressed: () => Get.to(() => const SearchView()),
+            icon: const HugeIcon(
+              icon: HugeIcons.strokeRoundedSearch01,
+              color: Color.fromRGBO(44, 123, 109, 1.0),
+            ),
+          ),
           Obx(() {
             // 如果没有登录，则返回一个空占位组件，隐藏按钮
             if (!UserController.to.isLoggedIn) {
@@ -280,24 +300,79 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
           ),
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildPostList(
-            posts: _forYouPosts,
-            isLoading: _isLoadingForYou,
-            isForYou: true,
-            scrollController: _forYouScrollController,
-            hasMore: _hasMoreForYou,
-            isLoadingMore: _isLoadingMoreForYou,
+          // 🌟 核心设计：美观舒展的当前过滤条件展示横幅 (支持动画切入)
+          AnimatedCrossFade(
+            firstChild: _buildActiveFilterBanner(),
+            secondChild: const SizedBox.shrink(),
+            crossFadeState: (_selectedTag != null || _selectedCategory != null)
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            duration: const Duration(milliseconds: 300),
           ),
-          _buildPostList(
-            posts: _featuredPosts,
-            isLoading: _isLoadingFeatured,
-            isForYou: false,
-            scrollController: _featuredScrollController,
-            hasMore: _hasMoreFeatured,
-            isLoadingMore: _isLoadingMoreFeatured,
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildPostList(
+                  posts: _forYouPosts,
+                  isLoading: _isLoadingForYou,
+                  isForYou: true,
+                  scrollController: _forYouScrollController,
+                  hasMore: _hasMoreForYou,
+                  isLoadingMore: _isLoadingMoreForYou,
+                ),
+                _buildPostList(
+                  posts: _featuredPosts,
+                  isLoading: _isLoadingFeatured,
+                  isForYou: false,
+                  scrollController: _featuredScrollController,
+                  hasMore: _hasMoreFeatured,
+                  isLoadingMore: _isLoadingMoreFeatured,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🌟 过滤状态提示横幅组件
+  Widget _buildActiveFilterBanner() {
+    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: themeColor.withOpacity(0.06),
+      child: Row(
+        children: [
+          Icon(Icons.filter_alt_outlined, size: 16, color: themeColor),
+          const SizedBox(width: 8),
+          Text(
+            _selectedTag != null ? "当前筛选标签: #$_selectedTag" : "当前分类: $_selectedCategory",
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: themeColor),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: _clearActiveFilters,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: themeColor.withOpacity(0.3), width: 0.8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text("清除", style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 2),
+                  Icon(Icons.close, size: 10, color: themeColor),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -313,6 +388,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     required bool hasMore,
     required bool isLoadingMore,
   }) {
+    // 🌟 状态动效过渡：平滑展示加载占位
     if (isLoading) {
       return const Center(
         child: CircularProgressIndicator(
@@ -323,7 +399,14 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     }
     if (posts.isEmpty) {
       return Center(
-        child: Text("暂无内容，快去发布吧", style: TextStyle(color: Colors.grey.shade400)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.article_outlined, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 12),
+            Text("暂无相关内容，换个标签试试吧", style: TextStyle(color: Colors.grey.shade400)),
+          ],
+        ),
       );
     }
 
@@ -406,12 +489,21 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         itemCount: _recommendedTags.length,
         itemBuilder: (context, index) {
           final tag = _recommendedTags[index];
+          final isSelected = _selectedTag == tag;
+          final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ActionChip(
-              onPressed: () => _onSearch(tag),
-              label: Text("#$tag", style: const TextStyle(fontSize: 12, color: Color.fromRGBO(44, 123, 109, 1.0), fontWeight: FontWeight.bold)),
-              backgroundColor: const Color.fromRGBO(44, 123, 109, 0.05),
+              onPressed: () => _onTagSelected(tag),
+              label: Text(
+                "#$tag",
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isSelected ? Colors.white : themeColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              backgroundColor: isSelected ? themeColor : themeColor.withOpacity(0.05),
               elevation: 0,
               padding: EdgeInsets.zero,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -496,19 +588,30 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       const Spacer(),
 
                       // 专业学科方向指示小标签
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: themeColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          category.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: themeColor,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedCategory = category;
+                            _selectedTag = null; // 清除标签筛选
+                            _isLoadingForYou = true;
+                            _isLoadingFeatured = true;
+                          });
+                          _loadFeeds();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: themeColor.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            category.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: themeColor,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                       ),
