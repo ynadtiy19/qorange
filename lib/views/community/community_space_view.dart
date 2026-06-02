@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import '../../user_controller.dart';
 import 'community_model.dart';
 import 'community_space_controller.dart';
 import '../post_detail/post_detail_view.dart';
@@ -18,11 +21,17 @@ class CommunitySpaceView extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Obx(() => Text(controller.community.value?.name ?? '社群加载中', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87))),
+        title: Obx(() => Text(
+          controller.community.value?.name ?? '社群加载中',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+        )),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(onPressed: () => Get.back(), icon: const Icon(Icons.arrow_back, color: Colors.black)),
+        leading: IconButton(
+          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+        ),
       ),
       body: Obx(() {
         if (controller.isLoadingDetails.value) {
@@ -56,7 +65,7 @@ class CommunitySpaceView extends StatelessWidget {
               child: TabBarView(
                 controller: controller.tabController,
                 children: [
-                  // Tab 1: 讨论大厅（内置付费防火墙拦截）
+                  // Tab 1: 讨论大厅（内置付费防火墙拦截、高维卡片、置顶管控）
                   _buildDiscussionsTab(context, controller, themeColor),
 
                   // Tab 2: 关于详情大卡
@@ -65,6 +74,25 @@ class CommunitySpaceView extends StatelessWidget {
               ),
             )
           ],
+        );
+      }),
+      // 🌟 核心设计：仅在拥有群组权限且当前 Tab 为讨论大厅时才显示发帖 FloatingActionButton
+      floatingActionButton: Obx(() {
+        final hasPermission = controller.hasPostsPermission.value;
+        final isDetailLoading = controller.isLoadingDetails.value;
+
+        if (isDetailLoading || !hasPermission) return const SizedBox.shrink();
+
+        return FloatingActionButton(
+          onPressed: () => _showPublishInSpaceSheet(context, controller, themeColor),
+          backgroundColor: themeColor,
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: const HugeIcon(
+            icon: HugeIcons.strokeRoundedQuillWrite02,
+            color: Colors.white,
+            size: 24.0,
+          ),
         );
       }),
     );
@@ -85,7 +113,7 @@ class CommunitySpaceView extends StatelessWidget {
 
   Widget _buildDiscussionsTab(BuildContext context, CommunitySpaceController controller, Color themeColor) {
     return Obx(() {
-      // 🌟🌟 付费防火墙被拦截：展示高档玻璃质感锁定 Paywall [2]
+      // 付费防火墙被拦截：展示高档玻璃质感锁定 Paywall
       if (!controller.hasPostsPermission.value) {
         final space = controller.community.value!;
         return Container(
@@ -99,7 +127,7 @@ class CommunitySpaceView extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(color: themeColor.withOpacity(0.08), shape: BoxShape.circle),
                   child: HugeIcon(
-                    icon: HugeIcons.strokeRoundedLockPassword, // 大挂锁安全指示
+                    icon: HugeIcons.strokeRoundedLockPassword,
                     color: themeColor,
                     size: 40,
                   ),
@@ -142,50 +170,147 @@ class CommunitySpaceView extends StatelessWidget {
       }
 
       if (controller.posts.isEmpty) {
-        return const Center(child: Text('当前群组内暂无学者发贴'));
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              HugeIcon(icon: HugeIcons.strokeRoundedMessage01, color: Colors.grey.shade300, size: 48),
+              const SizedBox(height: 12),
+              const Text('当前空间暂无内容，快来发布第一条想法吧', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            ],
+          ),
+        );
       }
+
+      final isMeCreator = controller.community.value?.creatorId == UserController.to.user.value?.id;
 
       return ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: controller.posts.length,
         itemBuilder: (context, index) {
           final post = controller.posts[index];
-          final isPinned = post['is_pinned'] as bool? ?? false;
-          final title = post['title']?.toString() ?? 'Saysay想法';
+          final String postId = post['id']?.toString() ?? '';
+          final bool isPinned = post['is_pinned'] as bool? ?? false;
+          final String title = post['title']?.toString() ?? '想法观点';
           final author = post['author'] ?? {};
+          final timestamp = post['created_at'] != null ? post['created_at'].toString().substring(0, 10) : '';
 
-          return Card(
-            elevation: 0,
+          // 🌟 物理安全解析：提取富文本正文中的极简文本快照供 lobby 页面直接阅读
+          String contentPreview = '无段落内容';
+          try {
+            final dynamic content = post['content'];
+            if (content != null) {
+              final parsed = jsonDecode(content.toString());
+              if (parsed is List) {
+                contentPreview = parsed.map((op) => op['insert']?.toString() ?? '').join().trim();
+              } else {
+                contentPreview = content.toString();
+              }
+            }
+          } catch (_) {
+            contentPreview = post['content']?.toString() ?? '无段落内容';
+          }
+          if (contentPreview.length > 60) {
+            contentPreview = '${contentPreview.substring(0, 60)}...';
+          }
+
+          return Container(
             margin: const EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade100)),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              title: Row(
-                children: [
-                  if (isPinned) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4)),
-                      child: Text('📌 置顶', style: TextStyle(color: Colors.orange.shade800, fontSize: 9, fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Row(
-                  children: [
-                    CircleAvatar(radius: 8, backgroundImage: NetworkImage(author['avatar'] ?? '')),
-                    const SizedBox(width: 6),
-                    Text(author['nickname'] ?? '学者', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                    const Spacer(),
-                    Text('点赞 ${post['likes']?.length ?? 0}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                  ],
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade100, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.01),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                )
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => Get.to(() => PostDetailView(postId: postId)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 头衔行
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundImage: NetworkImage(author['avatar'] ?? ''),
+                            backgroundColor: Colors.grey.shade100,
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(author['nickname'] ?? '学者', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              const SizedBox(height: 2),
+                              Text(timestamp, style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+                            ],
+                          ),
+                          const Spacer(),
+
+                          // 🌟 如果是置顶帖，展示橙色置顶小角标
+                          if (isPinned)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6)),
+                              child: Text('📌 置顶', style: TextStyle(color: Colors.orange.shade800, fontSize: 9, fontWeight: FontWeight.bold)),
+                            ),
+
+                          // 🌟 如果当前用户是群主，展示群主特权管理入口点
+                          if (isMeCreator)
+                            IconButton(
+                              onPressed: () => _showAdminManageMenu(context, controller, postId, isPinned),
+                              icon: const Icon(Icons.more_vert_rounded, color: Colors.grey, size: 18),
+                              constraints: const BoxConstraints(),
+                              padding: EdgeInsets.zero,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // 标题
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // 正文快照
+                      Text(
+                        contentPreview,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12, height: 1.4),
+                      ),
+                      const Divider(height: 24),
+
+                      // 底部互动行
+                      Row(
+                        children: [
+                          HugeIcon(icon: HugeIcons.strokeRoundedFavourite, color: Colors.grey.shade400, size: 14),
+                          const SizedBox(width: 4),
+                          Text('${post['likes']?.length ?? 0}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 16),
+                          HugeIcon(icon: HugeIcons.strokeRoundedComment01, color: Colors.grey.shade400, size: 14),
+                          const SizedBox(width: 4),
+                          Text('有见解回复', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              onTap: () => Get.to(() => PostDetailView(postId: post['id'])),
             ),
           );
         },
@@ -231,6 +356,189 @@ class CommunitySpaceView extends StatelessWidget {
           ]
         ],
       ),
+    );
+  }
+
+  /// 🌟 创作者群主特权一键修改/置顶/下架菜单
+  void _showAdminManageMenu(BuildContext context, CommunitySpaceController controller, String postId, bool isPinned) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text('社群帖子管理', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: HugeIcon(
+                    icon: HugeIcons.strokeRoundedPin,
+                    color: isPinned ? Colors.grey : Colors.orange,
+                    size: 20.0
+                ),
+                title: Text(isPinned ? '取消全局置顶' : '置顶此内容到大厅顶端', style: const TextStyle(fontSize: 14)),
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.togglePinPost(postId, isPinned);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, color: Colors.redAccent, size: 20.0),
+                title: const Text('永久删除此违规帖子', style: TextStyle(fontSize: 14, color: Colors.redAccent)),
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.deletePostByAdmin(postId);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 🌟 调起极简高能社群内容发布面板
+  void _showPublishInSpaceSheet(BuildContext context, CommunitySpaceController controller, Color themeColor) {
+    final TextEditingController titleC = TextEditingController();
+    final TextEditingController contentC = TextEditingController();
+    bool isPinnedSelected = false;
+    final bool isMeCreator = controller.community.value?.creatorId == UserController.to.user.value?.id;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 24,
+                right: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 30, // 键盘避让
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('分享我的想法', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.grey, size: 20),
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 标题
+                  TextField(
+                    controller: titleC,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: "为您的分享取一个亮眼的标题...",
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 内容主体
+                  TextField(
+                    controller: contentC,
+                    maxLines: 5,
+                    style: const TextStyle(fontSize: 14, height: 1.4),
+                    decoration: InputDecoration(
+                      hintText: "写下您的专业学术研究或想法见解...",
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 🌟 如果是群主，允许勾选发布时是否一键置顶本群组大厅
+                  if (isMeCreator)
+                    CheckboxListTile(
+                      value: isPinnedSelected,
+                      onChanged: (val) => setModalState(() => isPinnedSelected = val ?? false),
+                      title: const Text('同步置顶到本群组顶端大厅', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      activeColor: themeColor,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final titleText = titleC.text.trim();
+                        final contentText = contentC.text.trim();
+
+                        if (titleText.isEmpty || contentText.isEmpty) {
+                          Fluttertoast.showToast(msg: "请填写标题和内容再进行分享");
+                          return;
+                        }
+
+                        final success = await controller.publishPostInCommunity(
+                          title: titleText,
+                          content: contentText,
+                          isPinned: isPinnedSelected,
+                        );
+
+                        if (success) {
+                          Navigator.pop(context); // 关闭输入面
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: themeColor,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
+                      ),
+                      child: const Text('发布到社群', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                    ),
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -7,6 +7,8 @@ import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../services/epay_client_service.dart';
 import '../../user_controller.dart'; // 🌟 引入用户信息控制器
+import '../community/community_space_view.dart'; // 🌟 引入社群空间
+import '../post_detail/post_detail_view.dart'; // 🌟 引入帖子详情
 
 class ShopView extends StatefulWidget {
   const ShopView({super.key});
@@ -237,6 +239,17 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     }
   }
 
+  /// 🌟 专门对齐易支付网关 RFC 3986 的编码拼接器，强制将 '+' 转换为 '%20'
+  String buildEpayQueryString(Map<String, dynamic> params) {
+    final List<String> parts = [];
+    params.forEach((key, value) {
+      final encodedKey = Uri.encodeQueryComponent(key);
+      final encodedValue = Uri.encodeQueryComponent(value.toString()).replaceAll('+', '%20');
+      parts.add('$encodedKey=$encodedValue');
+    });
+    return parts.join('&');
+  }
+
   /// 极速付款流程全闭环执行
   Future<void> _executePaymentWorkflow(Map<String, dynamic> item, String selectedPayType) async {
     // 拦截未登录用户
@@ -273,9 +286,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
       final amount = orderRes.datas!['amount'];
       final goodsName = orderRes.datas!['goodsName'];
 
-      // 🌟🌟 核心安全升级：回归官方推荐最稳健的“客户端 POST 直连下单通路”！ 🌟🌟
-      // 1. 调用 EpayClientService，由运行在国内手机环境的客户端发起 POST，彻底杜绝国外应用服务器被墙问题 [INDEX: 1]
-      // 2. 并且因为是标准 HTTP 报文实体 POST，完全规避了浏览器对 URL 各类特殊符号重置产生的“RSA签名校验失败”！ [INDEX: 1]
+      // 2. 客户端直连平台发起下单（调用统一网关防墙方案）
       final epay = EpayClientService();
       final epayCreateRes = await epay.createPaymentDirectly(params: {
         'method': 'jump', // 物理跳转拉起类型
@@ -286,12 +297,12 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
         'money': amount,
       });
 
-      Get.back(); // 关闭加载弹窗 [INDEX: 1]
+      Get.back(); // 关闭加载弹窗
 
       if (epayCreateRes['code'] == 0) {
         final payUrl = epayCreateRes['pay_info'] ?? epayCreateRes['pay_url'];
         if (payUrl != null && payUrl.toString().isNotEmpty) {
-          // 3. 直接拉起已经由支付平台云端校对无误生成好的干净 H5 支付收银台，100% 极速物理拉起 App 成功！ [INDEX: 1]
+          // 3. 直接 H5 跳转
           await _launchExternalBrowser(payUrl.toString());
 
           // 展示支付完成确认框
@@ -355,10 +366,10 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
 
     try {
       final epay = EpayClientService();
-      // 客户端直连国内获取账本 [INDEX: 1]
+      // 客户端直连国内获取账本
       final realEpayData = await epay.queryOrderDirectly(outTradeNo: outTradeNo);
 
-      // 将原装签名账本传送给 Zeabur 后台解锁内容 [INDEX: 1]
+      // 将原装签名账本传送给 Zeabur 后台解锁内容
       final verifyRes = await HttpClient.instance.post<Map<String, dynamic>>(
         '/api-pay/verify_payment',
         data: {'epay_response': realEpayData},
@@ -366,14 +377,16 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
 
       Get.back();
 
-      // 利用内置属性进行结果校验与弹窗信息组装展示，排除外层多余解析 [INDEX: 1]
+      // 利用内置属性进行结果校验与弹窗信息组装展示，排除外层多余解析
       if (verifyRes.respCode == 0 && verifyRes.datas != null) {
-        // 绘制一连串精美原生弹窗，平铺展示返回的 datas 所有核心参数 [INDEX: 1]
+        // 绘制一连串精美原生弹窗，平铺展示返回的 datas 所有核心参数
         showDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (context) {
             final Map<String, dynamic> responseDetails = Map<String, dynamic>.from(verifyRes.datas!);
+            final String targetId = responseDetails['goodsId']?.toString() ?? '';
+            final String targetType = responseDetails['goodsType']?.toString() ?? '';
 
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -439,15 +452,21 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    // 重新加载当前选中的 tab 数据
-                    _loadCategoryData(_getCategoryByIndex(_tabController.index));
+                    // 🌟🌟 核心交互升级：付款成功后点击完成，直接极速路由跳转进入对应的社群空间或帖子！ [2]
+                    if (targetType == 'group' && targetId.isNotEmpty) {
+                      Get.off(() => CommunitySpaceView(communityId: targetId));
+                    } else if (targetType == 'post' && targetId.isNotEmpty) {
+                      Get.off(() => PostDetailView(postId: targetId));
+                    } else {
+                      _loadCategoryData(_getCategoryByIndex(_tabController.index));
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('完成', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: const Text('立即进入体验', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -709,6 +728,9 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
           // 读取后端同步重组装回来的帖子封面/商品大图 URL
           final imageUrl = item['image_url']?.toString() ?? '';
 
+          // 🌟 读取后端同步重排回来的“已购 / 已加入”状态指标
+          final bool isPurchased = item['is_purchased'] as bool? ?? false;
+
           return Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -774,8 +796,14 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                item['tag']?.toString() ?? '热卖',
-                                style: TextStyle(color: primaryColor, fontSize: 9, fontWeight: FontWeight.bold),
+                                isPurchased
+                                    ? '已拥有' // 🌟 状态指示：如果是已购社群/帖子，自动覆盖角标
+                                    : (item['tag']?.toString() ?? '热卖'),
+                                style: TextStyle(
+                                  color: isPurchased ? Colors.green.shade800 : primaryColor,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           )
@@ -810,18 +838,43 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                             '¥${price.toStringAsFixed(2)}',
                             style: TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 15),
                           ),
-                          InkWell(
-                            onTap: () => _showPurchaseSheet(item),
-                            borderRadius: BorderRadius.circular(10),
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: primaryColor,
-                                borderRadius: BorderRadius.circular(10),
+                          // 🌟🌟 核心交互升级：如果是已经加入或购买的付费群组/帖子，直接改变交互按钮，变为极速进入通道，保障端到端对齐 [2]
+                          if (isPurchased)
+                            SizedBox(
+                              height: 28,
+                              child: TextButton(
+                                onPressed: () {
+                                  final String targetId = item['target_id']?.toString() ?? '';
+                                  if (category == 'group' && targetId.isNotEmpty) {
+                                    Get.to(() => CommunitySpaceView(communityId: targetId));
+                                  } else if (category == 'post' && targetId.isNotEmpty) {
+                                    Get.to(() => PostDetailView(postId: targetId));
+                                  }
+                                },
+                                style: TextButton.styleFrom(
+                                  backgroundColor: primaryColor.withOpacity(0.1),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                ),
+                                child: Text(
+                                  category == 'group' ? '进入空间' : '阅读内容',
+                                  style: TextStyle(color: primaryColor, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
                               ),
-                              child: const Icon(Icons.add, color: Colors.white, size: 16),
-                            ),
-                          )
+                            )
+                          else
+                            InkWell(
+                              onTap: () => _showPurchaseSheet(item),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: primaryColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.add, color: Colors.white, size: 16),
+                              ),
+                            )
                         ],
                       )
                     ],

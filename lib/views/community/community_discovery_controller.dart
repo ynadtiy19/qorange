@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../network/http_client.dart';
 import 'community_model.dart';
 
@@ -54,7 +55,7 @@ class CommunityDiscoveryController extends GetxController {
     fetchDiscoveryList(isRefresh: true);
   }
 
-  /// 🌟 对齐后台 /api-communities 进行多重组合过滤检索 [1]
+  /// 🌟 统一分页异步网络拉取
   Future<void> fetchDiscoveryList({bool isRefresh = false}) async {
     if (isRefresh) {
       _page = 1;
@@ -109,5 +110,27 @@ class CommunityDiscoveryController extends GetxController {
     isLoadingMore.value = true;
     _page++;
     await fetchDiscoveryList(isRefresh: false);
+  }
+
+  /// 🌟 新增：向后端提交新建社群数据，并在成功时自动回显
+  Future<bool> createCommunity(Map<String, dynamic> data) async {
+    try {
+      final res = await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api-communities',
+        data: data,
+      );
+      if (res.respCode == 0) {
+        Fluttertoast.showToast(msg: "🎉 恭喜您，社群空间创建成功！");
+        // 🌟 强力重洗列表，让最新创建的社群瞬间呈现在最顶部，完美回显！
+        fetchDiscoveryList(isRefresh: true);
+        return true;
+      } else {
+        Fluttertoast.showToast(msg: res.respMsg ?? "创建社群失败");
+        return false;
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "创建异常: $e");
+      return false;
+    }
   }
 }

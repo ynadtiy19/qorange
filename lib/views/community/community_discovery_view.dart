@@ -1,6 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import '../../services/api_service.dart';
+import '../../user_controller.dart';
 import 'community_discovery_controller.dart';
 import 'community_model.dart';
 import 'community_space_view.dart';
@@ -31,6 +36,15 @@ class CommunityDiscoveryView extends StatelessWidget {
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
+        // 🌟 新增：左侧AppBar新建社群入口
+        leading: IconButton(
+          onPressed: () => _showCreateCommunitySheet(context, controller, themeColor, categories),
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedPlusSignSquare,
+            color: themeColor,
+            size: 22.0,
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: () => _showFilterBottomSheet(context, controller, themeColor),
@@ -148,15 +162,25 @@ class CommunityDiscoveryView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Banner 封面图
-            SRect(
+            // 🌟 修复：直接使用标准 ClipRRect 替换 SRect 依赖，防止报错
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
               child: item.bannerUrl.isNotEmpty
                   ? Image.network(item.bannerUrl, height: 140, width: double.infinity, fit: BoxFit.cover)
                   : Container(
                 height: 140,
                 width: double.infinity,
                 color: themeColor.withOpacity(0.05),
-                child: Center(child: HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: themeColor.withOpacity(0.2), size: 48)),
+                child: Center(
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedUserGroup,
+                    color: themeColor.withOpacity(0.2),
+                    size: 48,
+                  ),
+                ),
               ),
             ),
             Padding(
@@ -345,16 +369,277 @@ class CommunityDiscoveryView extends StatelessWidget {
       ),
     );
   }
-}
 
-class SRect extends StatelessWidget {
-  final Widget child;
-  const SRect({super.key, required this.child});
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-      child: child,
+  /// 🌟 新增：模态滑出新建高颜值社群面板（包含封面异步上传与回显）
+  void _showCreateCommunitySheet(
+      BuildContext context,
+      CommunityDiscoveryController controller,
+      Color themeColor,
+      List<Map<String, String>> categoriesList,
+      ) {
+    if (!UserController.to.isLoggedIn) {
+      Fluttertoast.showToast(msg: "请登录后创建社群");
+      return;
+    }
+    final TextEditingController nameC = TextEditingController();
+    final TextEditingController descC = TextEditingController();
+    final TextEditingController priceC = TextEditingController();
+
+    String selectedCategory = 'music';
+    String selectedType = 'public'; // public, private
+    String billingCycle = 'month';  // month, year
+    String bannerUrl = '';
+    bool isUploading = false;
+
+    // 排除 trending 大项，仅保留真实业务分类
+    final realCategories = categoriesList.where((e) => e['key'] != 'trending').toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            // 🌟 核心：客户端调用相册并直连上传
+            Future<void> pickBannerImage() async {
+              final picker = ImagePicker();
+              final xFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+              if (xFile == null) return;
+
+              setModalState(() => isUploading = true);
+              Fluttertoast.showToast(msg: "正在上传封面背景...");
+
+              try {
+                final url = await ApiService.uploadImage(File(xFile.path));
+                if (url != null) {
+                  setModalState(() {
+                    bannerUrl = url;
+                    isUploading = false;
+                  });
+                  Fluttertoast.showToast(msg: "封面图片上传成功！");
+                } else {
+                  setModalState(() => isUploading = false);
+                  Fluttertoast.showToast(msg: "封面上传失败");
+                }
+              } catch (_) {
+                setModalState(() => isUploading = false);
+              }
+            }
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 24,
+                right: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 30, // 键盘避让
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text('开启我的社群圈子', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 20),
+
+                    // 封面上传交互卡片
+                    GestureDetector(
+                      onTap: isUploading ? null : pickBannerImage,
+                      child: Container(
+                        width: double.infinity,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200),
+                          image: bannerUrl.isNotEmpty
+                              ? DecorationImage(image: NetworkImage(bannerUrl), fit: BoxFit.cover)
+                              : null,
+                        ),
+                        child: bannerUrl.isNotEmpty
+                            ? const SizedBox.shrink()
+                            : Center(
+                          child: isUploading
+                              ? CircularProgressIndicator(color: themeColor, strokeWidth: 2)
+                              : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              HugeIcon(icon: HugeIcons.strokeRoundedImage01, color: themeColor, size: 24.0),
+                              const SizedBox(height: 8),
+                              const Text('点击上传社群封面背景图', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 社群名称
+                    TextField(
+                      controller: nameC,
+                      style: const TextStyle(fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: "为您的社群取一个响亮的名字...",
+                        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                        prefixIcon: const Icon(Icons.drive_file_rename_outline, size: 18),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 简短描述
+                    TextField(
+                      controller: descC,
+                      style: const TextStyle(fontSize: 14),
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        hintText: "简短介绍社群的主题与核心价值...",
+                        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                        prefixIcon: const Icon(Icons.text_fields_outlined, size: 18),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 类别选择大片
+                    const Text('选择所属兴趣领域', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: realCategories.map((cat) {
+                        final isSelected = selectedCategory == cat['key'];
+                        return GestureDetector(
+                          onTap: () => setModalState(() => selectedCategory = cat['key']!),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isSelected ? themeColor : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              cat['name']!,
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // 社群属性
+                    Row(
+                      children: [
+                        const Text('公开属性：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                        const SizedBox(width: 8),
+                        _buildChoiceChip(
+                          text: '公开加入',
+                          isSelected: selectedType == 'public',
+                          onTap: () => setModalState(() => selectedType = 'public'),
+                          themeColor: themeColor,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildChoiceChip(
+                          text: '私密邀请',
+                          isSelected: selectedType == 'private',
+                          onTap: () => setModalState(() => selectedType = 'private'),
+                          themeColor: themeColor,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // 价格设置
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: priceC,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            style: const TextStyle(fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: "订阅价格 (0代表免费)",
+                              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                              prefixIcon: const Icon(Icons.attach_money, size: 18),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        _buildChoiceChip(
+                          text: '按月收',
+                          isSelected: billingCycle == 'month',
+                          onTap: () => setModalState(() => billingCycle = 'month'),
+                          themeColor: themeColor,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildChoiceChip(
+                          text: '按年收',
+                          isSelected: billingCycle == 'year',
+                          onTap: () => setModalState(() => billingCycle = 'year'),
+                          themeColor: themeColor,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+
+                    // 立即创建
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final name = nameC.text.trim();
+                          final desc = descC.text.trim();
+                          final price = priceC.text.trim();
+
+                          if (name.isEmpty) {
+                            Fluttertoast.showToast(msg: "请填写社群名称");
+                            return;
+                          }
+
+                          // 组合参数提交
+                          final success = await controller.createCommunity({
+                            'name': name,
+                            'desc_short': desc,
+                            'category': selectedCategory,
+                            'type': selectedType,
+                            'price': price.isEmpty ? "0.00" : price,
+                            'billing_cycle': billingCycle,
+                            'banner_url': bannerUrl,
+                          });
+
+                          if (success) {
+                            Navigator.pop(context); // 关闭面板
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: themeColor,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        child: const Text('立即创建社群空间', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

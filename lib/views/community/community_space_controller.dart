@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../network/http_client.dart';
 import '../../network/api_exception.dart';
 import '../../services/epay_client_service.dart';
+import '../../user_controller.dart';
 import 'community_model.dart';
 
 class CommunitySpaceController extends GetxController
@@ -77,6 +78,10 @@ class CommunitySpaceController extends GetxController
     final item = community.value;
     if (item == null) return;
 
+    if (!UserController.to.isLoggedIn) {
+      Fluttertoast.showToast(msg: "请登录后购买加入");
+      return;
+    }
     Get.dialog(
       const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
       barrierDismissible: false,
@@ -195,6 +200,73 @@ class CommunitySpaceController extends GetxController
     } catch (e) {
       Get.back();
       Fluttertoast.showToast(msg: "通信异常: $e");
+    }
+  }
+
+  /// 🌟 核心新增 A：在已加入的社群内发布新Saysay帖子
+  Future<bool> publishPostInCommunity({
+    required String title,
+    required String content,
+    required bool isPinned,
+  }) async {
+    try {
+      // 对齐 Quill 格式载荷封装（将普通文本包装为 Quill JSON 块），保证大厅读取与渲染统一
+      final Map<String, dynamic> deltaOp = {
+        'insert': '$content\n'
+      };
+      final String formattedQuillContent = jsonEncode([deltaOp]);
+
+      final res = await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api-communities/$communityId/posts',
+        data: {
+          'title': title,
+          'content': formattedQuillContent,
+          'is_pinned': isPinned,
+        },
+      );
+
+      if (res.respCode == 0) {
+        Fluttertoast.showToast(msg: "讨论观点发布成功！");
+        loadSpacePosts(); // 立即静默洗牌刷新群贴列表，展示最新数据
+        return true;
+      } else {
+        Fluttertoast.showToast(msg: res.respMsg ?? "发布讨论失败");
+        return false;
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "发帖异常: $e");
+      return false;
+    }
+  }
+
+  /// 🌟 核心新增 B：管理员一键置顶/取消置顶群贴（调用 admin 编辑帖子的 API）
+  Future<void> togglePinPost(String postId, bool currentPinState) async {
+    try {
+      final res = await HttpClient.instance.put<Map<String, dynamic>>(
+        '/admin/posts/$postId',
+        data: {
+          'is_pinned': !currentPinState,
+        },
+      );
+      if (res.respCode == 0) {
+        Fluttertoast.showToast(msg: !currentPinState ? "帖子置顶成功！" : "已成功取消置顶");
+        loadSpacePosts(); // 静默重排拉取最新顺序
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "置顶管理操作失败: $e");
+    }
+  }
+
+  /// 🌟 核心新增 C：管理员一键级联删除违规帖子及评论
+  Future<void> deletePostByAdmin(String postId) async {
+    try {
+      final res = await HttpClient.instance.delete('/admin/posts/$postId');
+      if (res.respCode == 0) {
+        Fluttertoast.showToast(msg: "该违规帖子及其所有讨论回复已被级联安全抹除");
+        loadSpacePosts(); // 刷新大厅
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "抹除失败: $e");
     }
   }
 }

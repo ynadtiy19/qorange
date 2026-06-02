@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 
 import '../../user_controller.dart';
+import '../community/community_discovery_view.dart';
 import '../home/home_view.dart';
 import '../login/login_view.dart';
 import '../profile/profile_view.dart';
@@ -19,13 +20,14 @@ class _MainNavViewState extends State<MainNavView> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = [
-    const HomeView(), // 首页列表
-    const ShopView(), // 🌟 细节精美交互舒爽的商店页面
-    const ProfileView(), // 个人主页
+    const HomeView(), // 1. 首页观点/saysay大厅
+    const CommunityDiscoveryView(), // 🌟 2. 新增：社群大厅发现大厅 [1]
+    const ShopView(), // 3. 商店
+    const ProfileView(), // 4. 个人主页
   ];
 
   void _onTap(int index) {
-    if (index == 2) { // 将"我的"检查迁移至索引 2
+    if (index == 3) { // “我的”个人主页做登录拦截
       if (!UserController.to.isLoggedIn) {
         Get.to(
               () => const LoginView(),
@@ -81,6 +83,17 @@ class _MainNavViewState extends State<MainNavView> {
                 color: Color.fromRGBO(44, 123, 109, 1.0),
               ),
               label: '首页',
+            ),
+            BottomNavigationBarItem(
+              icon: HugeIcon(
+                icon: HugeIcons.strokeRoundedUserGroup, // 🌟 使用社群大Icon [1]
+                color: Colors.grey.shade400,
+              ),
+              activeIcon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedUserGroup,
+                color: Color.fromRGBO(44, 123, 109, 1.0),
+              ),
+              label: '社群',
             ),
             BottomNavigationBarItem(
               icon: HugeIcon(
