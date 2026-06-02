@@ -237,7 +237,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     }
   }
 
-  /// 🌟 极速付款流程全闭环执行（升级为直接跳转 Epay 收银台方案，物理拉起 App 微信/支付宝）
+  /// 极速付款流程全闭环执行
   Future<void> _executePaymentWorkflow(Map<String, dynamic> item, String selectedPayType) async {
     // 拦截未登录用户
     if (!UserController.to.isLoggedIn) {
@@ -273,45 +273,37 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
       final amount = orderRes.datas!['amount'];
       final goodsName = orderRes.datas!['goodsName'];
 
-      // 2. 向安全代签网关申请完整加密证书签名（注入真实公网 IP 与设备移动标识）
-      final signRes = await HttpClient.instance.post<Map<String, dynamic>>(
-        '/api-pay/sign',
-        data: {
-          'params': {
-            'method': 'jump', // 跳转支付类型
-            'device': 'mobile', // 强制指定移动设备
-            'type': selectedPayType,
-            'out_trade_no': outTradeNo,
-            'name': goodsName,
-            'money': amount,
-          }
-        },
-      );
+      // 🌟🌟 核心安全升级：回归官方推荐最稳健的“客户端 POST 直连下单通路”！ 🌟🌟
+      // 1. 调用 EpayClientService，由运行在国内手机环境的客户端发起 POST，彻底杜绝国外应用服务器被墙问题 [INDEX: 1]
+      // 2. 并且因为是标准 HTTP 报文实体 POST，完全规避了浏览器对 URL 各类特殊符号重置产生的“RSA签名校验失败”！ [INDEX: 1]
+      final epay = EpayClientService();
+      final epayCreateRes = await epay.createPaymentDirectly(params: {
+        'method': 'jump', // 物理跳转拉起类型
+        'device': 'mobile', // 强制指定移动端
+        'type': selectedPayType,
+        'out_trade_no': outTradeNo,
+        'name': goodsName,
+        'money': amount,
+      });
 
-      Get.back(); // 关闭加载弹窗
+      Get.back(); // 关闭加载弹窗 [INDEX: 1]
 
-      if (signRes.respCode == 0 && signRes.datas != null) {
-        // 🌟🌟 核心安全变革 🌟🌟
-        // 避开客户端 API 请求导致易支付无法识别 User-Agent 的问题。
-        // 直接在系统原生浏览器里打开已签名完整的页面跳转支付 URL（api/pay/submit?params...）
-        // 浏览器将原汁原味地传输真实 User-Agent，强制易支付触发直连协议，直接唤起手机中的支付宝/微信 App！
-        final signedParams = Map<String, dynamic>.from(signRes.datas!);
-        final payUrl = '${EpayClientConfig.apiUrl}api/pay/submit?${Uri(queryParameters: signedParams.map((k, v) => MapEntry(k, v.toString()))).query}';
+      if (epayCreateRes['code'] == 0) {
+        final payUrl = epayCreateRes['pay_info'] ?? epayCreateRes['pay_url'];
+        if (payUrl != null && payUrl.toString().isNotEmpty) {
+          // 3. 直接拉起已经由支付平台云端校对无误生成好的干净 H5 支付收银台，100% 极速物理拉起 App 成功！ [INDEX: 1]
+          await _launchExternalBrowser(payUrl.toString());
 
-        // 专属调试日志
-        print('==================== 易支付 (qingtianyzff) 浏览器同步跳转发起 ====================');
-        print('➤ 直连拉起 URL: $payUrl');
-        print('===============================================================================');
-
-        await _launchExternalBrowser(payUrl);
-
-        // 展示支付完成确认框
-        _showPaymentCheckDialog(outTradeNo);
+          // 展示支付完成确认框
+          _showPaymentCheckDialog(outTradeNo);
+        } else {
+          Fluttertoast.showToast(msg: '网关返回支付参数解析异常');
+        }
       } else {
-        Fluttertoast.showToast(msg: signRes.respMsg ?? '网关计算证书签名失败');
+        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? '通道唤起故障');
       }
     } catch (e) {
-      Get.back();
+      Get.back(); // 确保关闭加载圈
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
@@ -363,10 +355,10 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
 
     try {
       final epay = EpayClientService();
-      // 客户端直连国内获取账本
+      // 客户端直连国内获取账本 [INDEX: 1]
       final realEpayData = await epay.queryOrderDirectly(outTradeNo: outTradeNo);
 
-      // 将原装签名账本传送给 Zeabur 后台解锁内容
+      // 将原装签名账本传送给 Zeabur 后台解锁内容 [INDEX: 1]
       final verifyRes = await HttpClient.instance.post<Map<String, dynamic>>(
         '/api-pay/verify_payment',
         data: {'epay_response': realEpayData},
@@ -374,9 +366,9 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
 
       Get.back();
 
-      // 核心调整：利用内置属性进行结果校验与弹窗信息组装展示，排除外层多余解析
+      // 利用内置属性进行结果校验与弹窗信息组装展示，排除外层多余解析 [INDEX: 1]
       if (verifyRes.respCode == 0 && verifyRes.datas != null) {
-        // 绘制一连串精美原生弹窗，平铺展示返回的 datas 所有核心参数
+        // 绘制一连串精美原生弹窗，平铺展示返回的 datas 所有核心参数 [INDEX: 1]
         showDialog<void>(
           context: context,
           barrierDismissible: false,
@@ -714,7 +706,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
           final price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
           final category = item['category']?.toString() ?? 'virtual';
 
-          // 🌟 读取后端同步重组装回来的帖子封面/商品大图 URL
+          // 读取后端同步重组装回来的帖子封面/商品大图 URL
           final imageUrl = item['image_url']?.toString() ?? '';
 
           return Container(
@@ -751,7 +743,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       child: Stack(
                         fit: StackFit.expand, // 使大图完美平铺铺满卡片顶部
                         children: [
-                          // 🌟 核心美化升级：若该付费帖子或常规商品在云端含有真实大图封面，优先渲染封面，实现小红书/美学商店级别的高级质感；无图则无缝降级展示大类默认小图标
+                          // 核心美化升级：若该付费帖子或常规商品在云端含有真实大图封面，优先渲染封面，实现小红书/美学商店级别的高级质感；无图则无缝降级展示大类默认小图标
                           if (imageUrl.isNotEmpty)
                             Image.network(
                               imageUrl,
