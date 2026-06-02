@@ -210,7 +210,6 @@ class CommunitySpaceController extends GetxController
     required bool isPinned,
   }) async {
     try {
-      // 对齐 Quill 格式载荷封装（将普通文本包装为 Quill JSON 块），保证大厅读取与渲染统一
       final Map<String, dynamic> deltaOp = {
         'insert': '$content\n'
       };
@@ -239,11 +238,11 @@ class CommunitySpaceController extends GetxController
     }
   }
 
-  /// 🌟 核心新增 B：管理员一键置顶/取消置顶群贴（调用 admin 编辑帖子的 API）
+  /// 🌟🌟 核心安全修正点 B：管理员一键置顶/取消置顶群贴（修改为安全的 /api-posts 普通鉴权路由） [1]
   Future<void> togglePinPost(String postId, bool currentPinState) async {
     try {
       final res = await HttpClient.instance.put<Map<String, dynamic>>(
-        '/admin/posts/$postId',
+        '/api-posts/$postId',
         data: {
           'is_pinned': !currentPinState,
         },
@@ -257,10 +256,10 @@ class CommunitySpaceController extends GetxController
     }
   }
 
-  /// 🌟 核心新增 C：管理员一键级联删除违规帖子及评论
+  /// 🌟🌟 核心安全修正点 C：群主管理员一键级联下架抹除（修改为安全的 /api-posts 物理拦截路由） [1]
   Future<void> deletePostByAdmin(String postId) async {
     try {
-      final res = await HttpClient.instance.delete('/admin/posts/$postId');
+      final res = await HttpClient.instance.delete('/api-posts/$postId');
       if (res.respCode == 0) {
         Fluttertoast.showToast(msg: "该违规帖子及其所有讨论回复已被级联安全抹除");
         loadSpacePosts(); // 刷新大厅
