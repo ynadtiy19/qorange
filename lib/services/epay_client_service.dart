@@ -42,11 +42,25 @@ class EpayClientService {
 
       // 2. 拿到代签包后，由身处国内网络环境的客户端直接向易支付物理接口发起下单
       final url = Uri.parse('${EpayClientConfig.apiUrl}api/pay/create');
+
+      // 🌟🌟 专属控制台高亮调试日志：请求发送 🌟🌟
+      print('==================== 易支付 (qingtianyzff) 请求 ====================');
+      print('➤ 接口地址: $url');
+      print('➤ 提交数据: ${jsonEncode(signedBodyParams)}');
+      print('==================================================================');
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: signedBodyParams,
       );
+
+      // 🌟🌟 专属控制台高亮调试日志：数据接收 🌟🌟
+      print('==================== 易支付 (qingtianyzff) 响应 ====================');
+      print('➤ 接口地址: $url');
+      print('➤ HTTP 状态码: ${response.statusCode}');
+      print('➤ 平台返回报文: ${response.body.trim()}');
+      print('==================================================================');
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body.trim()) as Map<String, dynamic>;
@@ -70,11 +84,25 @@ class EpayClientService {
 
       // 2. 客户端直接反查易支付获取官方带平台签名的原装支付状态报文
       final url = Uri.parse('${EpayClientConfig.apiUrl}api/pay/query');
+
+      // 🌟🌟 专属控制台高亮调试日志：请求发送 🌟🌟
+      print('==================== 易支付 (qingtianyzff) 查询请求 ====================');
+      print('➤ 接口地址: $url');
+      print('➤ 提交数据: ${jsonEncode(signedBodyParams)}');
+      print('====================================================================');
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: signedBodyParams,
       );
+
+      // 🌟🌟 专属控制台高亮调试日志：数据接收 🌟🌟
+      print('==================== 易支付 (qingtianyzff) 查询响应 ====================');
+      print('➤ 接口地址: $url');
+      print('➤ HTTP 状态码: ${response.statusCode}');
+      print('➤ 平台返回报文: ${response.body.trim()}');
+      print('====================================================================');
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body.trim()) as Map<String, dynamic>;

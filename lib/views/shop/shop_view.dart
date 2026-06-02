@@ -107,7 +107,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
   Future<void> _loadCategoryData(String category) async {
     bool isSilent = false;
 
-    // 如果对应分类已经有数据，则启用静默刷新，不展示大加载菊花
     if (category == 'all' && _allGoods.isNotEmpty) isSilent = true;
     if (category == 'post' && _postGoods.isNotEmpty) isSilent = true;
     if (category == 'group' && _groupGoods.isNotEmpty) isSilent = true;
@@ -172,7 +171,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
         },
       );
 
-      // 🌟 使用封装好的实体属性判断
       if (res.respCode == 0 && res.datas != null) {
         final List<dynamic> newGoods = res.datas!['goods'] as List? ?? [];
         setState(() {
@@ -235,14 +233,13 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
-      // 🌟 移除 Get.snackbar 替换为 Fluttertoast
       Fluttertoast.showToast(msg: "无法启动外部支付页面，请确保手机已安装支付宝或相应浏览器");
     }
   }
 
-  /// 极速付款流程全闭环执行
+  /// 🌟 极速付款流程全闭环执行（升级为直接跳转 Epay 收银台方案，物理拉起 App 微信/支付宝）
   Future<void> _executePaymentWorkflow(Map<String, dynamic> item, String selectedPayType) async {
-    // 🌟 拦截未登录用户强制要求登录并提示
+    // 拦截未登录用户
     if (!UserController.to.isLoggedIn) {
       Fluttertoast.showToast(msg: "请登录后购买");
       return;
@@ -266,10 +263,8 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
         },
       );
 
-      // 🌟 核心调整：利用内置属性进行结果校验，直接获取 inner datas
       if (orderRes.respCode != 0 || orderRes.datas == null) {
         Get.back();
-        // 🌟 替换为 Fluttertoast
         Fluttertoast.showToast(msg: orderRes.respMsg ?? '生成系统待支付单失败');
         return;
       }
@@ -278,41 +273,48 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
       final amount = orderRes.datas!['amount'];
       final goodsName = orderRes.datas!['goodsName'];
 
-      // 2. 客户端直连平台发起下单（调用统一网关防墙方案）
-      final epay = EpayClientService();
-      final epayCreateRes = await epay.createPaymentDirectly(params: {
-        'method': 'jump',
-        'device': 'mobile',
-        'type': selectedPayType,
-        'out_trade_no': outTradeNo,
-        'name': goodsName,
-        'money': amount,
-      });
+      // 2. 向安全代签网关申请完整加密证书签名（注入真实公网 IP 与设备移动标识）
+      final signRes = await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api-pay/sign',
+        data: {
+          'params': {
+            'method': 'jump', // 跳转支付类型
+            'device': 'mobile', // 强制指定移动设备
+            'type': selectedPayType,
+            'out_trade_no': outTradeNo,
+            'name': goodsName,
+            'money': amount,
+          }
+        },
+      );
 
-      Get.back(); // 关掉加载框
+      Get.back(); // 关闭加载弹窗
 
-      if (epayCreateRes['code'] == 0) {
-        final payUrl = epayCreateRes['pay_info'] ?? epayCreateRes['pay_url'];
-        if (payUrl != null && payUrl.toString().isNotEmpty) {
-          // 3. 调起支付页面
-          await _launchExternalBrowser(payUrl.toString());
+      if (signRes.respCode == 0 && signRes.datas != null) {
+        // 🌟🌟 核心安全变革 🌟🌟
+        // 避开客户端 API 请求导致易支付无法识别 User-Agent 的问题。
+        // 直接在系统原生浏览器里打开已签名完整的页面跳转支付 URL（api/pay/submit?params...）
+        // 浏览器将原汁原味地传输真实 User-Agent，强制易支付触发直连协议，直接唤起手机中的支付宝/微信 App！
+        final signedParams = Map<String, dynamic>.from(signRes.datas!);
+        final payUrl = '${EpayClientConfig.apiUrl}api/pay/submit?${Uri(queryParameters: signedParams.map((k, v) => MapEntry(k, v.toString()))).query}';
 
-          // 展示支付完成确认框
-          _showPaymentCheckDialog(outTradeNo);
-        } else {
-          // 🌟 替换为 Fluttertoast
-          Fluttertoast.showToast(msg: '网关返回参数异常，数据缺失');
-        }
+        // 专属调试日志
+        print('==================== 易支付 (qingtianyzff) 浏览器同步跳转发起 ====================');
+        print('➤ 直连拉起 URL: $payUrl');
+        print('===============================================================================');
+
+        await _launchExternalBrowser(payUrl);
+
+        // 展示支付完成确认框
+        _showPaymentCheckDialog(outTradeNo);
       } else {
-        // 🌟 替换为 Fluttertoast
-        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? '通道唤起故障');
+        Fluttertoast.showToast(msg: signRes.respMsg ?? '网关计算证书签名失败');
       }
     } catch (e) {
-      Get.back(); // 确保关闭加载圈
+      Get.back();
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        // 🌟 替换为 Fluttertoast
         Fluttertoast.showToast(msg: '请求链路异常: $e');
       }
     }
@@ -372,9 +374,9 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
 
       Get.back();
 
-      // 🌟 核心调整：利用内置属性进行结果校验与弹窗信息组装展示，排除外层多余解析
+      // 核心调整：利用内置属性进行结果校验与弹窗信息组装展示，排除外层多余解析
       if (verifyRes.respCode == 0 && verifyRes.datas != null) {
-        // 🌟 绘制一连串精美原生弹窗，平铺展示返回的 datas 所有核心参数
+        // 绘制一连串精美原生弹窗，平铺展示返回的 datas 所有核心参数
         showDialog<void>(
           context: context,
           barrierDismissible: false,
@@ -460,7 +462,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
           },
         );
       } else {
-        // 🌟 替换为 Fluttertoast
         Fluttertoast.showToast(msg: verifyRes.respMsg ?? '账单解密验签未通过');
       }
     } catch (e) {
@@ -468,7 +469,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        // 🌟 替换为 Fluttertoast
         Fluttertoast.showToast(msg: '无法连接发货验证网关: $e');
       }
     }

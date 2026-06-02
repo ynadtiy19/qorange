@@ -32,11 +32,25 @@ android {
         multiDexEnabled = true
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("qorange.jks")
+            // 优先读取命令行传入的临时环境变量，读取不到则使用统一默认密码 626262
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "626262"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "qorange"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "626262" // PKCS12 格式下需与 storePassword 一致
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // 启用代码混淆 (Minify) 与无用资源缩减 (ShrinkResources)
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
+            // 替换为上面创建的 release 签名配置
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

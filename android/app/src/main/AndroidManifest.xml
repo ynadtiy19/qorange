@@ -1,21 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 基础网络访问权限（必须配置，否则打包 Release 正式版后将无法请求后台接口、无法加载网络图片） -->
+    <!-- 基础网络访问权限 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!--
-      以下为媒体文件读取权限（可选配置）：
-      如果您在“修改个人资料（上传头像）”或“发布帖子（上传封面）”时，需要使用手机相册选择本地图片，
-      建议在这里配置读取权限以保证在低版本 Android 设备上的兼容性。
-    -->
-    <!-- 针对 Android 13（API 33）及以上版本读取图片 -->
+    <!-- 媒体文件读取权限（可选） -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <!-- 针对 Android 12（API 32）及以下版本读取图片，加上 maxSdkVersion 避免在高版本引起不必要的整盘权限申请 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
-
-    <!-- 通知相关 (Flutter 原有) -->
+    <!-- 通知相关 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -31,36 +24,52 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-            <!-- Specifies an Android theme to apply to this Activity as soon as
-                 the Android process has started. This theme is visible to the user
-                 while the Flutter UI initializes. After that, this theme continues
-                 to determine the Window background behind the Flutter UI. -->
+
             <meta-data
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"
+                />
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- 🌟🌟 新增：注册 qorange://payback 协议监听器，用于支付成功后从系统浏览器无感跃迁返回 App 🌟🌟 -->
+            <intent-filter android:label="qorange">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- 唤起协议定义，对应 qorange://payback -->
+                <data android:scheme="qorange" android:host="payback" />
+            </intent-filter>
+
         </activity>
-        <!-- Don't delete the meta-data below.
-             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
 
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- 微信 & 支付宝应用包名声明 -->
+        <package android:name="com.tencent.mm" />
+        <package android:name="com.eg.android.AlipayGphone" />
+
+        <!-- 🌟🌟 新增：声明系统允许查询的外部 Scheme 协议（Android 11+ 物理唤起支付宝/微信 App 的绝对核心配置） 🌟🌟 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="weixin" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="alipays" />
+        </intent>
+
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
