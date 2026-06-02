@@ -552,7 +552,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         _buildChoiceChip(
-                          text: '私密邀请',
+                          text: '私密同意申请',
                           isSelected: selectedType == 'private',
                           onTap: () => setModalState(() => selectedType = 'private'),
                           themeColor: themeColor,

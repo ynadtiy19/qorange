@@ -22,6 +22,8 @@ class CommunitySpaceController extends GetxController
   final RxList<dynamic> posts = <dynamic>[].obs;
   final RxBool isLoadingPosts = true.obs;
   final RxBool hasPostsPermission = true.obs; // 🌟 区分是否触发付费墙限制阻断
+  // 🌟 新增：提现与成员审批小红点状态计数
+  final RxInt pendingApprovalsCount = 0.obs;
 
   final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
 
@@ -38,12 +40,20 @@ class CommunitySpaceController extends GetxController
     super.onClose();
   }
 
+
+
   Future<void> loadSpaceDetails() async {
     isLoadingDetails.value = true;
     try {
       final res = await HttpClient.instance.get<Map<String, dynamic>>('/api-communities/$communityId');
       if (res.respCode == 0 && res.datas != null) {
         community.value = CommunityModel.fromJson(res.datas!);
+
+        // 🌟 联动机制：如果是群主创作者本人，异步启动审批中心小红点加载拉取
+        final isMeCreator = community.value?.creatorId == UserController.to.user.value?.id;
+        if (isMeCreator) {
+          loadPendingApprovals();
+        }
 
         // 🌟 详情拉取通过后，根据是否为群员，尝试加载内部发帖（若非付费会员会静默 403 触发防火墙）
         loadSpacePosts();
@@ -52,6 +62,18 @@ class CommunitySpaceController extends GetxController
       isLoadingDetails.value = false;
     } finally {
       isLoadingDetails.value = false;
+    }
+  }
+
+  // 🌟 新增：异步拉取成员审核列表以核验最新红点计数
+  Future<void> loadPendingApprovals() async {
+    try {
+      final res = await HttpClient.instance.get<List<dynamic>>('/api-communities/$communityId/applicants');
+      if (res.respCode == 0 && res.datas != null) {
+        pendingApprovalsCount.value = res.datas!.length;
+      }
+    } catch (_) {
+      // 容错静默
     }
   }
 

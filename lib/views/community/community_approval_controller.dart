@@ -1,0 +1,116 @@
+import 'package:get/get.dart';
+import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import '../../network/http_client.dart';
+import 'applicant_model.dart';
+import 'community_space_controller.dart'; // 🌟 用于联动更新小红点
+
+class CommunityApprovalController extends GetxController {
+  final String communityId;
+  CommunityApprovalController({required this.communityId});
+
+  final RxList<ApplicantModel> applicants = <ApplicantModel>[].obs;
+  final RxBool isLoading = true.obs;
+
+  final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadApplicants();
+  }
+
+  /// 加载待审核清单
+  Future<void> loadApplicants() async {
+    isLoading.value = true;
+    try {
+      final res = await HttpClient.instance.get<List<dynamic>>('/api-communities/$communityId/applicants');
+      if (res.respCode == 0 && res.datas != null) {
+        final List<dynamic> list = res.datas!;
+        applicants.assignAll(list.map((e) => ApplicantModel.fromJson(e)).toList());
+      }
+    } catch (_) {
+      isLoading.value = false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// 🌟 批准通过学者申请加入
+  Future<void> approveApplicant(String applicantUserId) async {
+    Get.dialog(
+      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      barrierDismissible: false,
+    );
+
+    try {
+      final res = await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api-communities/$communityId/approve',
+        data: {
+          'userId': applicantUserId,
+          'action': 'approve',
+          'reason': '同意加入',
+        },
+      );
+
+      Get.back(); // 关掉加载狂
+
+      if (res.respCode == 0) {
+        Fluttertoast.showToast(msg: "已批准该学者加入社群！");
+
+        // 🌟 核心：从本地 Observable 列表中移除该成员，无缝淡出回显
+        applicants.removeWhere((element) => element.userId == applicantUserId);
+
+        // 🌟 核心：通知空间主控制器，同步扣减并更新小红点气泡
+        _syncPendingCountToSpaceHeader();
+      } else {
+        Fluttertoast.showToast(msg: res.respMsg ?? "审批失败");
+      }
+    } catch (e) {
+      Get.back();
+      Fluttertoast.showToast(msg: "网络审批故障: $e");
+    }
+  }
+
+  /// 🌟 拒绝/驳回学者加入申请
+  Future<void> rejectApplicant(String applicantUserId, String reason) async {
+    Get.dialog(
+      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      barrierDismissible: false,
+    );
+
+    try {
+      final res = await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api-communities/$communityId/approve',
+        data: {
+          'userId': applicantUserId,
+          'action': 'reject',
+          'reason': reason,
+        },
+      );
+
+      Get.back();
+
+      if (res.respCode == 0) {
+        Fluttertoast.showToast(msg: "已驳回该学者的入群申请");
+        applicants.removeWhere((element) => element.userId == applicantUserId);
+        _syncPendingCountToSpaceHeader();
+      } else {
+        Fluttertoast.showToast(msg: res.respMsg ?? "审批失败");
+      }
+    } catch (e) {
+      Get.back();
+      Fluttertoast.showToast(msg: "网络审批故障: $e");
+    }
+  }
+
+  /// 🌟 联动刷新空间大厅的小红点徽章
+  void _syncPendingCountToSpaceHeader() {
+    try {
+      final spaceController = Get.find<CommunitySpaceController>(tag: communityId);
+      spaceController.pendingApprovalsCount.value = applicants.length;
+    } catch (_) {
+      // 防止控制器销毁引发冲突
+    }
+  }
+}
