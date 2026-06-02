@@ -22,8 +22,12 @@ class CommunitySpaceController extends GetxController
   final RxList<dynamic> posts = <dynamic>[].obs;
   final RxBool isLoadingPosts = true.obs;
   final RxBool hasPostsPermission = true.obs; // 🌟 区分是否触发付费墙限制阻断
+
   // 🌟 新增：提现与成员审批小红点状态计数
   final RxInt pendingApprovalsCount = 0.obs;
+
+  // 🌟 新增：细颗粒度观察当前用户在该群的状态（none, active, applying, approved_to_pay） [1]
+  final RxString memberStatus = 'none'.obs;
 
   final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
 
@@ -40,8 +44,6 @@ class CommunitySpaceController extends GetxController
     super.onClose();
   }
 
-
-
   Future<void> loadSpaceDetails() async {
     isLoadingDetails.value = true;
     try {
@@ -49,31 +51,22 @@ class CommunitySpaceController extends GetxController
       if (res.respCode == 0 && res.datas != null) {
         community.value = CommunityModel.fromJson(res.datas!);
 
-        // 🌟 联动机制：如果是群主创作者本人，异步启动审批中心小红点加载拉取
+        // 🌟 记录当前的细颗粒度入群状态 [1]
+        memberStatus.value = res.datas!['member_status']?.toString() ?? 'none';
+
+        // 🌟 联动机制：如果是群主创作者本人，主页异步启动审批中心小红点加载拉取
         final isMeCreator = community.value?.creatorId == UserController.to.user.value?.id;
         if (isMeCreator) {
           loadPendingApprovals();
         }
 
-        // 🌟 详情拉取通过后，根据是否为群员，尝试加载内部发帖（若非付费会员会静默 403 触发防火墙）
+        // 详情拉取通过后，根据是否为群员，尝试加载内部发帖
         loadSpacePosts();
       }
     } catch (_) {
       isLoadingDetails.value = false;
     } finally {
       isLoadingDetails.value = false;
-    }
-  }
-
-  // 🌟 新增：异步拉取成员审核列表以核验最新红点计数
-  Future<void> loadPendingApprovals() async {
-    try {
-      final res = await HttpClient.instance.get<List<dynamic>>('/api-communities/$communityId/applicants');
-      if (res.respCode == 0 && res.datas != null) {
-        pendingApprovalsCount.value = res.datas!.length;
-      }
-    } catch (_) {
-      // 容错静默
     }
   }
 
@@ -87,7 +80,7 @@ class CommunitySpaceController extends GetxController
       }
     } catch (e) {
       if (e is ApiException && e.statusCode == 403) {
-        // 🌟 触发防火墙拦截：表明这是付费群且该用户尚未加入，阻断内容读取并拉起 Paywall
+        // 🌟 触发防火墙拦截：表明这是付费群或私密群且该用户尚未加入，阻断内容读取并拉起 Paywall
         hasPostsPermission.value = false;
       }
     } finally {
@@ -225,7 +218,55 @@ class CommunitySpaceController extends GetxController
     }
   }
 
-  /// 🌟 核心新增 A：在已加入的社群内发布新Saysay帖子
+  /// 🌟 新增：针对免费私密群（或第一次发起入群申请），提交入群申请表单到服务端 [1]
+  Future<void> applyToJoinCommunity() async {
+    final item = community.value;
+    if (item == null) return;
+
+    if (!UserController.to.isLoggedIn) {
+      Fluttertoast.showToast(msg: "请登录后发起加入申请");
+      return;
+    }
+
+    Get.dialog(
+      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      barrierDismissible: false,
+    );
+
+    try {
+      final res = await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api-communities/$communityId/apply',
+      );
+
+      Get.back(); // 关闭加载框
+
+      if (res.respCode == 0) {
+        Fluttertoast.showToast(msg: res.respMsg ?? "加入申请提交成功！");
+        loadSpaceDetails(); // 🌟 重新拉取最新的状态（自动回显为：applying 审核中状态） [1]
+      } else {
+        Fluttertoast.showToast(msg: res.respMsg ?? "申请失败");
+      }
+    } catch (e) {
+      Get.back();
+      if (e is ApiException) {
+        Fluttertoast.showToast(msg: e.message);
+      } else {
+        Fluttertoast.showToast(msg: "申请失败，请检查网络: $e");
+      }
+    }
+  }
+
+  // 异步拉取成员审核列表以核验最新红点计数
+  Future<void> loadPendingApprovals() async {
+    try {
+      final res = await HttpClient.instance.get<List<dynamic>>('/api-communities/$communityId/applicants');
+      if (res.respCode == 0 && res.datas != null) {
+        pendingApprovalsCount.value = res.datas!.length;
+      }
+    } catch (_) {}
+  }
+
+  /// 在已加入的社群内发布新Saysay帖子
   Future<bool> publishPostInCommunity({
     required String title,
     required String content,
@@ -260,7 +301,7 @@ class CommunitySpaceController extends GetxController
     }
   }
 
-  /// 🌟🌟 核心安全修正点 B：管理员一键置顶/取消置顶群贴（修改为安全的 /api-posts 普通鉴权路由） [1]
+  /// 管理员一键置顶/取消置顶群贴（修改为安全的 /api-posts 普通鉴权路由）
   Future<void> togglePinPost(String postId, bool currentPinState) async {
     try {
       final res = await HttpClient.instance.put<Map<String, dynamic>>(
@@ -278,7 +319,7 @@ class CommunitySpaceController extends GetxController
     }
   }
 
-  /// 🌟🌟 核心安全修正点 C：群主管理员一键级联下架抹除（修改为安全的 /api-posts 物理拦截路由） [1]
+  /// 群主管理员一键级联下架抹除
   Future<void> deletePostByAdmin(String postId) async {
     try {
       final res = await HttpClient.instance.delete('/api-posts/$postId');
