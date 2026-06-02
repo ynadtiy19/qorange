@@ -1,4 +1,3 @@
-// lib/services/notification_handler_service.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -66,7 +65,7 @@ class NotificationHandlerService extends GetxService {
       showBadge: true,
     );
 
-    // 🌟 新增：独立创建一个用于更新下载进度的低重要度通道（不发出持续的响铃打扰用户）
+    // 独立创建一个用于更新下载进度的低重要度通道（不发出持续的响铃打扰用户）
     const AndroidNotificationChannel updateChannel = AndroidNotificationChannel(
       'app_update_channel',
       '应用更新下载',
@@ -83,7 +82,7 @@ class NotificationHandlerService extends GetxService {
     await androidImplementation?.createNotificationChannel(updateChannel);
   }
 
-  /// 🌟 处理系统通知栏点击行为，智能分发路由跳转与更新下载 [2]
+  /// 🌟 处理系统通知栏点击行为，智能分发路由跳转与更新下载
   void _onNotificationTap(NotificationResponse response) async {
     if (response.payload == null) return;
 
@@ -95,13 +94,13 @@ class NotificationHandlerService extends GetxService {
       final String customUrl = data['custom_url'] ?? '';
       final String filePath = data['file_path'] ?? '';
 
-      // 🌟 新增 A：点击更新通知，启动后台流式下载
+      // 点击更新通知，启动后台流式下载
       if (type == 'appUpdate' && customUrl.isNotEmpty) {
         _startAppUpdateDownload(customUrl);
         return;
       }
 
-      // 🌟 新增 B：点击下载完成的通知，直接重新拉起安装界面
+      // 点击下载完成的通知，直接重新拉起安装界面
       if (type == 'installApk' && filePath.isNotEmpty) {
         _installApk(filePath);
         return;
@@ -125,7 +124,7 @@ class NotificationHandlerService extends GetxService {
     }
   }
 
-  // 🌟 新增：执行 OTA 下载主逻辑
+  // 执行 OTA 下载主逻辑
   Future<void> _startAppUpdateDownload(String url) async {
     const int updateNotificationId = 8888; // 固定的下载通知 ID
     try {
@@ -161,7 +160,7 @@ class NotificationHandlerService extends GetxService {
 
         if (totalBytes > 0) {
           final int percentage = ((downloadedBytes / totalBytes) * 100).toInt();
-          // 🌟 节流优化：只有百分比整数变动时才调用 show()，避免卡顿
+          // 节流优化：只有百分比整数变动时才调用 show()，避免卡顿
           if (percentage > lastProgressPercent) {
             lastProgressPercent = percentage;
             await _updateDownloadNotification(percentage, updateNotificationId);
@@ -190,7 +189,7 @@ class NotificationHandlerService extends GetxService {
     }
   }
 
-  // 🌟 新增：向通知栏发送并刷新当前的下载进度
+  // 向通知栏发送并刷新当前的下载进度
   Future<void> _updateDownloadNotification(int progress, int notificationId) async {
     final bool isIndeterminate = progress < 0; // 是否显示无进度滚动条
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
@@ -216,7 +215,7 @@ class NotificationHandlerService extends GetxService {
     );
   }
 
-  // 🌟 新增：唤起系统 PackageInstaller 开始安装
+  // 唤起系统 PackageInstaller 开始安装
   Future<void> _installApk(String filePath) async {
     try {
       final File file = File(filePath);
@@ -232,7 +231,7 @@ class NotificationHandlerService extends GetxService {
     }
   }
 
-  // 🌟 新增：下载成功但用户取消后，常驻在通知栏的备份入口
+  // 下载成功但用户取消后，常驻在通知栏的备份入口
   Future<void> _showDownloadCompleteNotification(String filePath) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'app_update_channel',
@@ -255,7 +254,7 @@ class NotificationHandlerService extends GetxService {
     );
   }
 
-  // 🌟 新增：下载失败处理通知
+  // 下载失败处理通知
   Future<void> _showDownloadFailedNotification(int notificationId) async {
     await _notificationsPlugin.show(
       notificationId,
@@ -295,49 +294,59 @@ class NotificationHandlerService extends GetxService {
     final nickname = note.sender.nickname;
     final targetTitle = note.target.title;
 
-    // 1. 根据消息类别动态装配文案
-    if (note.category == 'social') {
-      switch (note.type) {
-        case 'like':
-          title = '🔥 点赞通知';
-          body = '$nickname 赞了你的观点: "$targetTitle"';
-          break;
-        case 'collect':
-          title = 'bookmark 收藏通知';
-          body = '$nickname 收藏了你的帖子: "$targetTitle"';
-          break;
-        case 'comment':
-          title = '💬 新讨论消息';
-          body = '$nickname 对你发表了看法: "$targetTitle"';
-          break;
-        case 'repost':
-          title = '🔁 转发通知';
-          body = '$nickname 转发同步了你的帖子: "$targetTitle"';
-          break;
-        case 'follow':
-          title = '🎉 关注';
-          body = '$nickname 关注了你，开始倾听你的观点';
-          break;
-      }
-    } else if (note.category == 'recommendation') {
-      if (note.type == 'recommendPost') {
-        title = '💡 个性化学术推荐';
-        body = '基于您的研究兴趣，向您推荐好文: "$targetTitle"';
-      } else if (note.type == 'recommendUser') {
-        title = '🤝 推荐认识的学者';
-        body = '推荐您关注同领域的创作者: @$nickname';
-      }
-    } else if (note.category == 'landingPage') {
-      title = '🌐 推荐落地页';
-      body = targetTitle.isNotEmpty ? targetTitle : '点击查看最新推荐文章与落地页。';
-    } else if (note.category == 'system') {
-      // 🌟 新增：支持后端发送 appUpdate 类型
-      if (note.type == 'appUpdate') {
-        title = '🚀 发现新版本';
-        body = targetTitle.isNotEmpty ? targetTitle : '点击立即下载更新最新版本';
-      } else {
-        title = '📢 系统广播通知';
-        body = targetTitle;
+    // 🌟🌟 核心安全修正：优先提取 customData 中由后端统一设计好的定制化交易/提现文案
+    // 这完美解决并消除了客户端硬编码造成的交易字段对不上、展现单调不美观的底层局限性 [1]！
+    if (note.customData.containsKey('title') && note.customData['title'].toString().isNotEmpty) {
+      title = note.customData['title'].toString();
+    }
+    if (note.customData.containsKey('content') && note.customData['content'].toString().isNotEmpty) {
+      body = note.customData['content'].toString();
+    }
+
+    // 🌟 降级机制：如果后端没有提供自定义文案，无缝退回到原先的社交通知/个性化学术推荐翻译中
+    if (body.isEmpty) {
+      if (note.category == 'social') {
+        switch (note.type) {
+          case 'like':
+            title = '🔥 点赞通知';
+            body = '$nickname 赞了你的观点: "$targetTitle"';
+            break;
+          case 'collect':
+            title = 'bookmark 收藏通知';
+            body = '$nickname 收藏了你的帖子: "$targetTitle"';
+            break;
+          case 'comment':
+            title = '💬 新讨论消息';
+            body = '$nickname 对你发表了看法: "$targetTitle"';
+            break;
+          case 'repost':
+            title = '🔁 转发通知';
+            body = '$nickname 转发同步了你的帖子: "$targetTitle"';
+            break;
+          case 'follow':
+            title = '🎉 关注';
+            body = '$nickname 关注了你，开始倾听你的观点';
+            break;
+        }
+      } else if (note.category == 'recommendation') {
+        if (note.type == 'recommendPost') {
+          title = '💡 个性化学术推荐';
+          body = '基于您的研究兴趣，向您推荐好文: "$targetTitle"';
+        } else if (note.type == 'recommendUser') {
+          title = '🤝 推荐认识的学者';
+          body = '推荐您关注同领域的创作者: @$nickname';
+        }
+      } else if (note.category == 'landingPage') {
+        title = '🌐 推荐落地页';
+        body = targetTitle.isNotEmpty ? targetTitle : '点击查看最新推荐文章与落地页。';
+      } else if (note.category == 'system') {
+        if (note.type == 'appUpdate') {
+          title = '🚀 发现新版本';
+          body = targetTitle.isNotEmpty ? targetTitle : '点击立即下载更新最新版本';
+        } else {
+          title = '📢 系统广播通知';
+          body = targetTitle;
+        }
       }
     }
 
@@ -374,14 +383,14 @@ class NotificationHandlerService extends GetxService {
       iOS: iosDetails,
     );
 
-    // 🌟 发送通知给本地底层
+    // 发送通知给本地底层
     await _notificationsPlugin.show(
       note.hashCode,
       title,
       body,
       platformDetails,
       payload: jsonEncode({
-        'type': note.type, // 🌟 如果 note.type 为 'appUpdate'，则在点击时启动下载
+        'type': note.type, // 如果为 system/appUpdate，点击将正确触发响应
         'target_id': note.target.id,
         'target_type': note.target.type,
         'custom_url': note.customData['url'] ?? '',
