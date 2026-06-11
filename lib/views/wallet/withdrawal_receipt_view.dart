@@ -20,7 +20,7 @@ class WithdrawalReceiptView extends StatefulWidget {
 class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
   final GlobalKey _repaintKey = GlobalKey();
 
-  // 🌟 曜石黑金高级色彩模型（无任何绿色元素）
+  // 曜石黑金高级色彩模型
   final Color premiumBg = const Color(0xFF0B0D17);     // 深太空蓝
   final Color premiumAmber = const Color(0xFFFFB636);  // 香槟琥珀金
   final Color premiumCard = const Color(0xFF161926);   // 暗调轻奢卡片
@@ -69,9 +69,13 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
     final String outBizNo = widget.detail['outBizNo'] ?? '';
     final String account = widget.detail['account'] ?? '';
     final String realName = widget.detail['name'] ?? '';
+
+    // 🌟 从详情里提取绑定的手机号 [1]
+    final String realPhone = widget.detail['real_phone'] ?? '未绑定';
+
     final String amount = double.tryParse(widget.detail['amount']?.toString() ?? '0')?.toStringAsFixed(2) ?? '0.00';
-    final String taxDeducted = widget.detail['tax_deducted'] ?? '0.00';
-    final String actualPayout = widget.detail['actual_payout'] ?? '0.00';
+    final String taxDeducted = double.tryParse(widget.detail['tax_deducted']?.toString() ?? '0')?.toStringAsFixed(2) ?? '0.00';
+    final String actualPayout = double.tryParse(widget.detail['actual_payout']?.toString() ?? '0')?.toStringAsFixed(2) ?? '0.00';
     final String createTime = widget.detail['created_at'] != null
         ? widget.detail['created_at'].toString().substring(0, 19).replaceAll('T', ' ')
         : '';
@@ -162,10 +166,12 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                           const Divider(height: 1, color: Color(0xFFF1F5F9)),
                           const SizedBox(height: 20),
 
-                          _buildReceiptItem('提现申请号', outBizNo),
-                          _buildReceiptItem('收款人实名', realName),
-                          _buildReceiptItem('收款支付宝号', account),
-                          _buildReceiptItem('申请出账总额', '¥$amount'),
+                          _buildReceiptItem('提现申请流水号', outBizNo),
+                          _buildReceiptItem('收款支付宝实名', realName),
+                          _buildReceiptItem('收款支付宝账号', account),
+                          // 🌟 追加展示学者的账户绑定电话，方便核算
+                          _buildReceiptItem('安全绑定手机号', realPhone),
+                          _buildReceiptItem('申请提现总额', '¥$amount'),
                           _buildReceiptItem('综合所得税 (10%)', '- ¥$taxDeducted', textColor: Colors.redAccent),
 
                           const SizedBox(height: 16),

@@ -5,6 +5,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:qorange/user_controller.dart';
+import 'package:qorange/views/profile/setting_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../network/api_exception.dart';
@@ -383,7 +384,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                   icon: HugeIcon(icon: HugeIcons.strokeRoundedWallet02, color: Colors.grey.shade700, size: 20),
                                 ),
                                 IconButton(
-                                  onPressed: () => Get.to(() => const ProfileEditView())?.then((_) => _controller.loadProfile()),
+                                  onPressed: () => Get.to(() => const SettingView()),
                                   icon: HugeIcon(icon: HugeIcons.strokeRoundedSettings01, color: Colors.grey.shade700, size: 20),
                                 ),
                                 IconButton(
@@ -574,7 +575,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           children: [
                             HugeIcon(icon: HugeIcons.strokeRoundedLocation01, color: Colors.grey.shade500, size: 16),
                             const SizedBox(width: 8),
-                            Text("$location 🇨🇳", style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                            Text("$location", style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
                           ],
                         ),
 

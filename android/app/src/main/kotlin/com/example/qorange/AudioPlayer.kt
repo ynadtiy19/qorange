@@ -23,19 +23,23 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
     private var playbackThread: Thread? = null
     private val audioQueue = ConcurrentLinkedQueue<ByteArray>()
 
-    private var minBufferSize = 5
-    private var targetBufferSize = 10
-    private var maxBufferSize = 20
-    private var jitterBufferSize = 3
+    // BUFFER OPTIMIZATION SETTINGS
+    private var minBufferSize = 5      // Minimum chunks before starting playback
+    private var targetBufferSize = 10  // Optimal buffer size for smooth playback
+    private var maxBufferSize = 20     // Maximum before dropping old chunks
+    private var jitterBufferSize = 3   // Extra chunks to handle network jitter
 
+    // Playback state management
     private var playbackStarted = false
     private var bufferUnderrunCount = 0
     private var bufferOverrunCount = 0
 
+    // Timing and synchronization
     private var playbackStartTime = 0L
     private var expectedPlaybackTime = 0L
-    private var chunkDurationMs = 0L
+    private var chunkDurationMs = 0L  // Will be calculated based on sample rate
 
+    // Performance tracking
     private var chunksReceived = 0
     private var chunksPlayed = 0
     private var jitterCorrections = 0
@@ -56,6 +60,7 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
                 return false
             }
 
+            // Calculate timing parameters
             calculateTimingParameters()
 
             val audioAttributes = AudioAttributes.Builder()
@@ -82,8 +87,10 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
                 return false
             }
 
+            // DON'T start playing immediately - wait for buffer to fill
             isPlaying = true
 
+            // Reset state
             playbackStarted = false
             bufferUnderrunCount = 0
             bufferOverrunCount = 0
@@ -95,11 +102,12 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
             startPlaybackThread()
 
             Log.d(TAG, "Buffer-optimized audio playback started with sample rate: $sampleRate")
+            Log.d(TAG, "Buffer settings: min=$minBufferSize, target=$targetBufferSize, max=$maxBufferSize")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start playback", e)
             onErrorCallback?.invoke("Failed to start playback: ${e.message}")
-            return false
+            false
         }
     }
 
@@ -120,9 +128,12 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
 
     fun queueAudioData(audioData: ByteArray) {
         if (isPlaying) {
+            val receiveTime = System.currentTimeMillis()
+
             synchronized(audioQueue) {
+                // Buffer overflow management
                 if (audioQueue.size >= maxBufferSize) {
-                    audioQueue.poll()
+                    audioQueue.poll() // Remove oldest chunk
                     bufferOverrunCount++
                     Log.d(TAG, "Buffer overflow - dropped oldest chunk")
                 }
@@ -132,8 +143,9 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
 
                 val bufferSize = audioQueue.size
 
+                // Start playback if we have enough buffer
                 if (!playbackStarted && bufferSize >= minBufferSize) {
-                    audioTrack?.play()
+                    audioTrack?.play()  // NOW start the AudioTrack
                     playbackStarted = true
                     playbackStartTime = System.currentTimeMillis()
                     expectedPlaybackTime = playbackStartTime
@@ -141,6 +153,7 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
                 }
             }
 
+            // Monitor buffer health periodically
             monitorBufferHealth()
         }
     }
@@ -166,31 +179,38 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
         playbackThread = thread {
             while (isPlaying && !Thread.currentThread().isInterrupted) {
                 try {
+                    // Wait for buffer to be ready
                     if (!playbackStarted) {
                         Thread.sleep(10)
                         continue
                     }
 
+                    // Get next chunk
                     val audioData = getNextAudioChunk()
 
                     if (audioData != null) {
+                        // Calculate expected timing for smooth playback
                         val currentTime = System.currentTimeMillis()
 
+                        // If we're ahead of expected time, wait
                         if (currentTime < expectedPlaybackTime) {
                             val sleepTime = expectedPlaybackTime - currentTime
-                            if (sleepTime > 0 && sleepTime < 100) {
+                            if (sleepTime > 0 && sleepTime < 100) { // Reasonable sleep time
                                 Thread.sleep(sleepTime)
                             }
                         }
 
+                        // Play the chunk
                         val bytesWritten = audioTrack?.write(audioData, 0, audioData.size) ?: 0
 
                         if (bytesWritten < 0) {
                             Log.w(TAG, "AudioTrack write error: $bytesWritten")
                         }
 
+                        // Update expected time for next chunk
                         expectedPlaybackTime += chunkDurationMs
 
+                        // If we're too far behind, reset timing to prevent drift
                         if (currentTime > expectedPlaybackTime + 100) {
                             expectedPlaybackTime = currentTime
                             jitterCorrections++
@@ -198,17 +218,20 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
                         }
 
                     } else {
+                        // No audio available - buffer underrun
                         if (playbackStarted) {
+                            // If buffer runs completely dry, pause and restart pre-fill
                             Log.w(TAG, "Buffer completely empty - pausing AudioTrack for refill")
                             audioTrack?.pause()
                             playbackStarted = false
                             expectedPlaybackTime = 0L
                         } else {
-                            Thread.sleep(20)
+                            Thread.sleep(20) // Wait longer when not playing
                         }
                     }
 
                 } catch (e: InterruptedException) {
+                    // Thread was interrupted, exit loop
                     break
                 } catch (e: Exception) {
                     if (isPlaying) {
@@ -222,29 +245,36 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
     }
 
     private fun calculateTimingParameters() {
+        // Calculate chunk duration for output rate (assuming 1024 samples per chunk)
         val chunkSamples = 1024
         chunkDurationMs = (chunkSamples * 1000L) / sampleRate
 
-        val targetLatencyMs = 200L
+        // Calculate how many chunks we need for smooth playback
+        val targetLatencyMs = 200L // Target 200ms latency for good quality
         val chunksForLatency = (targetLatencyMs / chunkDurationMs).toInt()
 
+        // Adjust buffer sizes based on chunk duration
         minBufferSize = max(3, chunksForLatency / 3)
         targetBufferSize = max(5, chunksForLatency / 2)
         maxBufferSize = max(10, chunksForLatency)
 
-        Log.i(TAG, "Buffer timing: chunk_duration=${chunkDurationMs}ms, target_buffer=$targetBufferSize chunks")
+        Log.i(TAG, "Buffer timing: chunk_duration=${chunkDurationMs}ms, target_buffer=$targetBufferSize chunks (${targetBufferSize * chunkDurationMs}ms)")
     }
 
     private fun monitorBufferHealth() {
         val currentTime = System.currentTimeMillis()
 
+        // Only log every 5 seconds to avoid spam
         if (currentTime - lastBufferLogTime < 5000) {
             return
         }
 
         val bufferSize = audioQueue.size
+
+        // Calculate buffer health percentage
         val bufferHealth = (bufferSize.toFloat() / targetBufferSize) * 100
 
+        // Determine buffer status
         val status = when {
             bufferSize < minBufferSize -> "STARVING"
             bufferSize > (maxBufferSize * 0.8).toInt() -> "OVERFLOWING"
@@ -266,6 +296,7 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
             val audioData = audioQueue.poll()
             chunksPlayed++
 
+            // Check for buffer underrun
             if (audioQueue.size < minBufferSize) {
                 bufferUnderrunCount++
                 if (playbackStarted) {
@@ -285,6 +316,7 @@ class AudioPlayer(private var sampleRate: Int = 24000) {
         audioQueue.clear()
     }
 
+    // Expose buffer health metrics for external monitoring
     fun getBufferHealth(): Map<String, Any> {
         return mapOf(
             "bufferSize" to audioQueue.size,

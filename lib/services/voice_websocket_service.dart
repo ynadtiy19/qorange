@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data'; // 🌟 核心引入：用于高能物理字节流 Uint8List [1]
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:get/get.dart'; // 引入 Get 以获取全局状态控制
+import 'package:get/get.dart';
 import '../network/api_exception.dart';
 import '../network/http_client.dart';
-import '../../views/voice/voice_chat_controller.dart'; // 引入控制器
+import '../../views/voice/voice_chat_controller.dart';
 
 class VoiceWebSocketService {
   static const MethodChannel _controlChannel = MethodChannel('com.sesame.voicechat/control');
@@ -22,6 +24,9 @@ class VoiceWebSocketService {
   Function(bool)? onVoiceActivityChanged;
   Function(String)? onError;
   VoidCallback? onSessionClosed;
+
+  // 🌟🌟 核心新增：原始麦克风 PCM 字节流向 Flutter 中继抛出的专用回调 🌟🌟 [1]
+  Function(Uint8List)? onAudioBytesReceived;
 
   /// 🌟 1. 开启 WSS 实时语音流闭环（自动拉取 Zeabur 临时安全 Token 并代扣检查）
   Future<void> startVoiceSession({required String contactName, required String characterName}) async {
@@ -44,6 +49,7 @@ class VoiceWebSocketService {
 
       // b. 物理激活底层原生事件流监听
       _eventSubscription?.cancel();
+      // 🌟 请寻找 VoiceWebSocketService 内的 _eventSubscription 监听段，将 if (data is Map) 内部修改为如下：
       _eventSubscription = _eventChannel.receiveBroadcastStream().listen(
             (data) {
           if (data is Map) {
@@ -51,8 +57,24 @@ class VoiceWebSocketService {
             final val = data['value'];
 
             if (type == 'voice_activity') {
-              if (onVoiceActivityChanged != null) {
-                onVoiceActivityChanged!(val as bool? ?? false);
+              if (val is Map) {
+                final bool hasVoice = val['hasVoice'] == true;
+                if (onVoiceActivityChanged != null) {
+                  onVoiceActivityChanged!(hasVoice);
+                }
+                // 此时如果是处于正常的 Saysay 录音状态，保留麦克风数据回调
+                // final dynamic audioData = val['audio_data'];
+              } else {
+                if (onVoiceActivityChanged != null) {
+                  onVoiceActivityChanged!(val as bool? ?? false);
+                }
+              }
+            } else if (type == 'ai_audio_data') {
+              // 🌟🌟 核心对齐：收到来自原生层重采样后的 AI 助手播放声波字节流，直接通过回调发送至翻译 WebSocket 🌟🌟 [2]
+              final dynamic audioData = val;
+              if (audioData != null && onAudioBytesReceived != null) {
+                final Uint8List bytes = Uint8List.fromList(List<int>.from(audioData));
+                onAudioBytesReceived!(bytes);
               }
             } else if (type == 'error') {
               if (onError != null) {
@@ -136,8 +158,7 @@ class VoiceWebSocketService {
 
     final int finalDuration = _elapsedSeconds;
 
-    // 🌟🌟 核心对齐修复：通过 Get.find 动态读取全局 UI 状态
-    // 如果 WSS 信道根本没有接通（例如WSS报错401/403/网络断开等），或者通话时长小于 2 秒，直接免单！
+    // 通过 Get.find 动态读取全局 UI 状态
     bool wasConnected = false;
     try {
       final controller = Get.find<VoiceChatController>();
@@ -154,7 +175,7 @@ class VoiceWebSocketService {
       onSessionClosed!();
     }
 
-    // 🌟🌟 核心防护拦截：未成功通电话或者时长在1秒及以内，不予计费上报，100%保护学者资金安全 🌟🌟
+    // 核心防护拦截：未成功通电话或者时长在1秒及以内，不予计费上报，100%保护学者资金安全
     if (!wasConnected || finalDuration < 2) {
       print('ℹ️ [VoiceChat] 语音通道未建立或时长过短 (${finalDuration}秒)，本次已免除扣费核销。');
       return;
