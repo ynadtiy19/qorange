@@ -5,9 +5,10 @@ import 'package:hugeicons/hugeicons.dart';
 import '../../user_controller.dart';
 import '../community/community_discovery_view.dart';
 import '../home/home_view.dart';
+import '../login/login_controller.dart';
 import '../login/login_view.dart';
 import '../profile/profile_view.dart';
-import '../shop/shop_view.dart'; // 🌟 引入新商店页面
+import '../shop/shop_view.dart';
 
 class MainNavView extends StatefulWidget {
   const MainNavView({super.key});
@@ -21,18 +22,27 @@ class _MainNavViewState extends State<MainNavView> {
 
   final List<Widget> _pages = [
     const HomeView(), // 1. 首页观点/saysay大厅
-    const CommunityDiscoveryView(), // 🌟 2. 新增：社群大厅发现大厅 [1]
+    const CommunityDiscoveryView(), // 2. 社群大厅发现大厅
     const ShopView(), // 3. 商店
     const ProfileView(), // 4. 个人主页
   ];
 
-  void _onTap(int index) {
-    if (index == 3) { // “我的”个人主页做登录拦截
+  void _onTap(int index) async {
+    // 对“我的（索引 3）”进行拦截
+    if (index == 3) {
       if (!UserController.to.isLoggedIn) {
-        Get.to(
+        // 🌟 路由净化：直接推入页面，LoginView 的 GetBuilder 会自动完美装载控制器
+        final bool? loggedIn = await Get.to<bool>(
               () => const LoginView(),
           transition: Transition.rightToLeftWithFade,
         );
+
+        // 登录成功后直接流畅过渡到个人中心
+        if (loggedIn == true) {
+          setState(() {
+            _currentIndex = 3;
+          });
+        }
         return;
       }
     }
@@ -43,6 +53,8 @@ class _MainNavViewState extends State<MainNavView> {
 
   @override
   Widget build(BuildContext context) {
+    const themeColor = Color.fromRGBO(44, 123, 109, 1.0);
+
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: Container(
@@ -58,7 +70,7 @@ class _MainNavViewState extends State<MainNavView> {
           currentIndex: _currentIndex,
           onTap: _onTap,
           backgroundColor: Colors.white,
-          selectedItemColor: const Color.fromRGBO(44, 123, 109, 1.0),
+          selectedItemColor: themeColor,
           unselectedItemColor: Colors.grey.shade400,
           showSelectedLabels: true,
           showUnselectedLabels: true,
@@ -80,29 +92,29 @@ class _MainNavViewState extends State<MainNavView> {
               ),
               activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedHome01,
-                color: Color.fromRGBO(44, 123, 109, 1.0),
+                color: themeColor,
               ),
               label: '首页',
             ),
             BottomNavigationBarItem(
               icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedUserGroup, // 🌟 使用社群大Icon [1]
+                icon: HugeIcons.strokeRoundedUserGroup,
                 color: Colors.grey.shade400,
               ),
               activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedUserGroup,
-                color: Color.fromRGBO(44, 123, 109, 1.0),
+                color: themeColor,
               ),
               label: '社群',
             ),
             BottomNavigationBarItem(
               icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedShoppingBag01, // 🌟 使用精美商店图标
+                icon: HugeIcons.strokeRoundedShoppingBag01,
                 color: Colors.grey.shade400,
               ),
-              activeIcon: HugeIcon(
+              activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedShoppingBag01,
-                color: const Color.fromRGBO(44, 123, 109, 1.0),
+                color: themeColor,
               ),
               label: '商店',
             ),
@@ -113,7 +125,7 @@ class _MainNavViewState extends State<MainNavView> {
               ),
               activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedUser,
-                color: Color.fromRGBO(44, 123, 109, 1.0),
+                color: themeColor,
               ),
               label: '我的',
             ),

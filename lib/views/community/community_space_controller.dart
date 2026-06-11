@@ -115,7 +115,7 @@ class CommunitySpaceController extends GetxController
 
       if (orderRes.respCode != 0 || orderRes.datas == null) {
         Get.back();
-        Fluttertoast.showToast(msg: orderRes.respMsg ?? '加入社群订单创建失败');
+        Fluttertoast.showToast(msg: orderRes.respMsg);
         return;
       }
 

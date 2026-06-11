@@ -14,6 +14,7 @@ import '../../network/secure_storage_manager.dart';
 import '../post_detail/post_detail_view.dart';
 import '../main/main_nav_view.dart';
 import '../login/login_view.dart';
+import '../wallet/wallet_view.dart';
 import 'profile_edit_view.dart';
 
 // 全局关系与数据状态同步触发信号
@@ -377,6 +378,10 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           Row(
                             children: [
                               if (isMe) ...[
+                                IconButton(
+                                  onPressed: () => Get.to(() => const WalletView()),
+                                  icon: HugeIcon(icon: HugeIcons.strokeRoundedWallet02, color: Colors.grey.shade700, size: 20),
+                                ),
                                 IconButton(
                                   onPressed: () => Get.to(() => const ProfileEditView())?.then((_) => _controller.loadProfile()),
                                   icon: HugeIcon(icon: HugeIcons.strokeRoundedSettings01, color: Colors.grey.shade700, size: 20),

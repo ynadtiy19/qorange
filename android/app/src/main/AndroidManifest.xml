@@ -1,25 +1,34 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.qorange">
 
     <!-- 基础网络访问权限 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!-- 媒体文件读取权限（可选） -->
+    <!-- 🌟🌟 新增：语音实时对话必须的核心音频权限 🌟🌟 -->
+    <!-- 允许程序录制音频数据（麦克风捕获） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 允许程序修改全局音频设置（切换外放、听筒、蓝牙路由） -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- 媒体文件读取权限 -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
-    <!-- 通知相关 -->
+    <!-- 本地通知系统相关 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
-    <!-- 允许在后台拉起系统安装应用界面 -->
+    <!-- 允许在后台拉起系统安装应用界面（OTA 自动更新必须） -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:label="qorange"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
+
+        <!-- ================= MainActivity (Flutter 唯一入口) ================= -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -27,28 +36,56 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
 
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"
                 />
 
+            <!-- 1. 声明 Launcher 启动意图 -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- 🌟🌟 新增：注册 qorange://payback 协议监听器，用于支付成功后从系统浏览器无感跃迁返回 App 🌟🌟 -->
+            <!-- 2. 🌟 注册 qorange://payback 协议监听器，用于支付成功后从系统浏览器无感跃迁返回 App -->
             <intent-filter android:label="qorange">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- 唤起协议定义，对应 qorange://payback -->
                 <data android:scheme="qorange" android:host="payback" />
             </intent-filter>
 
+            <!-- 3. 🌟 声明本地通知栏点击响应过滤器 -->
+            <intent-filter>
+                <action android:name="SELECT_NOTIFICATION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
         </activity>
+
+        <!-- ================= 🌟🌟 新增：Flutter 本地通知接收器配置（防止系统通知崩溃） 🌟🌟 ================= -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
 
         <meta-data
             android:name="flutterEmbedding"
@@ -56,11 +93,11 @@
     </application>
 
     <queries>
-        <!-- 微信 & 支付宝应用包名声明 -->
+        <!-- 微信 & 支付宝应用包名白名单声明 -->
         <package android:name="com.tencent.mm" />
         <package android:name="com.eg.android.AlipayGphone" />
 
-        <!-- 🌟🌟 新增：声明系统允许查询的外部 Scheme 协议（Android 11+ 物理唤起支付宝/微信 App 的绝对核心配置） 🌟🌟 -->
+        <!-- 🌟 声明系统允许查询的外部 Scheme 协议（Android 11+ 物理跳转拉起支付宝/微信 App 的绝对核心配置） -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="weixin" />

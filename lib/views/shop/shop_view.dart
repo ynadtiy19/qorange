@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:fluttertoast/fluttertoast.dart'; // 🌟 引入 Toast
-import '../../network/api_exception.dart';
-import '../../network/http_client.dart';
-import '../../services/epay_client_service.dart';
-import '../../user_controller.dart'; // 🌟 引入用户信息控制器
-import '../community/community_space_view.dart'; // 🌟 引入社群空间
-import '../post_detail/post_detail_view.dart'; // 🌟 引入帖子详情
+import 'shop_goods_model.dart';
+import 'shop_controller.dart';
+import '../community/community_space_view.dart';
+import '../post_detail/post_detail_view.dart';
 
 class ShopView extends StatefulWidget {
   const ShopView({super.key});
@@ -19,55 +15,30 @@ class ShopView extends StatefulWidget {
 
 class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
+  final ShopController controller = Get.put(ShopController());
 
-  // 滚动控制器
-  final ScrollController _allScrollController = ScrollController();
-  final ScrollController _postScrollController = ScrollController();
-  final ScrollController _groupScrollController = ScrollController();
-  final ScrollController _tokenScrollController = ScrollController();
-
-  // 商品数据载荷
-  List<dynamic> _allGoods = [];
-  List<dynamic> _postGoods = [];
-  List<dynamic> _groupGoods = [];
-  List<dynamic> _tokenGoods = [];
-
-  // 状态维护
-  bool _isLoadingAll = true;
-  bool _isLoadingPost = true;
-  bool _isLoadingGroup = true;
-  bool _isLoadingToken = true;
-
-  int _allPage = 1;
-  int _postPage = 1;
-  int _groupPage = 1;
-  int _tokenPage = 1;
-  final int _pageSize = 10;
-
-  bool _hasMoreAll = true;
-  bool _hasMorePost = true;
-  bool _hasMoreGroup = true;
-  bool _hasMoreToken = true;
-
-  bool _isLoadingMoreAll = false;
-  bool _isLoadingMorePost = false;
-  bool _isLoadingMoreGroup = false;
-  bool _isLoadingMoreToken = false;
+  // 🌟 核心改进：在 Widget 状态类中本地化声明与管理 ScrollController 实例，
+  // 保证它们随 Widget 的销毁而精准同步销毁，彻底解决 "ScrollController was used after being disposed" 崩溃
+  late ScrollController _allScrollController;
+  late ScrollController _postScrollController;
+  late ScrollController _groupScrollController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_handleTabSelection);
+
+    _allScrollController = ScrollController();
+    _postScrollController = ScrollController();
+    _groupScrollController = ScrollController();
 
     _allScrollController.addListener(() => _onScrollListener(_allScrollController, 'all'));
     _postScrollController.addListener(() => _onScrollListener(_postScrollController, 'post'));
     _groupScrollController.addListener(() => _onScrollListener(_groupScrollController, 'group'));
-    _tokenScrollController.addListener(() => _onScrollListener(_tokenScrollController, 'token'));
 
-    // 初始化时仅加载当前选中的 tab 数据
-    _loadCategoryData(_getCategoryByIndex(_tabController.index));
+    // 默认初始加载当前选中的页面数据
+    controller.loadCategoryData(controller.getCategoryByIndex(_tabController.index));
   }
 
   @override
@@ -77,590 +48,199 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     _allScrollController.dispose();
     _postScrollController.dispose();
     _groupScrollController.dispose();
-    _tokenScrollController.dispose();
     super.dispose();
   }
 
-  /// 监听 Tab 切换
+  void _onScrollListener(ScrollController scrollController, String category) {
+    if (scrollController.position.pixels >= scrollController.position.maxScrollExtent - 200) {
+      controller.fetchMoreGoods(category);
+    }
+  }
+
   void _handleTabSelection() {
     if (!_tabController.indexIsChanging) {
-      final category = _getCategoryByIndex(_tabController.index);
-      _loadCategoryData(category);
+      final category = controller.getCategoryByIndex(_tabController.index);
+      controller.loadCategoryData(category);
     }
   }
 
-  /// 根据索引获取分类标识
-  String _getCategoryByIndex(int index) {
-    switch (index) {
-      case 0:
-        return 'all';
-      case 1:
-        return 'post';
-      case 2:
-        return 'group';
-      case 3:
-        return 'token';
-      default:
-        return 'all';
-    }
-  }
+  void _showPurchaseSheet(ShopGoods item) {
+    String selectedPayType = 'alipay';
 
-  /// 按需加载指定分类的数据（支持静默刷新）
-  Future<void> _loadCategoryData(String category) async {
-    bool isSilent = false;
-
-    if (category == 'all' && _allGoods.isNotEmpty) isSilent = true;
-    if (category == 'post' && _postGoods.isNotEmpty) isSilent = true;
-    if (category == 'group' && _groupGoods.isNotEmpty) isSilent = true;
-    if (category == 'token' && _tokenGoods.isNotEmpty) isSilent = true;
-
-    if (!isSilent) {
-      setState(() {
-        if (category == 'all') _isLoadingAll = true;
-        if (category == 'post') _isLoadingPost = true;
-        if (category == 'group') _isLoadingGroup = true;
-        if (category == 'token') _isLoadingToken = true;
-      });
-    }
-
-    await _fetchGoods(category: category, isRefresh: true);
-  }
-
-  /// 保留的原装加载全部数据的方法
-  Future<void> _loadAllShopData() async {
-    setState(() {
-      _isLoadingAll = true;
-      _isLoadingPost = true;
-      _isLoadingGroup = true;
-      _isLoadingToken = true;
-    });
-    await Future.wait([
-      _fetchGoods(category: 'all', isRefresh: true),
-      _fetchGoods(category: 'post', isRefresh: true),
-      _fetchGoods(category: 'group', isRefresh: true),
-      _fetchGoods(category: 'token', isRefresh: true),
-    ]);
-  }
-
-  void _onScrollListener(ScrollController controller, String category) {
-    if (controller.position.pixels >= controller.position.maxScrollExtent - 200) {
-      _fetchMoreGoods(category);
-    }
-  }
-
-  /// 统一分页异步网络拉取
-  Future<void> _fetchGoods({required String category, bool isRefresh = false}) async {
-    int targetPage = 1;
-    if (!isRefresh) {
-      if (category == 'all') targetPage = ++_allPage;
-      if (category == 'post') targetPage = ++_postPage;
-      if (category == 'group') targetPage = ++_groupPage;
-      if (category == 'token') targetPage = ++_tokenPage;
-    } else {
-      if (category == 'all') _allPage = 1;
-      if (category == 'post') _postPage = 1;
-      if (category == 'group') _groupPage = 1;
-      if (category == 'token') _tokenPage = 1;
-    }
-
-    try {
-      final res = await HttpClient.instance.get<Map<String, dynamic>>(
-        '/api-goods',
-        queryParameters: {
-          'category': category,
-          'page': targetPage,
-          'limit': _pageSize,
-        },
-      );
-
-      if (res.respCode == 0 && res.datas != null) {
-        final List<dynamic> newGoods = res.datas!['goods'] as List? ?? [];
-        setState(() {
-          if (category == 'all') {
-            if (isRefresh) _allGoods = newGoods; else _allGoods.addAll(newGoods);
-            _isLoadingAll = false;
-            _isLoadingMoreAll = false;
-            _hasMoreAll = newGoods.length >= _pageSize;
-          } else if (category == 'post') {
-            if (isRefresh) _postGoods = newGoods; else _postGoods.addAll(newGoods);
-            _isLoadingPost = false;
-            _isLoadingMorePost = false;
-            _hasMorePost = newGoods.length >= _pageSize;
-          } else if (category == 'group') {
-            if (isRefresh) _groupGoods = newGoods; else _groupGoods.addAll(newGoods);
-            _isLoadingGroup = false;
-            _isLoadingMoreGroup = false;
-            _hasMoreGroup = newGoods.length >= _pageSize;
-          } else if (category == 'token') {
-            if (isRefresh) _tokenGoods = newGoods; else _tokenGoods.addAll(newGoods);
-            _isLoadingToken = false;
-            _isLoadingMoreToken = false;
-            _hasMoreToken = newGoods.length >= _pageSize;
-          }
-        });
-      }
-    } catch (_) {
-      setState(() {
-        _isLoadingAll = false;
-        _isLoadingPost = false;
-        _isLoadingGroup = false;
-        _isLoadingToken = false;
-        _isLoadingMoreAll = false;
-        _isLoadingMorePost = false;
-        _isLoadingMoreGroup = false;
-        _isLoadingMoreToken = false;
-      });
-    }
-  }
-
-  Future<void> _fetchMoreGoods(String category) async {
-    if (category == 'all' && (_isLoadingMoreAll || !_hasMoreAll || _isLoadingAll)) return;
-    if (category == 'post' && (_isLoadingMorePost || !_hasMorePost || _isLoadingPost)) return;
-    if (category == 'group' && (_isLoadingMoreGroup || !_hasMoreGroup || _isLoadingGroup)) return;
-    if (category == 'token' && (_isLoadingMoreToken || !_hasMoreToken || _isLoadingToken)) return;
-
-    setState(() {
-      if (category == 'all') _isLoadingMoreAll = true;
-      if (category == 'post') _isLoadingMorePost = true;
-      if (category == 'group') _isLoadingMoreGroup = true;
-      if (category == 'token') _isLoadingMoreToken = true;
-    });
-
-    await _fetchGoods(category: category, isRefresh: false);
-  }
-
-  /// 安全外部支付跳转逻辑
-  Future<void> _launchExternalBrowser(String urlString) async {
-    final url = Uri.parse(urlString);
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      Fluttertoast.showToast(msg: "无法启动外部支付页面，请确保手机已安装支付宝或相应浏览器");
-    }
-  }
-
-  /// 🌟 专门对齐易支付网关 RFC 3986 的编码拼接器，强制将 '+' 转换为 '%20'
-  String buildEpayQueryString(Map<String, dynamic> params) {
-    final List<String> parts = [];
-    params.forEach((key, value) {
-      final encodedKey = Uri.encodeQueryComponent(key);
-      final encodedValue = Uri.encodeQueryComponent(value.toString()).replaceAll('+', '%20');
-      parts.add('$encodedKey=$encodedValue');
-    });
-    return parts.join('&');
-  }
-
-  /// 极速付款流程全闭环执行
-  Future<void> _executePaymentWorkflow(Map<String, dynamic> item, String selectedPayType) async {
-    // 拦截未登录用户
-    if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后购买");
-      return;
-    }
-
-    Get.dialog(
-      const Center(
-        child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0)),
-      ),
-      barrierDismissible: false,
-    );
-
-    try {
-      // 1. 服务器下单，锁定价格
-      final orderRes = await HttpClient.instance.post<Map<String, dynamic>>(
-        '/api-pay/create_order',
-        data: {
-          'goodsId': item['id'],
-          'goodsType': item['category'],
-          'payType': selectedPayType,
-        },
-      );
-
-      if (orderRes.respCode != 0 || orderRes.datas == null) {
-        Get.back();
-        Fluttertoast.showToast(msg: orderRes.respMsg ?? '生成系统待支付单失败');
-        return;
-      }
-
-      final outTradeNo = orderRes.datas!['outTradeNo'];
-      final amount = orderRes.datas!['amount'];
-      final goodsName = orderRes.datas!['goodsName'];
-
-      // 2. 客户端直连平台发起下单（调用统一网关防墙方案）
-      final epay = EpayClientService();
-      final epayCreateRes = await epay.createPaymentDirectly(params: {
-        'method': 'jump', // 物理跳转拉起类型
-        'device': 'mobile', // 强制指定移动端
-        'type': selectedPayType,
-        'out_trade_no': outTradeNo,
-        'name': goodsName,
-        'money': amount,
-      });
-
-      Get.back(); // 关闭加载弹窗
-
-      if (epayCreateRes['code'] == 0) {
-        final payUrl = epayCreateRes['pay_info'] ?? epayCreateRes['pay_url'];
-        if (payUrl != null && payUrl.toString().isNotEmpty) {
-          // 3. 直接 H5 跳转
-          await _launchExternalBrowser(payUrl.toString());
-
-          // 展示支付完成确认框
-          _showPaymentCheckDialog(outTradeNo);
-        } else {
-          Fluttertoast.showToast(msg: '网关返回支付参数解析异常');
-        }
-      } else {
-        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? '通道唤起故障');
-      }
-    } catch (e) {
-      Get.back(); // 确保关闭加载圈
-      if (e is ApiException) {
-        Fluttertoast.showToast(msg: e.message);
-      } else {
-        Fluttertoast.showToast(msg: '请求链路异常: $e');
-      }
-    }
-  }
-
-  void _showPaymentCheckDialog(String outTradeNo) {
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      barrierDismissible: false,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('支付确认', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          content: const Text('请您在打开的页面中完成支付，支付完成后请点击下方按钮。', style: TextStyle(fontSize: 13, height: 1.4)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('已取消付款', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _verifyPaymentOnBackend(outTradeNo);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
               ),
-              child: const Text('我已支付完成', style: TextStyle(color: Colors.white)),
-            ),
-          ],
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: controller.primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: HugeIcon(
+                          icon: _getCategoryIconData(item.category),
+                          color: controller.primaryColor,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item.desc,
+                              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text('选择支付方式', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () => setModalState(() => selectedPayType = 'alipay'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: selectedPayType == 'alipay' ? controller.primaryColor : Colors.grey.shade200,
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        color: selectedPayType == 'alipay' ? controller.primaryColor.withOpacity(0.02) : Colors.transparent,
+                      ),
+                      child: Row(
+                        children: [
+                          const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCreditCard,
+                            color: Colors.blue,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Text('支付宝支付', style: TextStyle(fontWeight: FontWeight.w600))),
+                          if (selectedPayType == 'alipay')
+                            Icon(Icons.check_circle, color: controller.primaryColor, size: 20)
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () => setModalState(() => selectedPayType = 'wxpay'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: selectedPayType == 'wxpay' ? controller.primaryColor : Colors.grey.shade200,
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        color: selectedPayType == 'wxpay' ? controller.primaryColor.withOpacity(0.02) : Colors.transparent,
+                      ),
+                      child: Row(
+                        children: [
+                          const HugeIcon(
+                            icon: HugeIcons.strokeRoundedWallet01,
+                            color: Colors.green,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Text('微信支付', style: TextStyle(fontWeight: FontWeight.w600))),
+                          if (selectedPayType == 'wxpay')
+                            Icon(Icons.check_circle, color: controller.primaryColor, size: 20)
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('应付总额', style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '¥${item.price.toStringAsFixed(2)}',
+                            style: TextStyle(color: controller.primaryColor, fontWeight: FontWeight.bold, fontSize: 22),
+                          ),
+                        ],
+                      ),
+                      SizedBox(
+                        width: 160,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            controller.executePaymentWorkflow(item, selectedPayType);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: controller.primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 0,
+                          ),
+                          child: const Text('立即购买', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        ),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  /// 极速付款安全校验闭环，向国外服务器提交原装签名账本
-  Future<void> _verifyPaymentOnBackend(String outTradeNo) async {
-    Get.dialog(
-      const Center(
-        child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0)),
-      ),
-      barrierDismissible: false,
-    );
-
-    try {
-      final epay = EpayClientService();
-      // 客户端直连国内获取账本
-      final realEpayData = await epay.queryOrderDirectly(outTradeNo: outTradeNo);
-
-      // 将原装签名账本传送给 Zeabur 后台解锁内容
-      final verifyRes = await HttpClient.instance.post<Map<String, dynamic>>(
-        '/api-pay/verify_payment',
-        data: {'epay_response': realEpayData},
-      );
-
-      Get.back();
-
-      // 利用内置属性进行结果校验与弹窗信息组装展示，排除外层多余解析
-      if (verifyRes.respCode == 0 && verifyRes.datas != null) {
-        // 绘制一连串精美原生弹窗，平铺展示返回的 datas 所有核心参数
-        showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) {
-            final Map<String, dynamic> responseDetails = Map<String, dynamic>.from(verifyRes.datas!);
-            final String targetId = responseDetails['goodsId']?.toString() ?? '';
-            final String targetType = responseDetails['goodsType']?.toString() ?? '';
-
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Row(
-                children: [
-                  Icon(Icons.check_circle_rounded, color: Color.fromRGBO(44, 123, 109, 1.0), size: 24),
-                  SizedBox(width: 8),
-                  Text('支付验证成功', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '商品已完成安全发货并解锁，以下为订单返回数据详情：',
-                      style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: responseDetails.entries.map((entry) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${entry.key}: ',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    '${entry.value}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // 🌟🌟 核心交互升级：付款成功后点击完成，直接极速路由跳转进入对应的社群空间或帖子！ [2]
-                    if (targetType == 'group' && targetId.isNotEmpty) {
-                      Get.off(() => CommunitySpaceView(communityId: targetId));
-                    } else if (targetType == 'post' && targetId.isNotEmpty) {
-                      Get.off(() => PostDetailView(postId: targetId));
-                    } else {
-                      _loadCategoryData(_getCategoryByIndex(_tabController.index));
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('立即进入体验', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          },
-        );
-      } else {
-        Fluttertoast.showToast(msg: verifyRes.respMsg ?? '账单解密验签未通过');
-      }
-    } catch (e) {
-      Get.back(); // 确保关闭加载圈
-      if (e is ApiException) {
-        Fluttertoast.showToast(msg: e.message);
-      } else {
-        Fluttertoast.showToast(msg: '无法连接发货验证网关: $e');
-      }
-    }
-  }
-
-  void _showPurchaseSheet(Map<String, dynamic> item) {
-    String selectedPayType = 'alipay';
-
-    showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setModalState) {
-              return Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: HugeIcon(
-                            icon: _getCategoryIcon(item['category']?.toString()),
-                            color: primaryColor,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item['title'].toString(),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                item['desc'].toString(),
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        )
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    const Text('选择支付方式', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () => setModalState(() => selectedPayType = 'alipay'),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: selectedPayType == 'alipay' ? primaryColor : Colors.grey.shade200,
-                            width: 1.5,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          color: selectedPayType == 'alipay' ? primaryColor.withOpacity(0.02) : Colors.transparent,
-                        ),
-                        child: Row(
-                          children: [
-                            const HugeIcon(
-                              icon: HugeIcons.strokeRoundedCreditCard,
-                              color: Colors.blue,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(child: Text('支付宝支付', style: TextStyle(fontWeight: FontWeight.w600))),
-                            if (selectedPayType == 'alipay')
-                              Icon(Icons.check_circle, color: primaryColor, size: 20)
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () => setModalState(() => selectedPayType = 'wxpay'),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: selectedPayType == 'wxpay' ? primaryColor : Colors.grey.shade200,
-                            width: 1.5,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          color: selectedPayType == 'wxpay' ? primaryColor.withOpacity(0.02) : Colors.transparent,
-                        ),
-                        child: Row(
-                          children: [
-                            const HugeIcon(
-                              icon: HugeIcons.strokeRoundedWallet01,
-                              color: Colors.green,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(child: Text('微信支付', style: TextStyle(fontWeight: FontWeight.w600))),
-                            if (selectedPayType == 'wxpay')
-                              Icon(Icons.check_circle, color: primaryColor, size: 20)
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('应付总额', style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-                            const SizedBox(height: 4),
-                            Text(
-                              '¥${double.tryParse(item['price'].toString())?.toStringAsFixed(2) ?? '0.00'}',
-                              style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 22),
-                            ),
-                          ],
-                        ),
-                        SizedBox(
-                          width: 160,
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _executePaymentWorkflow(item, selectedPayType);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              elevation: 0,
-                            ),
-                            child: const Text('立即购买', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          ),
-                        )
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                ),
-              );
-            },
-          );
-        }
-    );
-  }
-
-  List<List<dynamic>> _getCategoryIcon(String? category) {
+  // 🌟 按照用户要求，返回类型依然保持为原版 List<List<dynamic>> 签名结构
+  List<List<dynamic>> _getCategoryIconData(String? category) {
     if (category == 'post') {
       return HugeIcons.strokeRoundedBookOpen02;
     } else if (category == 'group') {
@@ -673,7 +253,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
   }
 
   Widget _buildProductGrid({
-    required List<dynamic> goods,
+    required List<ShopGoods> goods,
     required bool isLoading,
     required ScrollController scrollController,
     required bool hasMore,
@@ -682,7 +262,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
   }) {
     if (isLoading) {
       return Center(
-        child: CircularProgressIndicator(color: primaryColor, strokeWidth: 2),
+        child: CircularProgressIndicator(color: controller.primaryColor, strokeWidth: 2),
       );
     }
     if (goods.isEmpty) {
@@ -703,8 +283,8 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     }
 
     return RefreshIndicator(
-      onRefresh: _loadAllShopData,
-      color: primaryColor,
+      onRefresh: controller.loadAllShopData,
+      color: controller.primaryColor,
       child: GridView.builder(
         controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -722,14 +302,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
           }
 
           final item = goods[index];
-          final price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
-          final category = item['category']?.toString() ?? 'virtual';
-
-          // 读取后端同步重组装回来的帖子封面/商品大图 URL
-          final imageUrl = item['image_url']?.toString() ?? '';
-
-          // 🌟 读取后端同步重排回来的“已购 / 已加入”状态指标
-          final bool isPurchased = item['is_purchased'] as bool? ?? false;
 
           return Container(
             decoration: BoxDecoration(
@@ -751,7 +323,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                   child: Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.04),
+                      color: controller.primaryColor.withOpacity(0.04),
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(20),
                         topRight: Radius.circular(20),
@@ -763,17 +335,16 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                         topRight: Radius.circular(20),
                       ),
                       child: Stack(
-                        fit: StackFit.expand, // 使大图完美平铺铺满卡片顶部
+                        fit: StackFit.expand,
                         children: [
-                          // 核心美化升级：若该付费帖子或常规商品在云端含有真实大图封面，优先渲染封面，实现小红书/美学商店级别的高级质感；无图则无缝降级展示大类默认小图标
-                          if (imageUrl.isNotEmpty)
+                          if (item.imageUrl.isNotEmpty)
                             Image.network(
-                              imageUrl,
+                              item.imageUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (c, e, s) => Center(
                                 child: HugeIcon(
-                                  icon: _getCategoryIcon(category),
-                                  color: primaryColor.withOpacity(0.8),
+                                  icon: _getCategoryIconData(item.category),
+                                  color: controller.primaryColor.withOpacity(0.8),
                                   size: 48,
                                 ),
                               ),
@@ -781,8 +352,8 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                           else
                             Center(
                               child: HugeIcon(
-                                icon: _getCategoryIcon(category),
-                                color: primaryColor.withOpacity(0.8),
+                                icon: _getCategoryIconData(item.category),
+                                color: controller.primaryColor.withOpacity(0.8),
                                 size: 48,
                               ),
                             ),
@@ -792,15 +363,15 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: primaryColor.withOpacity(0.12),
+                                color: controller.primaryColor.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                isPurchased
-                                    ? '已拥有' // 🌟 状态指示：如果是已购社群/帖子，自动覆盖角标
-                                    : (item['tag']?.toString() ?? '热卖'),
+                                item.isPurchased
+                                    ? '已拥有'
+                                    : item.tag,
                                 style: TextStyle(
-                                  color: isPurchased ? Colors.green.shade800 : primaryColor,
+                                  color: item.isPurchased ? Colors.green.shade800 : controller.primaryColor,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -818,14 +389,14 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item['title']?.toString() ?? '商品',
+                        item.title,
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        item['desc']?.toString() ?? '无详细描述',
+                        item.desc,
                         style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -835,30 +406,29 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '¥${price.toStringAsFixed(2)}',
-                            style: TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 15),
+                            '¥${item.price.toStringAsFixed(2)}',
+                            style: TextStyle(color: controller.primaryColor, fontWeight: FontWeight.w900, fontSize: 15),
                           ),
-                          // 🌟🌟 核心交互升级：如果是已经加入或购买的付费群组/帖子，直接改变交互按钮，变为极速进入通道，保障端到端对齐 [2]
-                          if (isPurchased)
+                          if (item.isPurchased || item.price <= 0)
                             SizedBox(
                               height: 28,
                               child: TextButton(
                                 onPressed: () {
-                                  final String targetId = item['target_id']?.toString() ?? '';
-                                  if (category == 'group' && targetId.isNotEmpty) {
+                                  final String targetId = item.targetId;
+                                  if (item.category == 'group' && targetId.isNotEmpty) {
                                     Get.to(() => CommunitySpaceView(communityId: targetId));
-                                  } else if (category == 'post' && targetId.isNotEmpty) {
+                                  } else if (item.category == 'post' && targetId.isNotEmpty) {
                                     Get.to(() => PostDetailView(postId: targetId));
                                   }
                                 },
                                 style: TextButton.styleFrom(
-                                  backgroundColor: primaryColor.withOpacity(0.1),
+                                  backgroundColor: controller.primaryColor.withOpacity(0.1),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   padding: const EdgeInsets.symmetric(horizontal: 12),
                                 ),
                                 child: Text(
-                                  category == 'group' ? '进入空间' : '阅读内容',
-                                  style: TextStyle(color: primaryColor, fontSize: 11, fontWeight: FontWeight.bold),
+                                  item.category == 'group' ? '进入空间' : '阅读内容',
+                                  style: TextStyle(color: controller.primaryColor, fontSize: 11, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             )
@@ -869,7 +439,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: primaryColor,
+                                  color: controller.primaryColor,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: const Icon(Icons.add, color: Colors.white, size: 16),
@@ -894,7 +464,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
         child: SizedBox(
           width: 24,
           height: 24,
-          child: CircularProgressIndicator(color: primaryColor, strokeWidth: 2),
+          child: CircularProgressIndicator(color: controller.primaryColor, strokeWidth: 2),
         ),
       );
     }
@@ -906,60 +476,297 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('美学生活商店', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.black)),
+        title: const Text('商店', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.black)),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: primaryColor,
-          labelColor: primaryColor,
+          indicatorColor: controller.primaryColor,
+          labelColor: controller.primaryColor,
           unselectedLabelColor: Colors.grey,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           tabs: const [
             Tab(text: '全部'),
             Tab(text: '付费帖子'),
-            Tab(text: '付费社群'),
-            Tab(text: '代币充值'),
+            Tab(text: '社群'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildProductGrid(
-            goods: _allGoods,
-            isLoading: _isLoadingAll,
+          Obx(() => _buildProductGrid(
+            goods: controller.allGoods,
+            isLoading: controller.isLoadingAll.value,
             scrollController: _allScrollController,
-            hasMore: _hasMoreAll,
-            isLoadingMore: _isLoadingMoreAll,
+            hasMore: controller.hasMoreAll.value,
+            isLoadingMore: controller.isLoadingMoreAll.value,
             categoryCode: 'all',
-          ),
-          _buildProductGrid(
-            goods: _postGoods,
-            isLoading: _isLoadingPost,
+          )),
+          Obx(() => _buildProductGrid(
+            goods: controller.postGoods,
+            isLoading: controller.isLoadingPost.value,
             scrollController: _postScrollController,
-            hasMore: _hasMorePost,
-            isLoadingMore: _isLoadingMorePost,
+            hasMore: controller.hasMorePost.value,
+            isLoadingMore: controller.isLoadingMorePost.value,
             categoryCode: 'post',
-          ),
-          _buildProductGrid(
-            goods: _groupGoods,
-            isLoading: _isLoadingGroup,
+          )),
+          Obx(() => _buildProductGrid(
+            goods: controller.groupGoods,
+            isLoading: controller.isLoadingGroup.value,
             scrollController: _groupScrollController,
-            hasMore: _hasMoreGroup,
-            isLoadingMore: _isLoadingMoreGroup,
+            hasMore: controller.hasMoreGroup.value,
+            isLoadingMore: controller.isLoadingMoreGroup.value,
             categoryCode: 'group',
-          ),
-          _buildProductGrid(
-            goods: _tokenGoods,
-            isLoading: _isLoadingToken,
-            scrollController: _tokenScrollController,
-            hasMore: _hasMoreToken,
-            isLoadingMore: _isLoadingMoreToken,
-            categoryCode: 'token',
-          ),
+          )),
         ],
+      ),
+    );
+  }
+}
+
+/// 🌟 好看配色的交易成功动画页面
+class ShopPaymentSuccessPage extends StatefulWidget {
+  final Map<String, dynamic> orderDetails;
+  final Color primaryColor;
+  final VoidCallback onDone;
+
+  const ShopPaymentSuccessPage({
+    super.key,
+    required this.orderDetails,
+    required this.primaryColor,
+    required this.onDone,
+  });
+
+  @override
+  State<ShopPaymentSuccessPage> createState() => _ShopPaymentSuccessPageState();
+}
+
+class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.elasticOut,
+      ),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.4, 1.0, curve: Curves.easeIn),
+      ),
+    );
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String targetId = widget.orderDetails['goodsId']?.toString() ?? '';
+    final String targetType = widget.orderDetails['goodsType']?.toString() ?? '';
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+          child: Column(
+            children: [
+              const SizedBox(height: 30),
+              // 顶部成功的动画绿圆标
+              ScaleTransition(
+                scale: _scaleAnimation,
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: widget.primaryColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.check_circle_rounded,
+                      color: widget.primaryColor,
+                      size: 64,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: const Text(
+                  '订单支付成功',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: const Text(
+                  '商品已成功解锁发货',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              // 订单信息纸质凭证风格卡片
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '凭证清单详情',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(height: 1, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      ...widget.orderDetails.entries.map((entry) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${entry.key}:',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${entry.value}',
+                                  textAlign: TextAlign.end,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+              // 底部的交互操作响应区
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: Column(
+                  children: [
+                    // 第一动作按钮：若具备快捷入口直接提供路由体验
+                    if (targetId.isNotEmpty && (targetType == 'group' || targetType == 'post')) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            widget.onDone(); // 触发静默刷新
+                            Get.back(); // 关闭成功页
+                            if (targetType == 'group') {
+                              Get.to(() => CommunitySpaceView(communityId: targetId));
+                            } else if (targetType == 'post') {
+                              Get.to(() => PostDetailView(postId: targetId));
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: widget.primaryColor,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            '立即进入体验',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    // 第二动作按钮：回退至商店列表
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: TextButton(
+                        onPressed: () {
+                          widget.onDone(); // 触发列表刷新
+                          Get.back(); // 退出页面
+                        },
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.grey.shade100,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          '完成并返回',
+                          style: TextStyle(
+                            color: Colors.black87,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
       ),
     );
   }

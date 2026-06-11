@@ -6,7 +6,8 @@ import '../../network/http_client.dart';
 import '../../user_controller.dart';
 import '../post_detail/post_detail_view.dart';
 import '../publish/publish_view.dart';
-import '../search/search_view.dart'; // 🌟 引入新设计的搜索页面
+import '../search/search_view.dart';
+import '../voice/voice_chat_view.dart'; // 🌟 引入新设计的搜索页面
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -85,6 +86,8 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
   // 下拉刷新或初始化加载
   Future<void> _loadFeeds() async {
+    // 🌟 安全防护：确保初始化时组件仍挂载
+    if (!mounted) return;
     setState(() {
       _isLoadingForYou = true;
       _isLoadingFeatured = true;
@@ -124,6 +127,8 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         final List<dynamic> newPosts = res.datas!['posts'] as List? ?? [];
         final List<dynamic> tags = res.datas!['recommended_tags'] as List? ?? [];
 
+        // 🌟 核心防崩保护：接口异步返回时，检验组件是否已被移出渲染树 [2]
+        if (!mounted) return;
         setState(() {
           if (isRefresh) {
             _forYouPosts = newPosts;
@@ -139,6 +144,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoadingForYou = false;
         _isLoadingMoreForYou = false;
@@ -149,6 +155,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
   // 加载更多 “为你推荐”
   Future<void> _fetchMoreForYou() async {
     if (_isLoadingMoreForYou || !_hasMoreForYou || _isLoadingForYou) return;
+    if (!mounted) return;
     setState(() {
       _isLoadingMoreForYou = true;
     });
@@ -182,6 +189,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
       );
       if (res.datas != null) {
         final List<dynamic> newPosts = res.datas!['posts'] as List? ?? [];
+
+        // 🌟 核心防崩保护：接口异步返回时，检验组件是否已被移出渲染树 [2]
+        if (!mounted) return;
         setState(() {
           if (isRefresh) {
             _featuredPosts = newPosts;
@@ -196,6 +206,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoadingFeatured = false;
         _isLoadingMoreFeatured = false;
@@ -206,6 +217,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
   // 加载更多 “精选高赞”
   Future<void> _fetchMoreFeatured() async {
     if (_isLoadingMoreFeatured || !_hasMoreFeatured || _isLoadingFeatured) return;
+    if (!mounted) return;
     setState(() {
       _isLoadingMoreFeatured = true;
     });
@@ -215,6 +227,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
   // 🌟 静默重置所有局部筛选，恢复全量漏斗推荐流
   void _clearActiveFilters() {
+    if (!mounted) return;
     setState(() {
       _selectedTag = null;
       _selectedCategory = null;
@@ -226,6 +239,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
   // 🌟 点击标签实现的主页即时内页过滤
   void _onTagSelected(String tag) {
+    if (!mounted) return;
     setState(() {
       _selectedTag = tag;
       _selectedCategory = null; // 清除分类筛选
@@ -268,13 +282,32 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
               return const SizedBox.shrink();
             }
 
-            // 已登录状态下显示发布按钮
-            return IconButton(
-              onPressed: () => Get.to(() => const PublishView()),
-              icon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedQuillWrite02,
-                color: Color.fromRGBO(44, 123, 109, 1.0),
-              ),
+            // 已登录状态下完美承接两个高颜值图标，点击语音直接进行 Cupertino 风格的原生右滑手势迁跃
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // AI 语音通话入口（选用专为 AI 波动设计的 AiWave 物理指示图标）
+                IconButton(
+                  onPressed: () => Get.to(
+                        () => const VoiceChatView(),
+                    transition: Transition.cupertino, // 完美还原系统右滑物理视差手势关闭
+                    duration: const Duration(milliseconds: 300),
+                  ),
+                  icon: HugeIcon(
+                    icon: HugeIcons.strokeRoundedAiGame,
+                    color: const Color.fromRGBO(44, 123, 109, 1.0),
+                  ),
+                ),
+
+                // 观点 Saysay 发布按钮
+                IconButton(
+                  onPressed: () => Get.to(() => const PublishView()),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedQuillWrite02,
+                    color: Color.fromRGBO(44, 123, 109, 1.0),
+                  ),
+                ),
+              ],
             );
           }),
         ],
@@ -590,6 +623,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       // 专业学科方向指示小标签
                       GestureDetector(
                         onTap: () {
+                          if (!mounted) return;
                           setState(() {
                             _selectedCategory = category;
                             _selectedTag = null; // 清除标签筛选

@@ -17,39 +17,41 @@ class LoginController extends GetxController {
   final FocusNode passwordFocusNode = FocusNode();
   final FocusNode nicknameFocusNode = FocusNode();
 
-  RxBool isUsernameValid = false.obs;
-  RxBool isPasswordValid = false.obs;
-  RxBool isNicknameValid = false.obs;
+  final RxBool isUsernameValid = false.obs;
+  final RxBool isPasswordValid = false.obs;
+  final RxBool isNicknameValid = false.obs;
 
-  RxBool isRegisterMode = false.obs; // 是否为注册模式
-  RxBool isLoading = false.obs;
+  final RxBool isRegisterMode = false.obs; // 是否为注册模式
+  final RxBool isLoading = false.obs;
 
   @override
   void onInit() {
     super.onInit();
-    // 监听账号、密码、昵称的变化
-    usernameController.addListener(() {
-      isUsernameValid.value = usernameController.text.trim().length >= 3;
-    });
-
-    passwordController.addListener(() {
-      isPasswordValid.value = passwordController.text.trim().length >= 6;
-    });
-
-    nicknameController.addListener(() {
-      isNicknameValid.value = nicknameController.text.trim().isNotEmpty;
-    });
+    // 显式添加事件监听，避免匿名闭包垃圾回收失效
+    usernameController.addListener(_validateUsername);
+    passwordController.addListener(_validatePassword);
+    nicknameController.addListener(_validateNickname);
   }
 
-  @override
-  void onClose() {
-    usernameController.dispose();
-    passwordController.dispose();
-    nicknameController.dispose();
-    usernameFocusNode.dispose();
-    passwordFocusNode.dispose();
-    nicknameFocusNode.dispose();
-    super.onClose();
+  void _validateUsername() {
+    isUsernameValid.value = usernameController.text.trim().length >= 3;
+  }
+
+  void _validatePassword() {
+    isPasswordValid.value = passwordController.text.trim().length >= 6;
+  }
+
+  void _validateNickname() {
+    isNicknameValid.value = nicknameController.text.trim().isNotEmpty;
+  }
+
+  /// 动态切换登录和注册模式，并安全清空已输入的内容防止脏状态残留
+  void toggleRegisterMode() {
+    isRegisterMode.value = !isRegisterMode.value;
+    passwordController.clear();
+    nicknameController.clear();
+    passwordFocusNode.unfocus();
+    nicknameFocusNode.unfocus();
   }
 
   /// 登录或注册提交逻辑
@@ -95,7 +97,9 @@ class LoginController extends GetxController {
         AuthStateManager.instance.onLoginSuccess();
 
         Fluttertoast.showToast(msg: "登录成功");
-        Get.back();
+
+        // 🌟 核心机制升级：向上一层路由返回 true，通知导航控制器用户已完成登录行为
+        Get.back(result: true);
       }
     } on ApiException catch (e) {
       Fluttertoast.showToast(msg: e.message);
@@ -139,5 +143,22 @@ class LoginController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  @override
+  void onClose() {
+    // 销毁监听器
+    usernameController.removeListener(_validateUsername);
+    passwordController.removeListener(_validatePassword);
+    nicknameController.removeListener(_validateNickname);
+
+    // 释放资源，断开软键盘事件和节点内存泄漏
+    usernameController.dispose();
+    passwordController.dispose();
+    nicknameController.dispose();
+    usernameFocusNode.dispose();
+    passwordFocusNode.dispose();
+    nicknameFocusNode.dispose();
+    super.onClose();
   }
 }

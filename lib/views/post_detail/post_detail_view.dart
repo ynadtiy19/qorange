@@ -39,11 +39,11 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
   int likeCount = 0;
   bool isCollected = false;
 
-  // 🌟 新增定义：付费状态与购买状态
+// 🌟 付费状态与购买状态
   bool isPaid = false;
   bool isPurchased = false;
 
-  // 翻译响应状态
+// 翻译响应状态
   bool isTranslating = false;
   bool isShowingTranslation = false;
   quill.Delta? _originalDelta;
@@ -51,7 +51,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
   bool _isSendingComment = false;
   String? _selectedOptionId;
 
-  // 级联回复上下文状态
+// 级联回复上下文状态
   String? _replyParentCommentId; // 目标顶级父评论
   String? _replyToUserId;        // 目标回复用户ID
   String? _replyToNickname;      // 目标回复用户昵称
@@ -105,7 +105,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           isCollected = postData['is_collected'] ?? false;
           isLiked = postData['is_liked'] ?? false;
 
-          // 🌟 追加读取文章详情返回的付费/购买属性
+// 🌟 读取文章详情返回的付费/购买属性
           isPaid = postData['is_paid'] ?? false;
           isPurchased = postData['is_purchased'] ?? false;
         });
@@ -417,20 +417,20 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
       return;
     }
 
-    // 1. 尝试拉取关注列表，即使失败也允许用户继续进行外部链接分享
+// 1. 尝试拉取关注列表，即使失败也允许用户继续进行外部链接分享
     List<dynamic> topFollowed = [];
     try {
       final res = await HttpClient.instance.get<Map<String, dynamic>>('/api-users/profile');
       topFollowed = res.datas?['top_followed_users'] as List? ?? [];
     } catch (e) {
-      // 仅作轻提示，不中断后续外部链接分享的操作
+// 仅作轻提示，不中断后续外部链接分享的操作
       Fluttertoast.showToast(msg: "拉取关系链失败");
     }
 
-    // 拼接需要分享的外部链接
+// 拼接需要分享的外部链接
     final String shareUrl = "https://posts.zeabur.app/?id=${widget.postId}";
 
-    // 2. 唤起重构后的现代化二级分享面板
+// 2. 唤起重构后的现代化二级分享面板
     Get.bottomSheet(
       Container(
         decoration: const BoxDecoration(
@@ -449,7 +449,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 顶部下拉条指示器
+// 顶部下拉条指示器
               Container(
                 width: 36,
                 height: 4,
@@ -460,7 +460,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 ),
               ),
 
-              // 标题头部栏
+// 标题头部栏
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -486,7 +486,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               ),
               const SizedBox(height: 16),
 
-              // ================== 第一层：站内好友定向分享 ==================
+// ================== 第一层：站内好友定向分享 ==================
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -600,7 +600,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 child: Divider(color: Colors.grey[100], thickness: 1, height: 1),
               ),
 
-              // ================== 第二层：外部链接与应用分享 ==================
+// ================== 第二层：外部链接与应用分享 ==================
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -618,7 +618,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               Row(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  // 1. 复制外部链接
+// 1. 复制外部链接
                   _buildShareOption(
                     icon: const HugeIcon(
                       icon: HugeIcons.strokeRoundedCopy01,
@@ -634,7 +634,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   ),
                   const SizedBox(width: 16),
 
-                  // 2. 浏览器打开
+// 2. 浏览器打开
                   _buildShareOption(
                     icon: const HugeIcon(
                       icon: HugeIcons.strokeRoundedGlobal,
@@ -654,7 +654,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   ),
                   const SizedBox(width: 16),
 
-                  // 3. 系统原生应用分享
+// 3. 系统原生应用分享
                   _buildShareOption(
                     icon: const HugeIcon(
                       icon: HugeIcons.strokeRoundedShare01,
@@ -663,7 +663,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                     ),
                     label: "系统分享",
                     onTap: () async {
-                      // 提前关闭 BottomSheet，避免与原生底部分享弹窗在界面上重叠导致动画卡顿
+// 提前关闭 BottomSheet，避免与原生底部分享弹窗在界面上重叠导致动画卡顿
                       Get.back();
                       await Share.share(
                         '给大家分享一个精彩瞬间：$shareUrl',
@@ -849,7 +849,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
   Widget _buildPaidContentBlurPreview(BuildContext context, String previewText, Color themeColor) {
     return Stack(
       children: [
-        // 1. 被限制高度的 50 字精简文字快照
+// 1. 被限制高度的 50 字精简文字快照
         Container(
           width: double.infinity,
           height: 180,
@@ -864,7 +864,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
             ),
           ),
         ),
-        // 2. 渐变模糊遮罩（从完全透明平滑过渡到纯白底色）
+// 2. 渐变模糊遮罩（从完全透明平滑过渡到纯白底色）
         Positioned(
           bottom: 0,
           left: 0,
@@ -884,7 +884,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
             ),
           ),
         ),
-        // 3. 悬浮的去商店解锁引导动作按钮面板
+// 3. 悬浮的去商店解锁引导动作按钮面板
         Positioned(
           bottom: 0,
           left: 0,
@@ -910,7 +910,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 const SizedBox(height: 14),
                 ElevatedButton.icon(
                   onPressed: () {
-                    // 🌟 吐司提示去商店购买
+// 🌟 吐司提示去商店购买
                     Fluttertoast.showToast(msg: "请前往系统商店购买该文章以解锁全文");
                   },
                   style: ElevatedButton.styleFrom(
@@ -1002,7 +1002,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.grey.shade100, width: 0.5),
             ),
-            // 限制中部胶囊的最大宽度，防止挤压右侧图标
+// 限制中部胶囊的最大宽度，防止挤压右侧图标
             constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.35),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1037,12 +1037,14 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   onPressed: _toggleCollect,
                   icon: Icon(isCollected ? Icons.bookmark : Icons.bookmark_border, color: themeColor, size: 22)
               ),
-              IconButton(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  constraints: const BoxConstraints(),
-                  onPressed: _sharePost,
-                  icon: Icon(Icons.share, color: themeColor, size: 22)
-              ),
+// 🌟 核心改进点：如果是付费文章，且属于他人且自己未购买，或者文章属于自己，则隐藏分享按钮
+              if (!isPaid || (!isMe && isPurchased))
+                IconButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    constraints: const BoxConstraints(),
+                    onPressed: _sharePost,
+                    icon: Icon(Icons.share, color: themeColor, size: 22)
+                ),
               if (isMe)
                 IconButton(
                   padding: const EdgeInsets.fromLTRB(4, 0, 12, 0),
@@ -1062,7 +1064,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 说说没有标题，其他有标题则展示
+// 说说没有标题，其他有标题则展示
                   if (type != 'short_post' && title.isNotEmpty) ...[
                     SelectableText(
                       title,
@@ -1096,7 +1098,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   ),
                   const SizedBox(height: 24),
 
-                  // 根据不同的帖子类型渲染主体内容
+// 根据不同的帖子类型渲染主体内容
                   if (type == 'short_post') ...[
                     SelectableText(
                       _post!['content'] ?? '',
@@ -1117,7 +1119,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                     const SizedBox(height: 16),
                     if (_post!['poll'] != null) _buildPollSection(themeColor),
                   ] else ...[
-                    // 🌟 统一下单付费拦截：如果属于付费文章且未购（且非作者本人），展示 Medium 渐变遮罩
+// 🌟 统一下单付费拦截：如果属于付费文章且未购（且非作者本人），展示 Medium 渐变遮罩
                     if (isPaid && !isPurchased && !isMe)
                       _buildPaidContentBlurPreview(context, _post!['content_min'] ?? '', themeColor)
                     else if (_quillController != null)
@@ -1287,10 +1289,12 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           ),
         ),
         const Spacer(),
-        IconButton(
-          onPressed: _repostPost,
-          icon: const Icon(Icons.repeat, color: Colors.grey),
-        ),
+// 🌟 核心改进点：如果是付费文章，无论是否已购，一律不展示同步转发按钮以避免 Cheating 转发
+        if (!isPaid)
+          IconButton(
+            onPressed: _repostPost,
+            icon: const Icon(Icons.repeat, color: Colors.grey),
+          ),
       ],
     );
   }
@@ -1785,7 +1789,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     );
   }
 
-  // 美化设计的底部占位评论输入框触发栏
+// 美化设计的底部占位评论输入框触发栏
   Widget _buildBottomInputArea(Color themeColor) {
     return Container(
       decoration: BoxDecoration(
@@ -2103,7 +2107,7 @@ class PostSubCommentSheet extends StatelessWidget {
   }
 }
 
-// 翻译模态层
+// 专门处理翻译的底部滑出层
 class _AnimatedLanguageSheet extends StatefulWidget {
   final Map<String, String> languages;
   final Function(String) onLanguageSelected;
@@ -2387,7 +2391,7 @@ class _CommentInputSheet extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      // 使用标准的轻快过度，弹窗普通滑出
+// 使用标准的轻快过度，弹窗普通滑出
       transitionAnimationController: AnimationController(
         vsync: Navigator.of(context),
         duration: const Duration(milliseconds: 200),
@@ -2461,7 +2465,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      // 随着键盘手动拉起，弹窗平稳被顶起（由于弹窗本身已静止，故没有重绘冲突，极为顺滑）
+// 随着键盘手动拉起，弹窗平稳被顶起
       child: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: SingleChildScrollView(
@@ -2469,7 +2473,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header Row
+// Header Row
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 child: Row(
@@ -2495,7 +2499,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
               ),
               const Divider(height: 1, color: Color(0xFFF3F4F6)),
 
-              // Quoted Parent Comment if exists
+// Quoted Parent Comment if exists
               if (widget.replyToNickname != null) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
@@ -2574,7 +2578,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                 ),
               ],
 
-              // Input TextField Box
+// Input TextField Box
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Row(
@@ -2630,7 +2634,6 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            // 使用 ValueListenableBuilder 局部刷新发送按钮，避免文字输入时引起整个对话框重绘
                             ValueListenableBuilder<TextEditingValue>(
                               valueListenable: _controller,
                               builder: (context, value, child) {
@@ -2683,6 +2686,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
     );
   }
 }
+
 class CommentModel {
   final String id;
   final String postId;

@@ -588,7 +588,7 @@ class CommunitySpaceView extends StatelessWidget {
                     maxLines: 5,
                     style: const TextStyle(fontSize: 14, height: 1.4),
                     decoration: InputDecoration(
-                      hintText: "写下您的专业学术研究或想法见解...",
+                      hintText: "写下您的思考过程或想法见解...",
                       hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
