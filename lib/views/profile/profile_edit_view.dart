@@ -1,6 +1,7 @@
 // PUT /api-users/profile (资料修改与本地/GIF 头像选取完全体)
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 🌟 新增：引入系统输入限制格式化器
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -92,14 +93,23 @@ class _ProfileEditViewState extends State<ProfileEditView> {
   }
 
   Future<void> _saveProfile() async {
-    if (_nicknameController.text.trim().isEmpty) {
+    final String nickname = _nicknameController.text.trim();
+
+    if (nickname.isEmpty) {
       Fluttertoast.showToast(msg: "昵称不能为空");
       return;
     }
+
+    // 🌟 核心改进：提交阶段强化校验逻辑，确保昵称字符长度严格在安全边界内
+    if (nickname.length > 20) {
+      Fluttertoast.showToast(msg: "昵称最长支持20个字符");
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final body = {
-        'nickname': _nicknameController.text.trim(),
+        'nickname': nickname,
         'username': _usernameController.text.trim(),
         'bio': _bioController.text.trim(),
         'avatar': _avatarController.text.trim(),
@@ -352,7 +362,8 @@ class _ProfileEditViewState extends State<ProfileEditView> {
                 children: [
                   const Text("基本资料", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
                   const SizedBox(height: 10),
-                  _buildInputField(label: "昵称", controller: _nicknameController, icon: HugeIcons.strokeRoundedUser),
+                  // 🌟 核心改进：为“昵称”输入框传参 maxLength: 20，强制进行本地物理键盘输入字符限制
+                  _buildInputField(label: "昵称", controller: _nicknameController, icon: HugeIcons.strokeRoundedUser, maxLength: 20),
                   _buildInputField(label: "用户名 (Username)", controller: _usernameController, icon: HugeIcons.strokeRoundedUserAccount),
                   _buildInputField(label: "地理位置", controller: _locationController, icon: HugeIcons.strokeRoundedLocation01),
                   _buildInputField(label: "个人/生活网站", controller: _websiteController, icon: HugeIcons.strokeRoundedGlobal),
@@ -404,11 +415,13 @@ class _ProfileEditViewState extends State<ProfileEditView> {
     );
   }
 
+  // 🌟 核心改进：添加 maxLength 可选入参，配合系统的 LengthLimitingTextInputFormatter，完美拦截多余字符输入
   Widget _buildInputField({
     required String label,
     required TextEditingController controller,
     required dynamic icon,
     bool isMultiLine = false,
+    int? maxLength,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -419,6 +432,10 @@ class _ProfileEditViewState extends State<ProfileEditView> {
       child: TextField(
         controller: controller,
         maxLines: isMultiLine ? 4 : 1,
+        maxLength: maxLength,
+        inputFormatters: maxLength != null
+            ? [LengthLimitingTextInputFormatter(maxLength)]
+            : null,
         style: const TextStyle(fontSize: 14, color: Colors.black87),
         decoration: InputDecoration(
           labelText: label,
@@ -426,6 +443,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
             color: Colors.grey.shade500,
             fontSize: 13,
           ),
+          counterText: "", // 🌟 隐藏自带的 helper 计数，确保雅致的现代界面美学
           prefixIcon: Padding(
             padding: const EdgeInsets.all(12),
             child: HugeIcon(

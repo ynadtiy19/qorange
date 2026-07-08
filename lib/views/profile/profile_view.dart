@@ -363,20 +363,38 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              CircleAvatar(radius: 18, backgroundImage: NetworkImage(profile['avatar'] ?? '')),
-                              const SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(profile['nickname'] ?? '匿名作者', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-                                  Text(handleText, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                ],
-                              )
-                            ],
+                          // 🌟 核心改进一：将左侧区域使用 Expanded 包裹，使其自适应吸收除右侧图标外的剩余空间
+                          Expanded(
+                            child: Row(
+                              children: [
+                                CircleAvatar(radius: 18, backgroundImage: NetworkImage(profile['avatar'] ?? '')),
+                                const SizedBox(width: 10),
+                                // 🌟 核心改进二：将文本 Column 使用 Expanded 包裹，使内部 Text 可以获得确切的宽度限制
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        profile['nickname'] ?? '匿名作者',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                                        maxLines: 1, // 🌟 限制为单行展示
+                                        overflow: TextOverflow.ellipsis, // 🌟 超长时尾部展示省略号
+                                      ),
+                                      Text(
+                                        handleText,
+                                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                        maxLines: 1, // 🌟 限制为单行展示
+                                        overflow: TextOverflow.ellipsis, // 🌟 超长时尾部展示省略号
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              ],
+                            ),
                           ),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               if (isMe) ...[
                                 IconButton(

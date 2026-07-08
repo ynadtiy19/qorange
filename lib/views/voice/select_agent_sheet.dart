@@ -1,45 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:hugeicons/hugeicons.dart';
 
 class SelectAgentBottomSheet extends StatefulWidget {
+  // 🌟 支持传入当前选中的 Key；若未传，则自动使用内存中上一次选择的 Key
+  final String? currentKey;
   final Function(String character, String key) onAgentSelected;
-  const SelectAgentBottomSheet({super.key, required this.onAgentSelected});
+
+  const SelectAgentBottomSheet({
+    super.key,
+    required this.onAgentSelected,
+    this.currentKey,
+  });
+
+  // 🌟 静态成员：在内存中持久化存储上一次选中的 Key，100% 实现跨弹窗周期的角色记忆功能
+  static String lastSelectedKey = 'Maya-EN';
 
   @override
   State<SelectAgentBottomSheet> createState() => _SelectAgentBottomSheetState();
 }
 
 class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
-  final PageController _pageController = PageController();
+  late final PageController _pageController;
   int _currentPage = 0;
 
+  // 🌟 核心改进：人物描述中文本地化，名字与后台传递的 Key 保持英文原样
   final List<Map<String, String>> _agents = [
     {
       'key': 'Maya-EN',
       'character': 'Maya',
       'displayName': 'Maya',
-      'desc': 'Warm and creative; your storyteller and thought partner.',
+      'desc': '温暖且富有创造力；她是您的故事倾听者与灵感共鸣伙伴。',
     },
     {
       'key': 'Miles-EN',
       'character': 'Miles',
       'displayName': 'Miles',
-      'desc': 'Laid-back and sharp; the wingman who tells you what you need to hear.',
+      'desc': '随性而敏锐；像老朋友一样直言不讳地为您提供最真诚的建议。',
     },
     {
       'key': 'Simone-EN',
       'character': 'Simone',
       'displayName': 'Simone',
-      'desc': 'Curious and intellectual; turns any deep-dive into an adventure.',
+      'desc': '充满好奇心与求知欲；能将任何深度探讨转化为一场奇妙的思维冒险。',
     },
     {
       'key': 'Charlie-EN',
       'character': 'Charlie',
       'displayName': 'Charlie',
-      'desc': 'Witty and warm; the friend who nerds out with you.',
+      'desc': '机智风趣又充满温情；随时准备与您一起深度探索感兴趣的冷门领域。',
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 🌟 核心改进：初始化时根据 widget.currentKey 或 lastSelectedKey 寻找到之前选中的索引
+    final activeKey = widget.currentKey ?? SelectAgentBottomSheet.lastSelectedKey;
+    final initialIndex = _agents.indexWhere((agent) => agent['key'] == activeKey);
+
+    _currentPage = initialIndex != -1 ? initialIndex : 0;
+    _pageController = PageController(initialPage: _currentPage);
+  }
 
   @override
   void dispose() {
@@ -73,7 +93,7 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Select your agent',
+            '选择您的 AI 助手',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
           const SizedBox(height: 30),
@@ -142,6 +162,9 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
             child: ElevatedButton(
               onPressed: () {
                 final selected = _agents[_currentPage];
+                // 🌟 核心改进：确认选中时，在内存中持久化更新当前角色的 key
+                SelectAgentBottomSheet.lastSelectedKey = selected['key']!;
+
                 Navigator.pop(context);
                 widget.onAgentSelected(selected['character']!, selected['key']!);
               },
@@ -151,7 +174,7 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               child: Text(
-                'Select ${_agents[_currentPage]['displayName']}',
+                '选择 ${_agents[_currentPage]['displayName']}',
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),

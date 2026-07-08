@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// 提供安全高效的加密解密本地缓存
@@ -5,7 +6,7 @@ class SecureStorageManager {
   SecureStorageManager._internal();
 
   static final SecureStorageManager _instance =
-      SecureStorageManager._internal();
+  SecureStorageManager._internal();
 
   static SecureStorageManager get instance => _instance;
 
@@ -26,6 +27,9 @@ class SecureStorageManager {
   static const String _keyRefreshToken = 'refresh_token';
   static const String _keyUserId = 'user_id';
 
+  // 🌟 新增：本地加密保存的账号密码列表 Key
+  static const String _keySavedCredentials = 'saved_credentials_list';
+
   /// 保存 Access Token
   Future<void> saveAccessToken(String token) async {
     await _storage.write(key: _keyAccessToken, value: token);
@@ -44,6 +48,38 @@ class SecureStorageManager {
   /// 获取 Refresh Token
   Future<String?> getRefreshToken() async {
     return await _storage.read(key: _keyRefreshToken);
+  }
+
+  /// 🌟 新增：读取所有已保存的账户密码凭据
+  Future<List<Map<String, String>>> getSavedCredentials() async {
+    try {
+      final jsonStr = await _storage.read(key: _keySavedCredentials);
+      if (jsonStr == null || jsonStr.isEmpty) return [];
+      final List<dynamic> decoded = jsonDecode(jsonStr);
+      return decoded.map((item) => Map<String, String>.from(item)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// 🌟 新增：保存单条账户密码凭据（若存在则更新）
+  Future<void> saveCredential(String username, String password) async {
+    try {
+      final list = await getSavedCredentials();
+      // 避免重复，先删除已有同名账户
+      list.removeWhere((item) => item['username'] == username);
+      list.add({'username': username, 'password': password});
+      await _storage.write(key: _keySavedCredentials, value: jsonEncode(list));
+    } catch (_) {}
+  }
+
+  /// 🌟 新增：删除单条账户密码凭据
+  Future<void> deleteCredential(String username) async {
+    try {
+      final list = await getSavedCredentials();
+      list.removeWhere((item) => item['username'] == username);
+      await _storage.write(key: _keySavedCredentials, value: jsonEncode(list));
+    } catch (_) {}
   }
 
   /// 保存普通字符串

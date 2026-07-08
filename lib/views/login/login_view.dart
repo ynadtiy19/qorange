@@ -69,13 +69,46 @@ class LoginView extends StatelessWidget {
                           controller: controller.usernameController,
                           focusNode: controller.usernameFocusNode,
                           keyboardType: TextInputType.text,
-                          decoration: const InputDecoration(
+                          // 🌟 核心设计：如果本地安全存储有账号，点击输入框时拦截物理键盘，直接唤起 Edge 风格填充面板
+                          onTap: () {
+                            if (controller.savedCredentials.isNotEmpty &&
+                                controller.usernameController.text.isEmpty &&
+                                !controller.isRegisterMode.value) {
+                              // 收起输入框物理焦点防止闪现物理键盘
+                              controller.usernameFocusNode.unfocus();
+                              // 唤起自动填充面板
+                              controller.showSavedAccountsBottomSheet();
+                            }
+                          },
+                          decoration: InputDecoration(
                             hintText: "账号 (不少于3位)",
                             counterText: "",
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 16,
+                            ),
+                            // 🌟 核心设计：如果本地有已存凭据且非注册模式下，右侧显示科技感“钥匙安全锁”图标
+                            suffixIcon: (controller.savedCredentials.isNotEmpty &&
+                                !controller.isRegisterMode.value)
+                                ? GestureDetector(
+                              onTap: () {
+                                controller.usernameFocusNode.unfocus();
+                                controller.showSavedAccountsBottomSheet();
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.only(right: 12.0),
+                                child: HugeIcon(
+                                  icon: HugeIcons.strokeRoundedKey01,
+                                  color: Color.fromRGBO(44, 123, 109, 1.0),
+                                  size: 20,
+                                ),
+                              ),
+                            )
+                                : null,
+                            suffixIconConstraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
                             ),
                           ),
                         ),
