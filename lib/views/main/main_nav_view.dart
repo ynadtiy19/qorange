@@ -94,7 +94,7 @@ class _MainNavViewState extends State<MainNavView> {
                 icon: HugeIcons.strokeRoundedHome01,
                 color: themeColor,
               ),
-              label: '首页',
+              label: 'nav_home'.tr,
             ),
             BottomNavigationBarItem(
               icon: HugeIcon(
@@ -105,7 +105,7 @@ class _MainNavViewState extends State<MainNavView> {
                 icon: HugeIcons.strokeRoundedUserGroup,
                 color: themeColor,
               ),
-              label: '社群',
+              label: 'nav_community'.tr,
             ),
             BottomNavigationBarItem(
               icon: HugeIcon(
@@ -116,7 +116,7 @@ class _MainNavViewState extends State<MainNavView> {
                 icon: HugeIcons.strokeRoundedShoppingBag01,
                 color: themeColor,
               ),
-              label: '商店',
+              label: 'nav_shop'.tr,
             ),
             BottomNavigationBarItem(
               icon: HugeIcon(
@@ -127,7 +127,7 @@ class _MainNavViewState extends State<MainNavView> {
                 icon: HugeIcons.strokeRoundedUser,
                 color: themeColor,
               ),
-              label: '我的',
+              label: 'nav_profile'.tr,
             ),
           ],
         ),

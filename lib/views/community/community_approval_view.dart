@@ -16,7 +16,7 @@ class CommunityApprovalView extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('成员加入审核中心', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+        title: Text('member_approval'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -41,7 +41,7 @@ class CommunityApprovalView extends StatelessWidget {
                   size: 48,
                 ),
                 const SizedBox(height: 12),
-                const Text("暂无待审核加入的成员申请", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                Text('no_pending_approvals'.tr, style: const TextStyle(color: Colors.grey, fontSize: 12)),
               ],
             ),
           );
@@ -101,7 +101,7 @@ class CommunityApprovalView extends StatelessWidget {
                   children: [
                     Text(applicant.nickname, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
                     const SizedBox(height: 2),
-                    Text('申请时间: $formattedTime', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                    Text('$formattedTime', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
                   ],
                 ),
               ),
@@ -118,7 +118,7 @@ class CommunityApprovalView extends StatelessWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
-                  child: Text('拒绝申请', style: TextStyle(color: Colors.red.shade400, fontSize: 12, fontWeight: FontWeight.bold)),
+                  child: Text('reject'.tr, style: TextStyle(color: Colors.red.shade400, fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -131,7 +131,7 @@ class CommunityApprovalView extends StatelessWidget {
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
-                  child: const Text('同意加入', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                  child: Text('accept'.tr, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -142,27 +142,27 @@ class CommunityApprovalView extends StatelessWidget {
   }
 
   void _showRejectReasonDialog(BuildContext context, CommunityApprovalController controller, String applicantUserId) {
-    final TextEditingController reasonC = TextEditingController(text: '不满足社群加入标准');
+    final TextEditingController reasonC = TextEditingController();
 
     showDialog<void>(
       context: context,
       builder: (context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('驳回申请', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          title: Text('reject'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           content: TextField(
             controller: reasonC,
             style: const TextStyle(fontSize: 13),
-            decoration: const InputDecoration(
-              labelText: '请填写驳回原因 (系统将通过推送告知该学者)',
-              labelStyle: TextStyle(fontSize: 11),
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: 'apply_reason'.tr,
+              labelStyle: const TextStyle(fontSize: 11),
+              border: const OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('取消', style: TextStyle(color: Colors.grey)),
+              child: Text('cancel'.tr, style: const TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -170,7 +170,7 @@ class CommunityApprovalView extends StatelessWidget {
                 controller.rejectApplicant(applicantUserId, reasonC.text.trim());
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              child: const Text('确认拒绝', style: TextStyle(color: Colors.white)),
+              child: Text('confirm'.tr, style: const TextStyle(color: Colors.white)),
             ),
           ],
         );

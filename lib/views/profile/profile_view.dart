@@ -637,13 +637,13 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           indicatorSize: TabBarIndicatorSize.label,
                           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
-                          tabs: const [
-                            Tab(text: "已发布"),
-                            Tab(text: "草稿箱"),
-                            Tab(text: "私密/未列入"),
-                            Tab(text: "我的收藏"),
-                            Tab(text: "浏览历史"),
-                            Tab(text: "我收到的分享"),
+                          tabs: [
+                            Tab(text: 'tab_posts'.tr),
+                            Tab(text: 'draft'.tr),
+                            Tab(text: 'filter_private'.tr),
+                            Tab(text: 'my_wallet'.tr),
+                            Tab(text: 'search_history'.tr),
+                            Tab(text: 'shares'.tr),
                           ],
                         )
                       ],

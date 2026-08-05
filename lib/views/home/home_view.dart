@@ -258,9 +258,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
-        title: const Text(
-          "青橙",
-          style: TextStyle(
+        title: Text(
+          'app_name'.tr,
+          style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w900,
             color: Color.fromRGBO(44, 123, 109, 1.0),
@@ -325,9 +325,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
               indicatorSize: TabBarIndicatorSize.label,
               labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
               unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              tabs: const [
-                Tab(text: "为你推荐"),
-                Tab(text: "精选高赞"),
+              tabs: [
+                Tab(text: 'for_you'.tr),
+                Tab(text: 'featured'.tr),
               ],
             ),
           ),
@@ -384,7 +384,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
           Icon(Icons.filter_alt_outlined, size: 16, color: themeColor),
           const SizedBox(width: 8),
           Text(
-            _selectedTag != null ? "当前筛选标签: #$_selectedTag" : "当前分类: $_selectedCategory",
+            _selectedTag != null ? '${'current_filter_tag'.tr}$_selectedTag' : '${'current_filter_category'.tr}$_selectedCategory',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: themeColor),
           ),
           const Spacer(),
@@ -400,7 +400,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("清除", style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
+                  Text('clear'.tr, style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
                   const SizedBox(width: 2),
                   Icon(Icons.close, size: 10, color: themeColor),
                 ],
@@ -437,7 +437,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
           children: [
             Icon(Icons.article_outlined, size: 48, color: Colors.grey.shade300),
             const SizedBox(height: 12),
-            Text("暂无相关内容，换个标签试试吧", style: TextStyle(color: Colors.grey.shade400)),
+            Text('no_content_try_tag'.tr, style: TextStyle(color: Colors.grey.shade400)),
           ],
         ),
       );
@@ -503,7 +503,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Center(
           child: Text(
-            "没有更多内容了",
+            'no_more_data'.tr,
             style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
           ),
         ),
@@ -554,7 +554,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
     final author = post['author'] ?? {};
     final authorAvatar = author['avatar'] ?? '';
-    final authorNickname = author['nickname'] ?? '用户';
+    final authorNickname = author['nickname'] ?? 'user'.tr;
 
     final title = post['title'] ?? '';
     final type = post['post_type'] ?? 'quill';

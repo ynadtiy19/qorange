@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
+import '../../services/language_service.dart';
 
 /// 🌟 MVC 控制器：专门负责实名认证数据的加载、校验与安全提交 [2]
 class SettingController extends GetxController {
@@ -52,12 +53,12 @@ class SettingController extends GetxController {
       isSubmitting.value = false;
 
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "🎉 实名安全信息更新成功");
+        Fluttertoast.showToast(msg: 'save_success'.tr);
         realName.value = name;
         realPhone.value = phone;
         return true;
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? "保存失败");
+        Fluttertoast.showToast(msg: res.respMsg ?? 'save_fail'.tr);
         return false;
       }
     } catch (e) {
@@ -65,16 +66,61 @@ class SettingController extends GetxController {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "修改资料失败，请重试");
+        Fluttertoast.showToast(msg: 'save_fail'.tr);
       }
       return false;
     }
   }
 }
 
-/// 🌟 曜石曜绿高颜值实名修改安全视图 🌟
+/// 🌟 曜石曜绿高颜值系统设置与安全视图 🌟
 class SettingView extends StatelessWidget {
   const SettingView({super.key});
+
+  void _showLanguageSelector(BuildContext context, Color primaryColor) {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'select_language'.tr,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            ...LanguageService.to.supportedLanguages.map((lang) {
+              final String nameKey = lang['nameKey'];
+              final Locale locale = lang['locale'];
+              final bool isSelected = LanguageService.to.currentLocale.languageCode == locale.languageCode;
+
+              return ListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                tileColor: isSelected ? primaryColor.withOpacity(0.08) : null,
+                title: Text(
+                  nameKey.tr,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? primaryColor : Colors.black87,
+                  ),
+                ),
+                trailing: isSelected ? Icon(Icons.check_circle_rounded, color: primaryColor) : null,
+                onTap: () {
+                  LanguageService.to.changeLanguage(locale);
+                  Get.back();
+                },
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +142,7 @@ class SettingView extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('实名安全绑定', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+        title: Text('settings'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -115,6 +161,31 @@ class SettingView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 0. 多语言切换入口大卡片
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
+                  ],
+                ),
+                child: ListTile(
+                  leading: HugeIcon(icon: HugeIcons.strokeRoundedGlobal, color: primaryColor, size: 20.0),
+                  title: Text('language_setting'.tr, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    LanguageService.to.supportedLanguages.firstWhere(
+                          (l) => (l['locale'] as Locale).languageCode == LanguageService.to.currentLocale.languageCode,
+                      orElse: () => LanguageService.to.supportedLanguages.first,
+                    )['nameKey'].toString().tr,
+                    style: const TextStyle(fontSize: 12, color: Colors.black45),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.black38),
+                  onTap: () => _showLanguageSelector(context, primaryColor),
+                ),
+              ),
+              const SizedBox(height: 24),
+
               // 1. 系统级实名认证安全告知大卡
               Container(
                 padding: const EdgeInsets.all(16),
@@ -132,10 +203,10 @@ class SettingView extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('平台实名对账安全防线', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryColor)),
+                          Text('realname_binding'.tr, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryColor)),
                           const SizedBox(height: 6),
                           const Text(
-                            '为了保障平台与创作者之间提现对账的绝对准确，手艺人请在此绑定您的支付宝实名信息 [INDEX: 1]。此信息仅用于财务核销平账审计使用，不对任何其他第三方学者透露 [INDEX: 2]！',
+                            '为了保障平台与创作者之间提现对账的绝对准确，手艺人请在此绑定您的支付宝实名信息。此信息仅用于财务核销平账审计使用，不对任何其他第三方学者透露！',
                             style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
                           )
                         ],
@@ -229,7 +300,7 @@ class SettingView extends StatelessWidget {
                   ),
                   child: controller.isSubmitting.value
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('保存修改并一键加密绑定', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      : Text('save'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                 ),
               ),
             ],

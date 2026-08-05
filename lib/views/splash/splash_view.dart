@@ -69,9 +69,9 @@ class _SplashViewState extends State<SplashView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  "服务协议与隐私政策",
-                  style: TextStyle(
+                Text(
+                  'privacy_title'.tr,
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
@@ -79,24 +79,24 @@ class _SplashViewState extends State<SplashView> {
                 ),
                 const SizedBox(height: 16),
                 RichText(
-                  text: const TextSpan(
-                    style: TextStyle(
+                  text: TextSpan(
+                    style: const TextStyle(
                       fontSize: 14,
                       color: Colors.black54,
                       height: 1.5,
                     ),
                     children: [
-                      TextSpan(text: "欢迎使用 青橙！在您使用前，请仔细阅读"),
+                      TextSpan(text: 'privacy_welcome'.tr),
                       TextSpan(
-                        text: "《用户协议》",
-                        style: TextStyle(color: Colors.blueAccent),
+                        text: 'user_agreement'.tr,
+                        style: const TextStyle(color: Colors.blueAccent),
                       ),
-                      TextSpan(text: "和"),
+                      TextSpan(text: 'and'.tr),
                       TextSpan(
-                        text: "《隐私政策》",
-                        style: TextStyle(color: Colors.blueAccent),
+                        text: 'privacy_policy'.tr,
+                        style: const TextStyle(color: Colors.blueAccent),
                       ),
-                      TextSpan(text: "。我们将严格按照政策要求保护您的个人信息安全。"),
+                      TextSpan(text: 'privacy_desc'.tr),
                     ],
                   ),
                 ),
@@ -115,7 +115,7 @@ class _SplashViewState extends State<SplashView> {
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.grey,
                         ),
-                        child: const Text("不同意"),
+                        child: Text('disagree'.tr),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -136,7 +136,7 @@ class _SplashViewState extends State<SplashView> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        child: const Text("同意并继续"),
+                        child: Text('agree_continue'.tr),
                       ),
                     ),
                   ],
@@ -166,9 +166,9 @@ class _SplashViewState extends State<SplashView> {
 
             const SizedBox(height: 20),
 
-            const Text(
-              "青橙",
-              style: TextStyle(
+            Text(
+              'app_name'.tr,
+              style: const TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2,

@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:get/get.dart';
+import 'package:qorange/l10n/app_translations.dart';
 import 'package:qorange/services/frontend_chat_service.dart';
+import 'package:qorange/services/language_service.dart';
 import 'package:qorange/theme.dart';
 import 'package:qorange/user_controller.dart';
 
@@ -19,6 +21,9 @@ void main() async {
     // 将 debugPrint 重写为空函数，这样所有的 debugPrint 都会被静音
     debugPrint = (String? message, {int? wrapWidth}) {};
   }
+
+  // 初始化多语言服务
+  await Get.putAsync(() => LanguageService().init());
 
   Get.put(UserController());
 
@@ -54,22 +59,23 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: '青橙',
+      title: 'app_name'.tr,
       debugShowCheckedModeBanner: false,
-      locale: const Locale('zh', 'CN'),
+      translations: AppTranslations(),
+      locale: LanguageService.to.currentLocale,
       fallbackLocale: const Locale('zh', 'CN'),
-      supportedLocales: [
-        Locale('zh', 'CN'), // 支持简体中文（中国）
-        Locale('en', 'US'), // 支持英语
+      supportedLocales: const [
+        Locale('zh', 'CN'), // 简体中文
+        Locale('en', 'US'), // 英语
+        Locale('es', 'ES'), // 西班牙语
+        Locale('fr', 'FR'), // 法语
+        Locale('it', 'IT'), // 意大利语
       ],
       localizationsDelegates: const [
         FlutterQuillLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
-        // Material 组件的本地化（控制 Android 风格的复制/粘贴菜单）
         GlobalWidgetsLocalizations.delegate,
-        // 基础 Widget 的文字方向等本地化
         GlobalCupertinoLocalizations.delegate,
-        // Cupertino 组件的本地化（控制 iOS 风格的复制/粘贴菜单）
       ],
       theme: AppTheme.theme.copyWith(
         textSelectionTheme: const TextSelectionThemeData(
@@ -93,3 +99,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

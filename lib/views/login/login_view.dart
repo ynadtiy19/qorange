@@ -45,7 +45,7 @@ class LoginView extends StatelessWidget {
                       const SizedBox(height: 20),
                       // 动态切换标题
                       Text(
-                        controller.isRegisterMode.value ? "加入 青橙 " : "欢迎来到 青橙 ",
+                        controller.isRegisterMode.value ? 'app_name'.tr : 'welcome_login'.tr,
                         style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
@@ -54,7 +54,7 @@ class LoginView extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        controller.isRegisterMode.value ? "创建一个新的交流账号" : "输入账号和密码即可快速登录",
+                        controller.isRegisterMode.value ? 'enter_account'.tr : 'enter_password'.tr,
                         style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                       ),
                       const SizedBox(height: 40),
@@ -81,7 +81,7 @@ class LoginView extends StatelessWidget {
                             }
                           },
                           decoration: InputDecoration(
-                            hintText: "账号 (不少于3位)",
+                            hintText: 'phone_or_email'.tr,
                             counterText: "",
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
@@ -126,11 +126,11 @@ class LoginView extends StatelessWidget {
                           controller: controller.passwordController,
                           focusNode: controller.passwordFocusNode,
                           obscureText: true,
-                          decoration: const InputDecoration(
-                            hintText: "输入密码 (不少于6位)",
+                          decoration: InputDecoration(
+                            hintText: 'password'.tr,
                             counterText: "",
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 16,
                             ),
@@ -150,11 +150,11 @@ class LoginView extends StatelessWidget {
                             controller: controller.nicknameController,
                             focusNode: controller.nicknameFocusNode,
                             keyboardType: TextInputType.text,
-                            decoration: const InputDecoration(
-                              hintText: "显示昵称",
+                            decoration: InputDecoration(
+                              hintText: 'nickname'.tr,
                               counterText: "",
                               border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
+                              contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 20,
                                 vertical: 16,
                               ),
@@ -195,7 +195,7 @@ class LoginView extends StatelessWidget {
                             ),
                           )
                               : Text(
-                            controller.isRegisterMode.value ? "立即注册" : "登录",
+                            controller.isRegisterMode.value ? 'no_account'.tr : 'login_btn'.tr,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -216,7 +216,7 @@ class LoginView extends StatelessWidget {
                             foregroundColor: themeColor,
                           ),
                           child: Text(
-                            controller.isRegisterMode.value ? "已有账号？去登录" : "没有账号？去注册新账号",
+                            controller.isRegisterMode.value ? 'login_btn'.tr : 'no_account'.tr,
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),

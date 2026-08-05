@@ -56,9 +56,9 @@ class CommunitySpaceView extends StatelessWidget {
               labelColor: themeColor,
               unselectedLabelColor: Colors.grey,
               labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              tabs: const [
-                Tab(text: '💬 Discussions / 讨论大厅'),
-                Tab(text: 'ℹ️ About / 空间简介'),
+              tabs: [
+                Tab(text: '💬 ${'saysay_hall'.tr}'),
+                Tab(text: 'ℹ️ ${'community_space'.tr}'),
               ],
             ),
 

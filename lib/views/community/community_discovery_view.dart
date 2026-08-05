@@ -32,7 +32,7 @@ class CommunityDiscoveryView extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('发现高能社群', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+        title: Text('discover_communities'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -109,7 +109,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                     children: [
                       HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: Colors.grey.shade300, size: 48),
                       const SizedBox(height: 12),
-                      const Text("没有找到符合条件的社群", style: TextStyle(color: Colors.grey)),
+                      Text("no_matching_communities".tr, style: const TextStyle(color: Colors.grey)),
                     ],
                   ),
                 );
@@ -199,7 +199,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          item.price > 0.0 ? '¥${item.price.toStringAsFixed(2)} / ${item.billingCycle == 'month' ? '月' : '年'}' : '免费加入',
+                          item.price > 0.0 ? '¥${item.price.toStringAsFixed(2)} / ${item.billingCycle == 'month' ? 'monthly'.tr : 'yearly'.tr}' : 'free_join'.tr,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -216,19 +216,19 @@ class CommunityDiscoveryView extends StatelessWidget {
                     children: [
                       HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: Colors.grey.shade400, size: 14),
                       const SizedBox(width: 6),
-                      Text('${item.memberCount} 成员', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      Text('${item.memberCount} ${'members'.tr}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                       const Spacer(),
                       if (item.isJoined)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
-                          child: const Text('已加入空间', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                          child: Text('joined_space'.tr, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
                         )
                       else
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(color: themeColor, borderRadius: BorderRadius.circular(12)),
-                          child: const Text('加入社群', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                          child: Text('join_community'.tr, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
                     ],
                   )
@@ -256,29 +256,29 @@ class CommunityDiscoveryView extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('高级筛选', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('advanced_filter'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 20),
               // 价格大项过滤
-              const Text('价格类型', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+              Text('price_type'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
               const SizedBox(height: 10),
               Obx(() => Row(
                 children: [
                   _buildChoiceChip(
-                    text: '全部',
+                    text: 'filter_all'.tr,
                     isSelected: controller.selectedPrice.value == 'all',
                     onTap: () => controller.updateFilters(price: 'all'),
                     themeColor: themeColor,
                   ),
                   const SizedBox(width: 8),
                   _buildChoiceChip(
-                    text: '免费',
+                    text: 'filter_free'.tr,
                     isSelected: controller.selectedPrice.value == 'free',
                     onTap: () => controller.updateFilters(price: 'free'),
                     themeColor: themeColor,
                   ),
                   const SizedBox(width: 8),
                   _buildChoiceChip(
-                    text: '付费订阅',
+                    text: 'filter_paid'.tr,
                     isSelected: controller.selectedPrice.value == 'paid',
                     onTap: () => controller.updateFilters(price: 'paid'),
                     themeColor: themeColor,
@@ -287,26 +287,26 @@ class CommunityDiscoveryView extends StatelessWidget {
               )),
               const SizedBox(height: 20),
               // 社群属性过滤
-              const Text('社群属性', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+              Text('community_attr'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
               const SizedBox(height: 10),
               Obx(() => Row(
                 children: [
                   _buildChoiceChip(
-                    text: '全部',
+                    text: 'filter_all'.tr,
                     isSelected: controller.selectedType.value == 'all',
                     onTap: () => controller.updateFilters(type: 'all'),
                     themeColor: themeColor,
                   ),
                   const SizedBox(width: 8),
                   _buildChoiceChip(
-                    text: '公开加入',
+                    text: 'filter_public'.tr,
                     isSelected: controller.selectedType.value == 'public',
                     onTap: () => controller.updateFilters(type: 'public'),
                     themeColor: themeColor,
                   ),
                   const SizedBox(width: 8),
                   _buildChoiceChip(
-                    text: '私密群组',
+                    text: 'filter_private'.tr,
                     isSelected: controller.selectedType.value == 'private',
                     onTap: () => controller.updateFilters(type: 'private'),
                     themeColor: themeColor,
@@ -315,19 +315,19 @@ class CommunityDiscoveryView extends StatelessWidget {
               )),
               const SizedBox(height: 20),
               // 排序方式过滤
-              const Text('排序规则', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+              Text('sort_rule'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
               const SizedBox(height: 10),
               Obx(() => Row(
                 children: [
                   _buildChoiceChip(
-                    text: '热门趋势',
+                    text: 'filter_trending'.tr,
                     isSelected: controller.selectedSort.value == 'trending',
                     onTap: () => controller.updateFilters(sort: 'trending'),
                     themeColor: themeColor,
                   ),
                   const SizedBox(width: 8),
                   _buildChoiceChip(
-                    text: '群员最多',
+                    text: 'filter_top_members'.tr,
                     isSelected: controller.selectedSort.value == 'top',
                     onTap: () => controller.updateFilters(sort: 'top'),
                     themeColor: themeColor,
@@ -345,7 +345,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  child: const Text('应用筛选指标', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: Text('apply_filters'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               )
             ],
