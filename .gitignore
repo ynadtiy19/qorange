@@ -43,4 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# 临时：为解决 flutter_quill 11.5.0 与 Flutter 3.47 不兼容而解除版本锁定。
+# pubspec.yaml 已将 flutter_quill 下限提高到 ^11.5.1 作为兜底。
+# 建议在本地执行 flutter pub get 生成新的 lock 后，删除本行并重新提交 pubspec.lock，
+# 以恢复可复现构建。
 pubspec.lock
