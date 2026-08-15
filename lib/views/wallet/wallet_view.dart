@@ -32,8 +32,8 @@ class _WalletViewState extends State<WalletView> {
     return Scaffold(
       backgroundColor: premiumBg,
       appBar: AppBar(
-        title: const Text(
-          '创作者钱包中心',
+        title: Text(
+          'creator_wallet'.tr,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E293B)),
         ),
         centerTitle: true,
@@ -108,8 +108,8 @@ class _WalletViewState extends State<WalletView> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const Text(
-                              '平台实名钱包',
+                            Text(
+                              'verified_wallet'.tr,
                               style: TextStyle(color: Color(0xFF475569), fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                             ),
                           ],
@@ -125,7 +125,7 @@ class _WalletViewState extends State<WalletView> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('提现收益 (元)', style: TextStyle(color: premiumGray, fontSize: 11, fontWeight: FontWeight.bold)),
+                              Text('withdrawable_earnings'.tr, style: TextStyle(color: premiumGray, fontSize: 11, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 8),
                               Text(
                                 '¥${balance.toStringAsFixed(2)}',
@@ -144,7 +144,7 @@ class _WalletViewState extends State<WalletView> {
                                 ElevatedButton.icon(
                                   onPressed: () => Get.to(() => WithdrawalReceiptView(detail: pendingDetail)),
                                   icon: HugeIcon(icon: HugeIcons.strokeRoundedCheckList, color: premiumAmber, size: 14.0),
-                                  label: const Text('生成对账单', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                                  label: Text('generate_statement'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFFF1F5F9),
                                     foregroundColor: premiumAmber,
@@ -158,7 +158,7 @@ class _WalletViewState extends State<WalletView> {
                                   duration: const Duration(milliseconds: 200),
                                   child: ElevatedButton(
                                     onPressed: balance < 10.0
-                                        ? () => Fluttertoast.showToast(msg: "余额不足10元，暂无法提现")
+                                        ? () => Fluttertoast.showToast(msg: 'balance_below_minimum'.tr)
                                         : () => _showWithdrawSheet(context, controller, balance),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: balance < 10.0 ? const Color(0xFFE2E8F0) : premiumAmber,
@@ -167,7 +167,7 @@ class _WalletViewState extends State<WalletView> {
                                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                     ),
-                                    child: const Text('申请提现', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                                    child: Text('request_withdrawal'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                                   ),
                                 ),
                               ]
@@ -192,7 +192,7 @@ class _WalletViewState extends State<WalletView> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('我的代币 (币)', style: TextStyle(color: premiumGray, fontSize: 11, fontWeight: FontWeight.bold)),
+                              Text('my_tokens'.tr, style: TextStyle(color: premiumGray, fontSize: 11, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 8),
                               Text(
                                 '${tokens.toInt()}',
@@ -213,7 +213,7 @@ class _WalletViewState extends State<WalletView> {
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                   shadowColor: premiumTeal.withOpacity(0.3),
                                 ),
-                                child: const Text('代币充值', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                                child: Text('recharge_tokens'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                               ),
                             ],
                           ),
@@ -229,12 +229,12 @@ class _WalletViewState extends State<WalletView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    '📝 近期提现历史',
+                  Text(
+                    'recent_withdrawals'.tr,
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B)),
                   ),
                   Text(
-                    '只显示最近明细',
+                    'recent_only_notice'.tr,
                     style: TextStyle(fontSize: 10, color: premiumGray.withOpacity(0.8)),
                   )
                 ],
@@ -254,7 +254,7 @@ class _WalletViewState extends State<WalletView> {
                     children: [
                       HugeIcon(icon: HugeIcons.strokeRoundedNote01, color: premiumGray.withOpacity(0.4), size: 36),
                       const SizedBox(height: 14),
-                      Text('暂无历史结算提现记录', style: TextStyle(color: premiumGray, fontSize: 12)),
+                      Text('no_withdrawal_history'.tr, style: TextStyle(color: premiumGray, fontSize: 12)),
                     ],
                   ),
                 )
@@ -288,12 +288,12 @@ class _WalletViewState extends State<WalletView> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '提现到支付宝: ¥${amount.toStringAsFixed(2)}',
+                                'withdraw_to_alipay'.trParams({'amount': amount.toStringAsFixed(2)}),
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                '流水号: $outBizNo  ·  $time',
+                                'transaction_no_time'.trParams({'no': '$outBizNo', 'time': '$time'}),
                                 style: TextStyle(fontSize: 10, color: premiumGray, letterSpacing: 0.2),
                               ),
                             ],
@@ -314,16 +314,16 @@ class _WalletViewState extends State<WalletView> {
 
   /// 🌟 质感状态角标
   Widget _buildStatusBadge(String status) {
-    String text = '审核中';
+    String text = 'status_reviewing'.tr;
     Color bgColor = Colors.orange.withOpacity(0.12);
     Color textColor = Colors.orange.shade800;
 
     if (status == 'success') {
-      text = '打款成功';
+      text = 'status_paid'.tr;
       bgColor = premiumTeal.withOpacity(0.1);
       textColor = premiumTeal; // 🌟 已安全替换为皇家靛蓝，彻底去除浅绿色
     } else if (status == 'failed') {
-      text = '打款拒绝';
+      text = 'status_rejected'.tr;
       bgColor = Colors.red.withOpacity(0.1);
       textColor = Colors.red.shade800;
     }
@@ -390,13 +390,13 @@ class _WalletViewState extends State<WalletView> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                '申请结算收益（提现）',
+              Text(
+                'withdraw_earnings_title'.tr,
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
               ),
               const SizedBox(height: 10),
               Text(
-                '提现至您的个人支付宝。提现后无法撤销，平台手续费与个人所得税综合扣减 10%，实际打款金额为 (申请金额 * 90%) [INDEX: 1]。',
+                'withdraw_notice'.tr,
                 style: TextStyle(color: premiumGray, fontSize: 11, height: 1.5),
               ),
               const SizedBox(height: 24),
@@ -407,7 +407,7 @@ class _WalletViewState extends State<WalletView> {
                 style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
                 cursorColor: premiumAmber,
                 decoration: InputDecoration(
-                  hintText: "支付宝真实实名（必须与收款号实名一致）",
+                  hintText: 'alipay_name_hint'.tr,
                   hintStyle: TextStyle(color: premiumGray.withOpacity(0.5), fontSize: 12),
                   prefixIcon: Icon(Icons.person_outline_rounded, size: 18, color: premiumGray),
                   filled: true,
@@ -431,7 +431,7 @@ class _WalletViewState extends State<WalletView> {
                 style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
                 cursorColor: premiumAmber,
                 decoration: InputDecoration(
-                  hintText: "绑定收款支付宝账号（手机号或邮箱）",
+                  hintText: 'alipay_account_hint'.tr,
                   hintStyle: TextStyle(color: premiumGray.withOpacity(0.5), fontSize: 12),
                   prefixIcon: Icon(Icons.phone_iphone_rounded, size: 18, color: premiumGray),
                   filled: true,
@@ -459,7 +459,7 @@ class _WalletViewState extends State<WalletView> {
                 style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
                 cursorColor: premiumAmber,
                 decoration: InputDecoration(
-                  hintText: "输入提现金额 (起提门槛为 10.00 元)",
+                  hintText: 'withdraw_amount_hint'.tr,
                   hintStyle: TextStyle(color: premiumGray.withOpacity(0.5), fontSize: 12),
                   prefixIcon: Icon(Icons.attach_money_rounded, size: 18, color: premiumGray),
                   suffixIcon: Container(
@@ -469,7 +469,7 @@ class _WalletViewState extends State<WalletView> {
                     child: GestureDetector(
                       onTap: () => amountC.text = maxBalance.toStringAsFixed(2),
                       child: Text(
-                        '全部提现',
+                        'withdraw_all'.tr,
                         style: TextStyle(color: premiumAmber, fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                     ),
@@ -500,17 +500,17 @@ class _WalletViewState extends State<WalletView> {
                     final amountText = amountC.text.trim();
 
                     if (name.isEmpty || account.isEmpty || amountText.isEmpty) {
-                      Fluttertoast.showToast(msg: "请将各项提现数据填写完整");
+                      Fluttertoast.showToast(msg: 'fill_withdrawal_data'.tr);
                       return;
                     }
 
                     final double amount = double.tryParse(amountText) ?? 0.0;
                     if (amount < 10.0) {
-                      Fluttertoast.showToast(msg: "起提门槛为 10.00 元");
+                      Fluttertoast.showToast(msg: 'minimum_withdrawal'.tr);
                       return;
                     }
                     if (amount > maxBalance) {
-                      Fluttertoast.showToast(msg: "账户可提现余额不足");
+                      Fluttertoast.showToast(msg: 'insufficient_balance'.tr);
                       return;
                     }
 
@@ -530,9 +530,9 @@ class _WalletViewState extends State<WalletView> {
                     elevation: 4,
                     shadowColor: premiumAmber.withOpacity(0.2),
                   ),
-                  child: const Text(
-                    '确认提交并冻结审核',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  child: Text(
+                    'confirm_and_freeze'.tr,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ),
               )

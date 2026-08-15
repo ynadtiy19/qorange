@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 表情数据模型
@@ -251,7 +252,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
                       onChanged: _onSearchChanged,
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _slateGrey),
                       decoration: InputDecoration(
-                        hintText: "搜索你想要的表情...",
+                        hintText: 'search_emoji_hint'.tr,
                         hintStyle: TextStyle(
                           color: _lightSlateGrey.withOpacity(0.8),
                           fontSize: 13,
@@ -369,7 +370,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
                   Icon(Icons.history_rounded, size: 40, color: _emptyStateIconColor),
                   const SizedBox(height: 8),
                   Text(
-                    "暂无最近使用的表情",
+                    'no_recent_emoji'.tr,
                     style: TextStyle(color: _lightSlateGrey, fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ],
@@ -420,7 +421,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
           Icon(Icons.search_off_rounded, size: 48, color: _emptyStateIconColor),
           const SizedBox(height: 8),
           Text(
-            "未找到相关表情",
+            'no_emoji_found'.tr,
             style: TextStyle(
               color: _slateGrey,
               fontSize: 14,
@@ -429,7 +430,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
           ),
           const SizedBox(height: 4),
           Text(
-            "试着换个词搜搜看吧",
+            'try_another_keyword'.tr,
             style: TextStyle(
               color: _lightSlateGrey,
               fontSize: 12,

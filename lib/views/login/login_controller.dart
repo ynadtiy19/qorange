@@ -81,7 +81,7 @@ class LoginController extends GetxController {
   /// 账号密码登录
   Future<void> _login() async {
     if (!isUsernameValid.value || !isPasswordValid.value) {
-      Fluttertoast.showToast(msg: "账号或密码长度不足");
+      Fluttertoast.showToast(msg: 'account_password_too_short'.tr);
       return;
     }
 
@@ -114,7 +114,7 @@ class LoginController extends GetxController {
         // 3. 更新全局 Auth 状态
         AuthStateManager.instance.onLoginSuccess();
 
-        Fluttertoast.showToast(msg: "登录成功");
+        Fluttertoast.showToast(msg: 'login_success'.tr);
 
         // 🌟 核心改进：检查当前输入的密码是否已经被保存在本地安全存储中
         final isAlreadySaved = savedCredentials.any(
@@ -136,7 +136,7 @@ class LoginController extends GetxController {
       Fluttertoast.showToast(msg: e.message);
     } catch (e) {
       isLoading.value = false;
-      Fluttertoast.showToast(msg: "登录失败，请重试");
+      Fluttertoast.showToast(msg: 'login_failed_retry'.tr);
     }
   }
 
@@ -181,9 +181,9 @@ class LoginController extends GetxController {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    "保存密码到安全存储？",
-                    style: TextStyle(
+                  Text(
+                    'save_password_title'.tr,
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
@@ -193,7 +193,7 @@ class LoginController extends GetxController {
               ),
               const SizedBox(height: 16),
               Text(
-                "下次登录 青橙 时，您可以一键自动填充此账户的凭据，无需再次手动输入。",
+                'save_password_desc'.tr,
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.4),
               ),
               const SizedBox(height: 20),
@@ -209,7 +209,7 @@ class LoginController extends GetxController {
                   children: [
                     Row(
                       children: [
-                        Text("账号", style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                        Text('account'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
                         const Spacer(),
                         Text(username, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
@@ -220,7 +220,7 @@ class LoginController extends GetxController {
                     ),
                     Row(
                       children: [
-                        Text("密码", style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                        Text('password'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
                         const Spacer(),
                         const Text("••••••••", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
@@ -243,7 +243,7 @@ class LoginController extends GetxController {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: Text("暂不保存", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                      child: Text('dont_save'.tr, style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -252,7 +252,7 @@ class LoginController extends GetxController {
                       onPressed: () async {
                         await SecureStorageManager.instance.saveCredential(username, password);
                         await _loadSavedCredentials(); // 刷新本地列表
-                        Fluttertoast.showToast(msg: "密码已安全保存");
+                        Fluttertoast.showToast(msg: 'password_saved'.tr);
                         Get.back(); // 关闭弹窗
                         Get.back(result: true); // 返回上层
                       },
@@ -262,7 +262,7 @@ class LoginController extends GetxController {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text("保存密码", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text('save_password'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -310,9 +310,9 @@ class LoginController extends GetxController {
                     size: 22,
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    "使用已保存的账号登录",
-                    style: TextStyle(
+                  Text(
+                    'use_saved_account'.tr,
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
@@ -322,7 +322,7 @@ class LoginController extends GetxController {
               ),
               const SizedBox(height: 6),
               Text(
-                "点击账号即可一键自动填充并更新校验状态",
+                'tap_account_autofill'.tr,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 16),
@@ -372,7 +372,7 @@ class LoginController extends GetxController {
                           passwordFocusNode.unfocus();
 
                           Get.back(); // 关闭填充面板
-                          Fluttertoast.showToast(msg: "已自动填充凭据");
+                          Fluttertoast.showToast(msg: 'credentials_autofilled'.tr);
                         },
                       );
                     },
@@ -390,7 +390,7 @@ class LoginController extends GetxController {
   /// 账号密码注册
   Future<void> _register() async {
     if (!isUsernameValid.value || !isPasswordValid.value || !isNicknameValid.value) {
-      Fluttertoast.showToast(msg: "请完善注册信息");
+      Fluttertoast.showToast(msg: 'complete_registration_info'.tr);
       return;
     }
 
@@ -408,7 +408,7 @@ class LoginController extends GetxController {
       );
 
       if (response.respCode == 0) {
-        Fluttertoast.showToast(msg: "注册成功，请登录");
+        Fluttertoast.showToast(msg: 'register_success_login'.tr);
         // 注册成功自动切回登录状态
         isRegisterMode.value = false;
         passwordController.clear();
@@ -416,7 +416,7 @@ class LoginController extends GetxController {
     } on ApiException catch (e) {
       Fluttertoast.showToast(msg: e.message);
     } catch (e) {
-      Fluttertoast.showToast(msg: "注册失败，请重新尝试");
+      Fluttertoast.showToast(msg: 'register_failed_retry'.tr);
     } finally {
       isLoading.value = false;
     }

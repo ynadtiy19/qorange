@@ -41,8 +41,8 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
   // 投票发布表单
   final TextEditingController _pollQuestionController = TextEditingController();
   final List<TextEditingController> _pollOptionControllers = [
-    TextEditingController(text: "支持"),
-    TextEditingController(text: "反对"),
+    TextEditingController(text: 'poll_option_yes'.tr),
+    TextEditingController(text: 'poll_option_no'.tr),
   ];
   String _pollStatus = "published";
 
@@ -58,30 +58,31 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     'restaurant', 'trading', 'technology', 'traveler', 'news'
   ];
 
-  // 目标领域映射中文词组
-  final Map<String, String> _categoryChineseNames = {
-    'aviation': '航空航天',
-    'blockchain': '区块链',
-    'business': '商业经营',
-    'car': '汽车出行',
-    'cryptocurrency': '加密货币',
-    'data_science': '数据科学',
-    'education': '教育学术',
-    'finance': '金融理财',
-    'gamer': '游戏电竞',
-    'style': '时尚潮流',
-    'restaurant': '美食餐饮',
-    'trading': '量化交易',
-    'technology': '前沿科技',
-    'traveler': '旅游出行',
-    'news': '时政新闻',
-    'general': '综合日常',
+  // 目标领域映射：值为多语言词条 key，展示时调用 .tr 取当前语言文案
+  final Map<String, String> _categoryNameKeys = {
+    'aviation': 'topic_aviation',
+    'blockchain': 'topic_blockchain',
+    'business': 'topic_business',
+    'car': 'topic_car',
+    'cryptocurrency': 'topic_cryptocurrency',
+    'data_science': 'topic_data_science',
+    'education': 'topic_education',
+    'finance': 'topic_finance',
+    'gamer': 'topic_gamer',
+    'style': 'topic_style',
+    'restaurant': 'topic_restaurant',
+    'trading': 'topic_trading',
+    'technology': 'topic_technology',
+    'traveler': 'topic_traveler',
+    'news': 'topic_news',
+    'general': 'topic_general',
   };
 
-  final Map<String, String> _statusChineseNames = {
-    'published': '立即公开',
-    'draft': '存入草稿箱',
-    'unlisted': '私密/未列入名单',
+  // 发布状态映射：值同样为多语言词条 key
+  final Map<String, String> _statusNameKeys = {
+    'published': 'status_published',
+    'draft': 'status_draft',
+    'unlisted': 'status_unlisted',
   };
 
   bool _isPublishing = false;
@@ -182,7 +183,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     if (xFile == null) return;
 
     if (!mounted) return;
-    Fluttertoast.showToast(msg: "正在上传本地图片...");
+    Fluttertoast.showToast(msg: 'uploading_local_image'.tr);
 
     final url = await ApiService.uploadImage(File(xFile.path));
     if (url != null) {
@@ -194,7 +195,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
         });
       }
     } else {
-      Fluttertoast.showToast(msg: "图片上传失败");
+      Fluttertoast.showToast(msg: 'image_upload_failed'.tr);
     }
   }
 
@@ -274,7 +275,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 20),
-              const Text("选择发布的目标圈子", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+              Text('select_target_circle'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
               const SizedBox(height: 20),
               GridView.builder(
                 shrinkWrap: true,
@@ -288,7 +289,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 itemCount: _categories.length,
                 itemBuilder: (context, index) {
                   final key = _categories[index];
-                  final name = _categoryChineseNames[key] ?? key;
+                  final name = _categoryNameKeys.containsKey(key) ? _categoryNameKeys[key]!.tr : key;
                   final isSelected = _quillCategory == key;
                   return GestureDetector(
                     onTap: () {
@@ -345,13 +346,13 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 24),
-              const Text("设置发布状态选项", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+              Text('set_publish_status'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
               const SizedBox(height: 16),
-              ..._statusChineseNames.entries.map((entry) {
+              ..._statusNameKeys.entries.map((entry) {
                 final currentStatus = _activeFormIndex == 0 ? _quillStatus : (_activeFormIndex == 1 ? _pollStatus : _shortStatus);
                 final isSelected = currentStatus == entry.key;
                 return ListTile(
-                  title: Text(entry.value, style: TextStyle(color: isSelected ? const Color(0xFF0066FF) : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                  title: Text(entry.value.tr, style: TextStyle(color: isSelected ? const Color(0xFF0066FF) : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                   trailing: isSelected ? const Icon(Icons.check, color: Color(0xFF0066FF)) : null,
                   onTap: () {
                     setState(() {
@@ -394,11 +395,11 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 24),
-              const Text("添加图片", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('add_image'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined, color: Colors.black87),
-                title: const Text("从相册选取"),
+                title: Text('pick_from_album'.tr),
                 onTap: () {
                   Navigator.pop(context);
                   _pickShortLocalImage();
@@ -407,7 +408,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.gif_box_outlined, color: Colors.black87),
-                title: const Text("选取趣味 GIF"),
+                title: Text('pick_fun_gif'.tr),
                 onTap: () {
                   Navigator.pop(context);
                   _pickShortGifImage();
@@ -425,15 +426,15 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     final xFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (xFile == null) return;
 
-    Fluttertoast.showToast(msg: "正在上传说说图片...");
+    Fluttertoast.showToast(msg: 'uploading_moment_image'.tr);
     final url = await ApiService.uploadImage(File(xFile.path));
     if (url != null) {
       setState(() {
         _shortImages.add(url);
       });
-      Fluttertoast.showToast(msg: "图片已添加");
+      Fluttertoast.showToast(msg: 'image_added'.tr);
     } else {
-      Fluttertoast.showToast(msg: "图片上传失败");
+      Fluttertoast.showToast(msg: 'image_upload_failed'.tr);
     }
   }
 
@@ -464,7 +465,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                     setState(() {
                       _shortImages.add(url);
                     });
-                    Fluttertoast.showToast(msg: "GIF 已添加");
+                    Fluttertoast.showToast(msg: 'gif_added'.tr);
                   },
                 ),
               ),
@@ -508,7 +509,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
   // 1. 📂 quill（深度富文本文章）参数构建
   Future<void> _submitQuill() async {
     if (_quillTitleController.text.trim().isEmpty) {
-      Fluttertoast.showToast(msg: "请填写标题");
+      Fluttertoast.showToast(msg: 'please_enter_title'.tr);
       return;
     }
 
@@ -554,7 +555,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
   // 3. 📂 poll（学术/日常投票）参数构建
   Future<void> _submitPoll() async {
     if (_pollQuestionController.text.isEmpty) {
-      Fluttertoast.showToast(msg: "请填写投票主题");
+      Fluttertoast.showToast(msg: 'please_enter_poll_question'.tr);
       return;
     }
     final List<String> options = [];
@@ -564,14 +565,14 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
       }
     }
     if (options.length < 2) {
-      Fluttertoast.showToast(msg: "至少需要2个非空投票选项");
+      Fluttertoast.showToast(msg: 'need_two_poll_options'.tr);
       return;
     }
     _submitPost(
       postType: 'poll',
       title: _pollQuestionController.text, // 用户书写的投票议题作为 title
-      content: "请参与投票：${_pollQuestionController.text}", // 固定拼装提示文本
-      plainText: "请参与投票：${_pollQuestionController.text}",
+      content: 'poll_invite_text'.trParams({'question': _pollQuestionController.text}), // 固定拼装提示文本
+      plainText: 'poll_invite_text'.trParams({'question': _pollQuestionController.text}),
       pollQuestion: _pollQuestionController.text, // poll_question 与 title 一致
       pollOptions: options, // 选项数组
       category: 'news', // 固定归类为 "news"
@@ -582,7 +583,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
   // 2. 📂 short_post（图文说说）参数构建
   Future<void> _submitShort() async {
     if (_shortContentController.text.isEmpty && _shortImages.isEmpty) {
-      Fluttertoast.showToast(msg: "说点什么或者添加图片吧...");
+      Fluttertoast.showToast(msg: 'say_something_or_image'.tr);
       return;
     }
     _submitPost(
@@ -636,14 +637,14 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
 
       final res = await HttpClient.instance.post('/api-posts', data: body);
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "发布成功");
+        Fluttertoast.showToast(msg: 'publish_success'.tr);
         Get.back(result: true);
       }
     } catch (e) {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "发布异常");
+        Fluttertoast.showToast(msg: 'publish_error'.tr);
       }
     } finally {
       setState(() => _isPublishing = false);
@@ -676,7 +677,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _categoryChineseNames[_quillCategory] ?? "选择领域",
+                        _categoryNameKeys[_quillCategory]?.tr ?? 'select_topic'.tr,
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.black87,
@@ -698,7 +699,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
         actions: [
           TextButton(
             onPressed: _handlePublishSubmit,
-            child: const Text("发布", style: TextStyle(color: Color(0xFF0066FF), fontWeight: FontWeight.bold, fontSize: 16)),
+            child: Text('publish'.tr, style: TextStyle(color: Color(0xFF0066FF), fontWeight: FontWeight.bold, fontSize: 16)),
           ),
           const SizedBox(width: 8),
         ],
@@ -739,8 +740,8 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 child: TextField(
                   controller: _quillTitleController,
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1F2937), letterSpacing: -0.5),
-                  decoration: const InputDecoration(
-                    hintText: "标题",
+                  decoration: InputDecoration(
+                    hintText: 'title'.tr,
                     hintStyle: TextStyle(color: Color(0xFFD1D5DB)),
                     border: InputBorder.none,
                   ),
@@ -756,7 +757,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                   scrollController: _editorScrollC,
                   focusNode: _editorFocusNode,
                   config: quill.QuillEditorConfig(
-                    placeholder: '分享你此刻的想法...',
+                    placeholder: 'share_moment_hint'.tr,
                     autoFocus: false,
                     checkBoxReadOnly: false,
                     padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 0),
@@ -791,7 +792,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                   controller: _quillTagsController,
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: "添加检索标签 (以英文逗号分割，如: tech, ai)",
+                    hintText: 'tags_hint_tech'.tr,
                     hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
@@ -819,7 +820,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                         _quillPriceController.selection = TextSelection.fromPosition(
                           TextPosition(offset: _quillPriceController.text.length),
                         );
-                        Fluttertoast.showToast(msg: "付费价格最大限制为 50.00 元");
+                        Fluttertoast.showToast(msg: 'price_limit_notice'.tr);
                       } else if (parsed < 0.0) {
                         _quillPriceController.text = "0.00";
                         _quillPriceController.selection = TextSelection.fromPosition(
@@ -829,7 +830,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                     }
                   },
                   decoration: InputDecoration(
-                    hintText: "设置付费阅读价格 (最大 50.00 元，留空或 0 代表免费)",
+                    hintText: 'price_hint'.tr,
                     hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
                     prefixIcon: const Icon(Icons.attach_money_rounded, color: Color(0xFF0066FF), size: 18),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
@@ -864,8 +865,8 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
             controller: _pollQuestionController,
             maxLines: 2,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            decoration: const InputDecoration(
-              hintText: "发起投票：写下你的议题...",
+            decoration: InputDecoration(
+              hintText: 'poll_question_hint'.tr,
               hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 16, fontWeight: FontWeight.normal),
               border: InputBorder.none,
             ),
@@ -887,7 +888,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                       });
                     },
                     icon: HugeIcon(icon: HugeIcons.strokeRoundedPlusSignCircle, color: themeColor, size: 20.0),
-                    label: Text("添加投票选项", style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)),
+                    label: Text('add_poll_option'.tr, style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)),
                   ),
                 );
               }
@@ -909,11 +910,11 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                         ),
                         child: TextField(
                           controller: _pollOptionControllers[index],
-                          decoration: const InputDecoration(
-                            hintText: "选项内容...",
+                          decoration: InputDecoration(
+                            hintText: 'poll_option_hint'.tr,
                             hintStyle: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           ),
                         ),
                       ),
@@ -954,8 +955,8 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                   controller: _shortContentController,
                   maxLines: 6,
                   style: const TextStyle(fontSize: 16, height: 1.5),
-                  decoration: const InputDecoration(
-                    hintText: "分享你此刻的想法...",
+                  decoration: InputDecoration(
+                    hintText: 'share_moment_hint'.tr,
                     hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
                     border: InputBorder.none,
                   ),
@@ -1011,12 +1012,12 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                           color: const Color(0xFFF5F7FA),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Column(
+                        child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             HugeIcon(icon: HugeIcons.strokeRoundedPlusSign, color: Color(0xFF9CA3AF), size: 24.0),
                             SizedBox(height: 8),
-                            Text("图片/视频", style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                            Text('image_video'.tr, style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
                           ],
                         ),
                       ),
@@ -1030,7 +1031,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 child: TextField(
                   controller: _shortTagsController,
                   decoration: InputDecoration(
-                    hintText: "添加检索标签 (以英文逗号分割，如: news, chat)",
+                    hintText: 'tags_hint_news'.tr,
                     hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
@@ -1137,7 +1138,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                           const HugeIcon(icon: HugeIcons.strokeRoundedSettings01, color: Colors.grey, size: 12.0),
                           const SizedBox(width: 4),
                           Text(
-                            _statusChineseNames[_activeFormIndex == 0 ? _quillStatus : (_activeFormIndex == 1 ? _pollStatus : _shortStatus)] ?? "公开",
+                            _statusNameKeys[_activeFormIndex == 0 ? _quillStatus : (_activeFormIndex == 1 ? _pollStatus : _shortStatus)]?.tr ?? 'filter_public'.tr,
                             style: const TextStyle(fontSize: 11, color: Colors.grey),
                           ),
                         ],
@@ -1158,7 +1159,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 _buildPillButton(
                   index: 1,
                   icon: HugeIcons.strokeRoundedChatQuestion,
-                  text: "提问题",
+                  text: 'tab_ask'.tr,
                   bgColor: const Color(0xFFE8F5E9),
                   textColor: const Color(0xFF2E7D32),
                 ),
@@ -1166,7 +1167,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 _buildPillButton(
                   index: 2,
                   icon: HugeIcons.strokeRoundedPencilEdit02,
-                  text: "写想法",
+                  text: 'tab_moment'.tr,
                   bgColor: const Color(0xFFE3F2FD),
                   textColor: const Color(0xFF1565C0),
                 ),
@@ -1174,7 +1175,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 _buildPillButton(
                   index: 0,
                   icon: HugeIcons.strokeRoundedNote01,
-                  text: "发文章",
+                  text: 'tab_article'.tr,
                   bgColor: const Color(0xFFFFF3E0),
                   textColor: const Color(0xFFE65100),
                 ),
@@ -1301,7 +1302,7 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
             style: const TextStyle(fontSize: 15, color: Color(0xFF2C3E50)),
             onSubmitted: (value) => _fetchGifs(value),
             decoration: InputDecoration(
-              hintText: '搜索有趣的 GIF...',
+              hintText: 'search_gif_hint'.tr,
               hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
               prefixIcon: const Icon(Icons.search, size: 20, color: Colors.grey),
               filled: true,
@@ -1328,7 +1329,7 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
               children: [
                 const Icon(Icons.search, size: 48, color: Colors.grey),
                 const SizedBox(height: 12),
-                Text('没有找到相关 GIF', style: TextStyle(color: Colors.grey[400])),
+                Text('no_gif_found'.tr, style: TextStyle(color: Colors.grey[400])),
               ],
             ),
           )

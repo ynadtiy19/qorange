@@ -378,7 +378,7 @@ class CommunityDiscoveryView extends StatelessWidget {
       List<Map<String, String>> categoriesList,
       ) {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后创建社群");
+      Fluttertoast.showToast(msg: 'login_to_create_community'.tr);
       return;
     }
     final TextEditingController nameC = TextEditingController();
@@ -408,7 +408,7 @@ class CommunityDiscoveryView extends StatelessWidget {
               if (xFile == null) return;
 
               setModalState(() => isUploading = true);
-              Fluttertoast.showToast(msg: "正在上传封面背景...");
+              Fluttertoast.showToast(msg: 'uploading_cover'.tr);
 
               try {
                 final url = await ApiService.uploadImage(File(xFile.path));
@@ -417,10 +417,10 @@ class CommunityDiscoveryView extends StatelessWidget {
                     bannerUrl = url;
                     isUploading = false;
                   });
-                  Fluttertoast.showToast(msg: "封面图片上传成功！");
+                  Fluttertoast.showToast(msg: 'cover_upload_success'.tr);
                 } else {
                   setModalState(() => isUploading = false);
-                  Fluttertoast.showToast(msg: "封面上传失败");
+                  Fluttertoast.showToast(msg: 'cover_upload_failed'.tr);
                 }
               } catch (_) {
                 setModalState(() => isUploading = false);
@@ -451,7 +451,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    const Text('开启我的社群圈子', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text('create_my_community'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 20),
 
                     // 封面上传交互卡片
@@ -478,7 +478,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                             children: [
                               HugeIcon(icon: HugeIcons.strokeRoundedImage01, color: themeColor, size: 24.0),
                               const SizedBox(height: 8),
-                              const Text('点击上传社群封面背景图', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                              Text('tap_upload_cover'.tr, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                             ],
                           ),
                         ),
@@ -491,7 +491,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                       controller: nameC,
                       style: const TextStyle(fontSize: 14),
                       decoration: InputDecoration(
-                        hintText: "为您的社群取一个响亮的名字...",
+                        hintText: 'community_name_hint'.tr,
                         hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                         prefixIcon: const Icon(Icons.drive_file_rename_outline, size: 18),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -505,7 +505,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                       style: const TextStyle(fontSize: 14),
                       maxLines: 2,
                       decoration: InputDecoration(
-                        hintText: "简短介绍社群的主题与核心价值...",
+                        hintText: 'community_desc_hint'.tr,
                         hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                         prefixIcon: const Icon(Icons.text_fields_outlined, size: 18),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -514,7 +514,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                     const SizedBox(height: 16),
 
                     // 类别选择大片
-                    const Text('选择所属兴趣领域', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                    Text('select_interest_field'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -542,17 +542,17 @@ class CommunityDiscoveryView extends StatelessWidget {
                     // 社群属性
                     Row(
                       children: [
-                        const Text('公开属性：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                        Text('public_attribute'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
                         const SizedBox(width: 8),
                         _buildChoiceChip(
-                          text: '公开加入',
+                          text: 'join_public'.tr,
                           isSelected: selectedType == 'public',
                           onTap: () => setModalState(() => selectedType = 'public'),
                           themeColor: themeColor,
                         ),
                         const SizedBox(width: 8),
                         _buildChoiceChip(
-                          text: '私密同意申请',
+                          text: 'join_private_approval'.tr,
                           isSelected: selectedType == 'private',
                           onTap: () => setModalState(() => selectedType = 'private'),
                           themeColor: themeColor,
@@ -570,7 +570,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             style: const TextStyle(fontSize: 14),
                             decoration: InputDecoration(
-                              hintText: "订阅价格 (0代表免费)",
+                              hintText: 'subscription_price_hint'.tr,
                               hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                               prefixIcon: const Icon(Icons.attach_money, size: 18),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -579,14 +579,14 @@ class CommunityDiscoveryView extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         _buildChoiceChip(
-                          text: '按月收',
+                          text: 'bill_monthly'.tr,
                           isSelected: billingCycle == 'month',
                           onTap: () => setModalState(() => billingCycle = 'month'),
                           themeColor: themeColor,
                         ),
                         const SizedBox(width: 8),
                         _buildChoiceChip(
-                          text: '按年收',
+                          text: 'bill_yearly'.tr,
                           isSelected: billingCycle == 'year',
                           onTap: () => setModalState(() => billingCycle = 'year'),
                           themeColor: themeColor,
@@ -606,7 +606,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                           final price = priceC.text.trim();
 
                           if (name.isEmpty) {
-                            Fluttertoast.showToast(msg: "请填写社群名称");
+                            Fluttertoast.showToast(msg: 'please_enter_community_name'.tr);
                             return;
                           }
 
@@ -630,7 +630,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
-                        child: const Text('立即创建社群空间', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                        child: Text('create_community_now'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                       ),
                     ),
                   ],

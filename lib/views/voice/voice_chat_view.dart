@@ -55,7 +55,7 @@ class VoiceChatView extends StatelessWidget {
                                 onAgentSelected: (char, key) {
                                   currentCharacter = char;
                                   currentKey = key;
-                                  Fluttertoast.showToast(msg: "已选中角色: $char");
+                                  Fluttertoast.showToast(msg: 'agent_selected'.trParams({'name': char}));
                                 },
                               );
                             },
@@ -68,7 +68,7 @@ class VoiceChatView extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
                         icon: HugeIcon(icon: HugeIcons.strokeRoundedLanguageSkill, color: goldColor, size: 14.0),
-                        label: const Text('选择助手', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                        label: Text('select_assistant'.tr, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -120,7 +120,7 @@ class VoiceChatView extends StatelessWidget {
                                     decoration: BoxDecoration(color: goldColor, shape: BoxShape.circle),
                                   ),
                                   const SizedBox(width: 8),
-                                  Text('LIVE CAPTIONS / 实时同传听写', style: TextStyle(color: goldColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                                  Text('live_captions'.tr, style: TextStyle(color: goldColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                                   const Spacer(),
                                   if (connecting)
                                     SizedBox(
@@ -136,7 +136,7 @@ class VoiceChatView extends StatelessWidget {
                                   reverse: true,
                                   physics: const BouncingScrollPhysics(),
                                   child: Text(
-                                    text.isEmpty ? (connecting ? '大模型翻译流通道创建中...' : '开始说话，译文将实时在此呈现...') : text,
+                                    text.isEmpty ? (connecting ? 'captions_connecting'.tr : 'captions_waiting'.tr) : text,
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: text.isEmpty ? Colors.grey : Colors.white,
@@ -314,7 +314,7 @@ class VoiceChatView extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              muted ? '已静音' : '静音',
+                              muted ? 'muted'.tr : 'mute'.tr,
                               style: TextStyle(fontSize: 10, color: muted ? Colors.orange : Colors.grey, fontWeight: FontWeight.bold),
                             )
                           ],
@@ -339,9 +339,9 @@ class VoiceChatView extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 6),
-                            const Text(
-                              '挂断',
-                              style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                            Text(
+                              'hang_up'.tr,
+                              style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
                             )
                           ],
                         ),
@@ -372,7 +372,7 @@ class VoiceChatView extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              transActive ? '关闭转文本' : '开启转文本',
+                              transActive ? 'captions_off'.tr : 'captions_on'.tr,
                               style: TextStyle(
                                   fontSize: 10,
                                   color: transActive ? primaryTeal : Colors.grey,

@@ -94,7 +94,7 @@ class CommunitySpaceController extends GetxController
     if (item == null) return;
 
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后购买加入");
+      Fluttertoast.showToast(msg: 'login_to_purchase_join'.tr);
       return;
     }
     Get.dialog(
@@ -144,12 +144,12 @@ class CommunitySpaceController extends GetxController
           _showPaymentCheckDialog(context, outTradeNo);
         }
       } else {
-        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? '通道异常');
+        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? 'channel_error'.tr);
       }
 
     } catch (e) {
       Get.back();
-      Fluttertoast.showToast(msg: '请求异常: $e');
+      Fluttertoast.showToast(msg: 'err_request_with_msg'.trParams({'error': '$e'}));
     }
   }
 
@@ -167,12 +167,12 @@ class CommunitySpaceController extends GetxController
       builder: (context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('社群付款确认'),
-          content: const Text('请您在新打开的浏览器页面中完成社群购买支付，支付完成后点击下方确认加入。'),
+          title: Text('community_payment_confirm'.tr),
+          content: Text('community_payment_confirm_desc'.tr),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('取消', style: TextStyle(color: Colors.grey)),
+              child: Text('cancel'.tr, style: const TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -180,7 +180,7 @@ class CommunitySpaceController extends GetxController
                 _verifyJoinSuccessOnBackend(outTradeNo);
               },
               style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-              child: const Text('确认已加入', style: TextStyle(color: Colors.white)),
+              child: Text('confirm_joined'.tr, style: const TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -207,14 +207,14 @@ class CommunitySpaceController extends GetxController
       Get.back();
 
       if (verifyRes.respCode == 0) {
-        Fluttertoast.showToast(msg: "🎉 恭喜您，已成功解锁并加入付费社群空间！");
+        Fluttertoast.showToast(msg: 'paid_community_unlocked'.tr);
         loadSpaceDetails(); // 重新拉取空间状态，解除防火墙限制
       } else {
-        Fluttertoast.showToast(msg: verifyRes.respMsg ?? "支付单据验证失败");
+        Fluttertoast.showToast(msg: verifyRes.respMsg ?? 'payment_verify_failed'.tr);
       }
     } catch (e) {
       Get.back();
-      Fluttertoast.showToast(msg: "通信异常: $e");
+      Fluttertoast.showToast(msg: 'err_comm_with_msg'.trParams({'error': '$e'}));
     }
   }
 
@@ -224,7 +224,7 @@ class CommunitySpaceController extends GetxController
     if (item == null) return;
 
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后发起加入申请");
+      Fluttertoast.showToast(msg: 'login_to_apply_join'.tr);
       return;
     }
 
@@ -241,17 +241,17 @@ class CommunitySpaceController extends GetxController
       Get.back(); // 关闭加载框
 
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: res.respMsg ?? "加入申请提交成功！");
+        Fluttertoast.showToast(msg: res.respMsg ?? 'apply_submitted'.tr);
         loadSpaceDetails(); // 🌟 重新拉取最新的状态（自动回显为：applying 审核中状态） [1]
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? "申请失败");
+        Fluttertoast.showToast(msg: res.respMsg ?? 'apply_failed'.tr);
       }
     } catch (e) {
       Get.back();
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "申请失败，请检查网络: $e");
+        Fluttertoast.showToast(msg: 'apply_failed_network'.trParams({'error': '$e'}));
       }
     }
   }
@@ -288,15 +288,15 @@ class CommunitySpaceController extends GetxController
       );
 
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "讨论观点发布成功！");
+        Fluttertoast.showToast(msg: 'discussion_posted'.tr);
         loadSpacePosts(); // 立即静默洗牌刷新群贴列表，展示最新数据
         return true;
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? "发布讨论失败");
+        Fluttertoast.showToast(msg: res.respMsg ?? 'discussion_post_failed'.tr);
         return false;
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "发帖异常: $e");
+      Fluttertoast.showToast(msg: 'err_post_with_msg'.trParams({'error': '$e'}));
       return false;
     }
   }
@@ -311,11 +311,11 @@ class CommunitySpaceController extends GetxController
         },
       );
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: !currentPinState ? "帖子置顶成功！" : "已成功取消置顶");
+        Fluttertoast.showToast(msg: !currentPinState ? 'pin_success'.tr : 'unpin_success'.tr);
         loadSpacePosts(); // 静默重排拉取最新顺序
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "置顶管理操作失败: $e");
+      Fluttertoast.showToast(msg: 'pin_failed'.trParams({'error': '$e'}));
     }
   }
 
@@ -324,11 +324,11 @@ class CommunitySpaceController extends GetxController
     try {
       final res = await HttpClient.instance.delete('/api-posts/$postId');
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "该违规帖子及其所有讨论回复已被级联安全抹除");
+        Fluttertoast.showToast(msg: 'post_deleted_cascade'.tr);
         loadSpacePosts(); // 刷新大厅
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "抹除失败: $e");
+      Fluttertoast.showToast(msg: 'delete_failed_short'.trParams({'error': '$e'}));
     }
   }
 }

@@ -64,7 +64,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
     int pollCount = 0;
     const int maxPolls = 60; // 最多轮询3分钟
 
-    Fluttertoast.showToast(msg: "🔔 已开启到账安全检测，付款后将自动充值...");
+    Fluttertoast.showToast(msg: 'recharge_watching'.tr);
 
     _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (!_isPollingActive || pollCount >= maxPolls) {
@@ -89,7 +89,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
           if (verifyRes.respCode == 0) {
             final double added = double.tryParse(realEpayData['money']?.toString() ?? '0') ?? 0.0;
             Fluttertoast.showToast(
-              msg: "🎉 充值成功！已为您成功增加 ${(added * 10).toInt()} 个平台代币！",
+              msg: 'recharge_success'.trParams({'count': '${(added * 10).toInt()}'}),
               toastLength: Toast.LENGTH_LONG,
             );
             // 🌟 静默刷新外层钱包资产快照
@@ -150,14 +150,14 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
           }
         }
       } else {
-        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? '充值网关异常');
+        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? 'recharge_gateway_error'.tr);
       }
     } catch (e) {
       Get.back();
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: '充值异常: $e');
+        Fluttertoast.showToast(msg: 'recharge_error'.trParams({'error': '$e'}));
       }
     }
   }
@@ -171,8 +171,8 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
     return Scaffold(
       backgroundColor: premiumBg,
       appBar: AppBar(
-        title: const Text(
-          '平台代币充值大厅',
+        title: Text(
+          'token_recharge_hall'.tr,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E293B)),
         ),
         centerTitle: true,
@@ -193,13 +193,13 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
             // CustomPaint 手绘 3D 浮动代币模型
             const Center(child: FloatingCoin()),
             const SizedBox(height: 24),
-            const Text(
-              '账户专属代币金库',
+            Text(
+              'token_vault'.tr,
               style: TextStyle(color: Color(0xFF1E293B), fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 0.5),
             ),
             const SizedBox(height: 6),
             Text(
-              '充值比例为 1 元 = 10 平台代币',
+              'token_exchange_rate'.tr,
               style: TextStyle(color: premiumGray, fontSize: 12),
             ),
             const SizedBox(height: 32),
@@ -263,7 +263,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '$token 代币',
+                          'token_count'.trParams({'count': '$token'}),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
@@ -304,7 +304,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                       children: [
                         Icon(Icons.bug_report_rounded, color: premiumAmber, size: 18),
                         const SizedBox(width: 8),
-                        Text('测试专享 · 特权自定义任意金额充值', style: TextStyle(color: premiumAmber, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text('custom_amount_notice'.tr, style: TextStyle(color: premiumAmber, fontSize: 12, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -317,7 +317,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                       style: const TextStyle(color: Color(0xFF1E293B), fontSize: 13),
                       cursorColor: premiumAmber,
                       decoration: InputDecoration(
-                        hintText: "输入特权测试金额（单位：元）",
+                        hintText: 'custom_amount_hint'.tr,
                         hintStyle: TextStyle(color: premiumGray.withOpacity(0.5), fontSize: 12),
                         filled: true,
                         fillColor: const Color(0xFFF1F5F9),
@@ -349,7 +349,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '选择您的扣款支付网关',
+                'select_payment_gateway'.tr,
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: premiumGray),
               ),
             ),
@@ -358,7 +358,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
               children: [
                 Expanded(
                   child: _buildPayChannelTile(
-                    label: '支付宝安全通道',
+                    label: 'alipay_channel'.tr,
                     icon: HugeIcons.strokeRoundedCreditCard,
                     iconColor: Colors.blue,
                     isSelected: _selectedPayType == 'alipay',
@@ -368,7 +368,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                 const SizedBox(width: 14),
                 Expanded(
                   child: _buildPayChannelTile(
-                    label: '微信收银台',
+                    label: 'wechat_channel'.tr,
                     icon: HugeIcons.strokeRoundedWallet01,
                     iconColor: const Color(0xFF07C160), // 高质感深绿品牌色，非浅绿色
                     isSelected: _selectedPayType == 'wxpay',
@@ -385,7 +385,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
               height: 52,
               child: ElevatedButton(
                 onPressed: _selectedAmount <= 0.0
-                    ? () => Fluttertoast.showToast(msg: "请输入有效的充值金额")
+                    ? () => Fluttertoast.showToast(msg: 'enter_valid_amount'.tr)
                     : () => _executeRechargeWorkflow(_selectedAmount, _selectedPayType),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: premiumAmber,
@@ -394,14 +394,14 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                   shadowColor: premiumAmber.withOpacity(0.2),
                 ),
                 child: Text(
-                  '确认购买 ¥${_selectedAmount.toStringAsFixed(2)} / 极速入账',
+                  'confirm_purchase_amount'.trParams({'amount': _selectedAmount.toStringAsFixed(2)}),
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              '代币服务属于虚拟数字服务资产。充值提交即表示您已阅读并同意《虚拟充值服务协议》 [INDEX: 1]。',
+              'virtual_service_notice'.tr,
               style: TextStyle(color: premiumGray.withOpacity(0.8), fontSize: 10, height: 1.4),
               textAlign: TextAlign.center,
             ),

@@ -111,7 +111,7 @@ class ProfileController extends GetxController {
 
   Future<void> toggleFollow() async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后关注");
+      Fluttertoast.showToast(msg: 'login_to_follow'.tr);
       return;
     }
     try {
@@ -127,7 +127,7 @@ class ProfileController extends GetxController {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "关注异常: $e");
+        Fluttertoast.showToast(msg: 'follow_error'.trParams({'error': '$e'}));
       }
     }
   }
@@ -136,13 +136,13 @@ class ProfileController extends GetxController {
     try {
       await AuthStateManager.instance.logout();
       await UserController.to.clearUserInfo();
-      Fluttertoast.showToast(msg: "已安全登出");
+      Fluttertoast.showToast(msg: 'logged_out_safely'.tr);
       Get.offAll(() => const MainNavView());
     } catch (e) {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "退出异常");
+        Fluttertoast.showToast(msg: 'logout_error'.tr);
       }
     }
   }
@@ -209,15 +209,21 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
   }
 
 
-  // 解析并格式化注册时间 (如将 ISO-8601 解析为 "2026年5月" 格式)
+  // 解析并格式化注册时间：日期写法交由各语言词条决定 (中文 xxxx年xx月 / 英文 5/2026)
   String _getJoinedDateString(dynamic createdAt) {
-    if (createdAt == null) return "加入于 2026年5月";
+    if (createdAt == null) {
+      return 'joined_on'.trParams({'date': 'joined_date_fallback'.tr});
+    }
     try {
       final dateTime = DateTime.parse(createdAt.toString());
-      // 采用更具本土人文气息的格式：xxxx年xx月
-      return "加入于 ${dateTime.year}年${dateTime.month}月";
+      final formatted = 'joined_date_format'.trParams({
+        'year': '${dateTime.year}',
+        'month': '${dateTime.month}',
+      });
+      return 'joined_on'.trParams({'date': formatted});
     } catch (_) {
-      return "加入于 2026年5月"; // 解析失败时的友好降级
+      // 解析失败时的友好降级
+      return 'joined_on'.trParams({'date': 'joined_date_fallback'.tr});
     }
   }
 
@@ -240,10 +246,10 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
-        Fluttertoast.showToast(msg: "无法打开链接: $urlString");
+        Fluttertoast.showToast(msg: 'cannot_open_link'.trParams({'url': urlString}));
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "解析错误: $e");
+      Fluttertoast.showToast(msg: 'parse_error'.trParams({'error': '$e'}));
     }
   }
 
@@ -262,7 +268,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("个人简介", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text('personal_bio'.tr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
                 IconButton(
                   onPressed: () => Get.back(),
                   icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, color: Colors.grey, size: 20),
@@ -304,7 +310,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
           appBar: AppBar(
             backgroundColor: Colors.white,
             elevation: 0,
-            title: const Text("我的空间", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+            title: Text('my_space'.tr, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
           ),
           body: Center(
             child: Padding(
@@ -314,10 +320,10 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                 children: [
                   HugeIcon(icon: HugeIcons.strokeRoundedUser, color: Colors.grey.shade300, size: 72.0),
                   const SizedBox(height: 16),
-                  const Text("登录后开启您的学习空间", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  Text('login_to_open_space'.tr, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
                   const SizedBox(height: 8),
                   Text(
-                    "在这里，与数万创作者分享有深度、有态度的行业见解",
+                    'login_promo_desc'.tr,
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.4),
                   ),
@@ -332,7 +338,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text("登录 / 注册", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text('login_register'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -344,7 +350,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
 
       final isMe = profile['is_me'] ?? false;
       final topFollowed = profile['top_followed_users'] as List? ?? [];
-      final bioText = profile['bio'] != null && profile['bio'].toString().isNotEmpty ? profile['bio'].toString() : "暂无个人简介...";
+      final bioText = profile['bio'] != null && profile['bio'].toString().isNotEmpty ? profile['bio'].toString() : 'no_bio_yet'.tr;
       final website = profile['website'] as String? ?? '';
       final location = profile['location'] as String? ?? '';
       final handleText = "@${profile['username'] ?? ''}";
@@ -376,7 +382,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        profile['nickname'] ?? '匿名作者',
+                                        profile['nickname'] ?? 'anonymous_author'.tr,
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
                                         maxLines: 1, // 🌟 限制为单行展示
                                         overflow: TextOverflow.ellipsis, // 🌟 超长时尾部展示省略号
@@ -420,7 +426,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           children: [
                             CircleAvatar(radius: 40, backgroundImage: NetworkImage(profile['avatar'] ?? '')),
                             const SizedBox(height: 14),
-                            Text(profile['nickname'] ?? '匿名作者', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                            Text(profile['nickname'] ?? 'anonymous_author'.tr, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
                             const SizedBox(height: 4),
                             Text(handleText, style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
                             const SizedBox(height: 18),
@@ -431,7 +437,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                   ? ElevatedButton.icon(
                                 onPressed: () => Get.to(() => const ProfileEditView())?.then((_) => _controller.loadProfile()),
                                 icon: const HugeIcon(icon: HugeIcons.strokeRoundedPencilEdit02, color: Colors.white, size: 16),
-                                label: const Text("编辑个人资料", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                label: Text('edit_profile'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF0066FF),
                                   elevation: 0,
@@ -446,7 +452,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                 ),
-                                child: Text(profile['is_following'] ? "已关注" : "关注TA", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                child: Text(profile['is_following'] ? 'following_state'.tr : 'follow_them'.tr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                               ),
                             ),
                             const SizedBox(height: 24),
@@ -463,7 +469,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                   const SizedBox(width: 6),
                                   Text("${profile['following_count'] ?? 0}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
                                   const SizedBox(width: 4),
-                                  Text("关注中", style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                  Text('following_label'.tr, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
                                   const SizedBox(width: 16),
                                   Container(width: 1, height: 12, color: Colors.grey.shade300),
                                   const SizedBox(width: 16),
@@ -471,7 +477,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                   const SizedBox(width: 6),
                                   Text("${profile['followers_count'] ?? 0}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
                                   const SizedBox(width: 4),
-                                  Text("关注者", style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                  Text('followers_label'.tr, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
                                 ],
                               ),
                             ),
@@ -493,7 +499,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                               onTap: () => _showFullBioBottomSheet(bioText),
                               child: Padding(
                                 padding: const EdgeInsets.only(top: 4.0),
-                                child: Text("查看更多...", style: TextStyle(fontSize: 12, color: themeColor, fontWeight: FontWeight.bold)),
+                                child: Text('view_more'.tr, style: TextStyle(fontSize: 12, color: themeColor, fontWeight: FontWeight.bold)),
                               ),
                             )
                         ],
@@ -508,7 +514,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            "兴趣 / 风格",
+                            'interests_style'.tr,
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey.shade600,
@@ -547,7 +553,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                         )
                       else
                         Text(
-                          "暂无兴趣标签",
+                          'no_interest_tags'.tr,
                           style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                         ),
                       const SizedBox(height: 10),
@@ -599,7 +605,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
 
                       if (topFollowed.isNotEmpty) ...[
                         const SizedBox(height: 24),
-                        const Text("共同关注的创作者", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
+                        Text('mutual_follows'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 40,
@@ -637,13 +643,15 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           indicatorSize: TabBarIndicatorSize.label,
                           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
+                          // 🌟 与 _handleTabChange 中的 tabs 顺序严格一一对应：
+                          // published / draft / unlisted / collects / history / shares
                           tabs: [
-                            Tab(text: 'tab_posts'.tr),
-                            Tab(text: 'draft'.tr),
-                            Tab(text: 'filter_private'.tr),
-                            Tab(text: 'my_wallet'.tr),
-                            Tab(text: 'search_history'.tr),
-                            Tab(text: 'shares'.tr),
+                            Tab(text: 'tab_published'.tr),
+                            Tab(text: 'tab_draft'.tr),
+                            Tab(text: 'tab_unlisted'.tr),
+                            Tab(text: 'tab_collects'.tr),
+                            Tab(text: 'tab_history'.tr),
+                            Tab(text: 'tab_shares'.tr),
                           ],
                         )
                       ],
@@ -669,7 +677,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                 if (_controller.rxActiveTab.value == 'history') {
                   final post = item['post'] ?? {};
                   final viewTime = item['viewed_at'] != null ? item['viewed_at'].toString().substring(0, 10) : '';
-                  return _buildAestheticPostCard(post, datePrefix: "浏览于: $viewTime", cardIcon: HugeIcons.strokeRoundedClock01);
+                  return _buildAestheticPostCard(post, datePrefix: 'viewed_on'.trParams({'date': viewTime}), cardIcon: HugeIcons.strokeRoundedClock01);
                 } else if (_controller.rxActiveTab.value == 'shares') {
                   final post = item['post'] ?? {};
                   final sender = item['sender'] ?? {};
@@ -693,7 +701,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                "${sender['nickname'] ?? '用户'} 推荐于 $shareTime",
+                                'recommended_by_on'.trParams({'nickname': '${sender['nickname'] ?? 'user'.tr}', 'date': shareTime}),
                                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black54),
                               ),
                             ),
@@ -806,7 +814,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              datePrefix ?? "发布时间: $createTime",
+                              datePrefix ?? 'published_on'.trParams({'date': createTime}),
                               style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                             ),
                           ],

@@ -205,9 +205,9 @@ class SettingView extends StatelessWidget {
                         children: [
                           Text('realname_binding'.tr, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryColor)),
                           const SizedBox(height: 6),
-                          const Text(
-                            '为了保障平台与创作者之间提现对账的绝对准确，手艺人请在此绑定您的支付宝实名信息。此信息仅用于财务核销平账审计使用，不对任何其他第三方学者透露！',
-                            style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
+                          Text(
+                            'realname_notice'.tr,
+                            style: const TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
                           )
                         ],
                       ),
@@ -218,7 +218,7 @@ class SettingView extends StatelessWidget {
               const SizedBox(height: 32),
 
               // 2. 实名录入
-              const Text('支付宝真实实名', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
+              Text('alipay_real_name'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
               const SizedBox(height: 10),
               Container(
                 decoration: BoxDecoration(
@@ -232,7 +232,7 @@ class SettingView extends StatelessWidget {
                   controller: nameC,
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: "请输入您的支付宝真实姓名",
+                    hintText: 'alipay_real_name_hint'.tr,
                     hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                     prefixIcon: Icon(Icons.person_pin_rounded, color: primaryColor, size: 18),
                     border: InputBorder.none,
@@ -243,7 +243,7 @@ class SettingView extends StatelessWidget {
               const SizedBox(height: 24),
 
               // 3. 收款手机号录入
-              const Text('支付宝收款绑定手机号', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
+              Text('alipay_phone'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
               const SizedBox(height: 10),
               Container(
                 decoration: BoxDecoration(
@@ -262,7 +262,7 @@ class SettingView extends StatelessWidget {
                   ],
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: "请输入绑定的11位支付宝手机号",
+                    hintText: 'alipay_phone_hint'.tr,
                     hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                     prefixIcon: Icon(Icons.phone_iphone_rounded, color: primaryColor, size: 18),
                     border: InputBorder.none,
@@ -284,7 +284,7 @@ class SettingView extends StatelessWidget {
                     final phone = phoneC.text.trim();
 
                     if (name.isEmpty || phone.isEmpty) {
-                      Fluttertoast.showToast(msg: "请将姓名和手机号数据填写完整");
+                      Fluttertoast.showToast(msg: 'fill_name_and_phone'.tr);
                       return;
                     }
 

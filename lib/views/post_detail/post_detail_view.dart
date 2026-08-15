@@ -56,26 +56,27 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
   String? _replyToUserId;        // 目标回复用户ID
   String? _replyToNickname;      // 目标回复用户昵称
 
+  // 翻译目标语言清单：值为多语言词条 key，列表渲染时调用 .tr 呈现当前语言下的语言名
   final Map<String, String> _supportedLanguages = {
-    "en": "英语",
-    "zh-CN": "简体中文",
-    "zh-TW": "繁体中文",
-    "es": "西班牙语",
-    "ar": "阿拉伯语",
-    "fr": "法语",
-    "ru": "俄语",
-    "pt": "葡萄语",
-    "de": "德语",
-    "ja": "日语",
-    "hi": "印地语",
-    "id": "印尼语",
-    "ko": "韩语",
-    "it": "意大利语",
-    "tr": "土耳其语",
-    "vi": "越南语",
-    "th": "泰语",
-    "nl": "荷兰语",
-    "pl": "波兰语",
+    "en": "tlang_en",
+    "zh-CN": "tlang_zh_cn",
+    "zh-TW": "tlang_zh_tw",
+    "es": "tlang_es",
+    "ar": "tlang_ar",
+    "fr": "tlang_fr",
+    "ru": "tlang_ru",
+    "pt": "tlang_pt",
+    "de": "tlang_de",
+    "ja": "tlang_ja",
+    "hi": "tlang_hi",
+    "id": "tlang_id",
+    "ko": "tlang_ko",
+    "it": "tlang_it",
+    "tr": "tlang_tr",
+    "vi": "tlang_vi",
+    "th": "tlang_th",
+    "nl": "tlang_nl",
+    "pl": "tlang_pl",
   };
 
   @override
@@ -169,7 +170,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
   Future<void> _toggleLike() async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后点赞");
+      Fluttertoast.showToast(msg: 'login_to_like'.tr);
       return;
     }
     try {
@@ -184,14 +185,14 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "点赞异常");
+        Fluttertoast.showToast(msg: 'like_failed'.tr);
       }
     }
   }
 
   Future<void> _toggleCollect() async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后收藏");
+      Fluttertoast.showToast(msg: 'login_to_collect'.tr);
       return;
     }
     try {
@@ -200,13 +201,13 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
         setState(() {
           isCollected = res.datas!['is_collected'];
         });
-        Fluttertoast.showToast(msg: isCollected ? "收藏成功" : "已取消收藏");
+        Fluttertoast.showToast(msg: isCollected ? 'collect_success'.tr : 'collect_cancelled'.tr);
       }
     } catch (e) {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "操作异常");
+        Fluttertoast.showToast(msg: 'operation_failed'.tr);
       }
     }
   }
@@ -248,8 +249,8 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                "删除帖子",
+              Text(
+                'delete_post'.tr,
                 style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w700,
@@ -257,8 +258,8 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                "确定要永久删除这篇帖子吗？\n删除后数据将无法恢复。",
+              Text(
+                'delete_post_confirm'.tr,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
@@ -279,9 +280,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                           color: const Color(0xFFF5F5F7),
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
-                            "取消",
+                            'cancel'.tr,
                             style: TextStyle(
                               color: Color(0xFF666666),
                               fontSize: 16,
@@ -315,7 +316,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                             ),
                           ],
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             HugeIcon(
@@ -325,7 +326,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                             ),
                             SizedBox(width: 6),
                             Text(
-                              "删除",
+                              'delete'.tr,
                               style: TextStyle(
                                 color: Colors.black,
                                 fontSize: 16,
@@ -356,21 +357,21 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     try {
       final res = await HttpClient.instance.delete('/api-posts/${widget.postId}');
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "帖子已成功删除");
+        Fluttertoast.showToast(msg: 'post_deleted'.tr);
         Get.back();
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "删除失败: $e");
+      Fluttertoast.showToast(msg: 'delete_failed'.trParams({'error': '$e'}));
     }
   }
 
   Future<void> _submitVote() async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后投票");
+      Fluttertoast.showToast(msg: 'login_to_vote'.tr);
       return;
     }
     if (_selectedOptionId == null) {
-      Fluttertoast.showToast(msg: "请选择一个投票项");
+      Fluttertoast.showToast(msg: 'select_poll_option'.tr);
       return;
     }
     try {
@@ -379,41 +380,41 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
         data: {'option_id': _selectedOptionId},
       );
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "投票提交成功");
+        Fluttertoast.showToast(msg: 'vote_success'.tr);
         _loadPostDetails();
       }
     } catch (e) {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "投票失败，请稍后重试");
+        Fluttertoast.showToast(msg: 'vote_failed'.tr);
       }
     }
   }
 
   Future<void> _repostPost() async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后进行转发");
+      Fluttertoast.showToast(msg: 'login_to_repost'.tr);
       return;
     }
     try {
       final res = await HttpClient.instance.post('/api-posts/${widget.postId}/repost');
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "已同步转发至您的空间");
+        Fluttertoast.showToast(msg: 'repost_success'.tr);
         _loadPostDetails();
       }
     } catch (e) {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "转发失败: $e");
+        Fluttertoast.showToast(msg: 'repost_failed'.trParams({'error': '$e'}));
       }
     }
   }
 
   Future<void> _sharePost() async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后分享");
+      Fluttertoast.showToast(msg: 'login_to_share'.tr);
       return;
     }
 
@@ -424,7 +425,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
       topFollowed = res.datas?['top_followed_users'] as List? ?? [];
     } catch (e) {
 // 仅作轻提示，不中断后续外部链接分享的操作
-      Fluttertoast.showToast(msg: "拉取关系链失败");
+      Fluttertoast.showToast(msg: 'load_followers_failed'.tr);
     }
 
 // 拼接需要分享的外部链接
@@ -464,9 +465,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    "分享至",
-                    style: TextStyle(
+                  Text(
+                    'share_to'.tr,
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                       color: Colors.black87,
@@ -490,7 +491,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "分享给关注的好友",
+                  'share_with_friends'.tr,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -521,7 +522,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        "暂无关注好友，快去关注吧~",
+                        'no_following_yet'.tr,
                         style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                       ),
                     ],
@@ -533,7 +534,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   itemBuilder: (context, index) {
                     final f = topFollowed[index];
                     final avatarUrl = f['avatar'] as String? ?? '';
-                    final nickname = f['nickname'] as String? ?? '用户';
+                    final nickname = f['nickname'] as String? ?? 'user'.tr;
 
                     return Padding(
                       padding: const EdgeInsets.only(right: 14),
@@ -550,7 +551,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                               },
                             );
                             if (shareRes.respCode == 0) {
-                              Fluttertoast.showToast(msg: "定向推荐分享成功");
+                              Fluttertoast.showToast(msg: 'share_sent'.tr);
                               Get.back();
                             }
                           },
@@ -604,7 +605,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "更多分享方式",
+                  'more_share_options'.tr,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -625,10 +626,10 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                       color: Colors.black87,
                       size: 22,
                     ),
-                    label: "复制链接",
+                    label: 'copy_link'.tr,
                     onTap: () async {
                       await Clipboard.setData(ClipboardData(text: shareUrl));
-                      Fluttertoast.showToast(msg: "链接已复制到剪切板");
+                      Fluttertoast.showToast(msg: 'link_copied'.tr);
                       Get.back();
                     },
                   ),
@@ -641,14 +642,14 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                       color: Colors.black87,
                       size: 22,
                     ),
-                    label: "浏览器打开",
+                    label: 'open_in_browser'.tr,
                     onTap: () async {
                       final uri = Uri.parse(shareUrl);
                       if (await canLaunchUrl(uri)) {
                         await launchUrl(uri, mode: LaunchMode.externalApplication);
                         Get.back();
                       } else {
-                        Fluttertoast.showToast(msg: "无法打开浏览器");
+                        Fluttertoast.showToast(msg: 'cannot_open_browser'.tr);
                       }
                     },
                   ),
@@ -661,13 +662,13 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                       color: Colors.black87,
                       size: 22,
                     ),
-                    label: "系统分享",
+                    label: 'system_share'.tr,
                     onTap: () async {
 // 提前关闭 BottomSheet，避免与原生底部分享弹窗在界面上重叠导致动画卡顿
                       Get.back();
                       await Share.share(
-                        '给大家分享一个精彩瞬间：$shareUrl',
-                        subject: '精彩内容分享',
+                        'share_text'.trParams({'url': shareUrl}),
+                        subject: 'share_subject'.tr,
                       );
                     },
                   ),
@@ -774,11 +775,11 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     try {
       final res = await HttpClient.instance.delete('/api-comments/$commentId');
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "评论删除成功");
+        Fluttertoast.showToast(msg: 'comment_deleted'.tr);
         _loadComments();
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "删除评论失败: $e");
+      Fluttertoast.showToast(msg: 'comment_delete_failed'.trParams({'error': '$e'}));
     }
   }
 
@@ -824,7 +825,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
         isShowingTranslation = true;
       });
     } catch (e) {
-      Fluttertoast.showToast(msg: "翻译失败: $e");
+      Fluttertoast.showToast(msg: 'translate_failed'.trParams({'error': '$e'}));
     } finally {
       if (mounted) setState(() => isTranslating = false);
     }
@@ -899,9 +900,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   size: 26.0,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  "本篇为优质付费内容，阅读全文请前往商店解锁",
-                  style: TextStyle(
+                Text(
+                  'paid_content_notice'.tr,
+                  style: const TextStyle(
                     fontSize: 12,
                     color: Colors.grey,
                     fontWeight: FontWeight.w600,
@@ -911,7 +912,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 ElevatedButton.icon(
                   onPressed: () {
 // 🌟 吐司提示去商店购买
-                    Fluttertoast.showToast(msg: "请前往系统商店购买该文章以解锁全文");
+                    Fluttertoast.showToast(msg: 'go_shop_to_unlock'.tr);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: themeColor,
@@ -920,9 +921,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
                   icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 16),
-                  label: const Text(
-                    "去商店购买",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  label: Text(
+                    'buy_in_shop'.tr,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ),
               ],
@@ -943,7 +944,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     }
     return IconButton(
       onPressed: _handleTranslateTap,
-      tooltip: isShowingTranslation ? "还原原文" : "翻译文章",
+      tooltip: isShowingTranslation ? 'show_original'.tr : 'translate_article'.tr,
       icon: Icon(
         isShowingTranslation ? Icons.g_translate : Icons.translate_rounded,
         color: isShowingTranslation ? const Color.fromRGBO(44, 123, 109, 1.0) : Colors.black54,
@@ -971,7 +972,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
       return Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
-        body: const Center(child: Text("内容不存在或已被删除")),
+        body: Center(child: Text('content_not_found'.tr)),
       );
     }
 
@@ -1012,7 +1013,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    author['nickname'] ?? '未知昵称',
+                    author['nickname'] ?? 'unknown_nickname'.tr,
                     style: const TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w600),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
@@ -1075,7 +1076,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
                   Row(
                     children: [
-                      Text("发布于 $timestamp  ·  $viewsCount 次阅读", style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                      Text('posted_on_views'.trParams({'time': '$timestamp', 'count': '$viewsCount'}), style: TextStyle(color: Colors.grey[500], fontSize: 12)),
                       if (type == 'quill' && isShowingTranslation) ...[
                         const SizedBox(width: 10),
                         Container(
@@ -1089,7 +1090,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                             children: [
                               Icon(Icons.translate, size: 12, color: themeColor),
                               const SizedBox(width: 4),
-                              Text("机器译文", style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
+                              Text('machine_translation'.tr, style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -1162,12 +1163,12 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
                   if (morePosts.isNotEmpty) _buildMorePostsHorizontal(morePosts, themeColor),
 
-                  const Text("精选讨论", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('selected_discussions'.tr, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   if (_isLoadingComments)
                     Center(child: CircularProgressIndicator(color: themeColor, strokeWidth: 2))
                   else if (_comments.isEmpty)
-                    const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("暂无讨论，发表你的看法吧", style: TextStyle(color: Colors.grey))))
+                    Center(child: Padding(padding: EdgeInsets.all(20), child: Text('no_discussions_yet'.tr, style: TextStyle(color: Colors.grey))))
                   else
                     ..._comments.map((c) => _buildCommentItem(c, themeColor)),
                   const SizedBox(height: 40),
@@ -1183,7 +1184,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
   Widget _buildPollSection(Color themeColor) {
     final poll = _post!['poll'] ?? {};
-    final question = poll['question'] ?? '进行投票';
+    final question = poll['question'] ?? 'poll_default_question'.tr;
     final options = poll['options'] as List? ?? [];
 
     int totalVotes = 0;
@@ -1197,7 +1198,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SelectableText("投票：$question", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          SelectableText('poll_question_label'.trParams({'question': '$question'}), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 12),
           ListView.builder(
             shrinkWrap: true,
@@ -1237,7 +1238,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Text("${(ratio * 100).toStringAsFixed(1)}% ($optionVotes票)", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        Text('poll_votes_ratio'.trParams({'percent': (ratio * 100).toStringAsFixed(1), 'count': '$optionVotes'}), style: const TextStyle(fontSize: 11, color: Colors.grey)),
                       ],
                     ),
                   ),
@@ -1251,7 +1252,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
             child: ElevatedButton(
               onPressed: _submitVote,
               style: ElevatedButton.styleFrom(backgroundColor: themeColor, elevation: 0),
-              child: const Text("提交我的表态", style: TextStyle(color: Colors.white)),
+              child: Text('submit_my_vote'.tr, style: const TextStyle(color: Colors.white)),
             ),
           )
         ],
@@ -1319,7 +1320,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(author['nickname'] ?? '用户', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(author['nickname'] ?? 'user'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 if (bio.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   LayoutBuilder(
@@ -1351,7 +1352,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                               child: Padding(
                                 padding: const EdgeInsets.only(left: 6.0),
                                 child: Text(
-                                  "更多",
+                                  'more'.tr,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: themeColor,
@@ -1366,7 +1367,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   ),
                 ],
                 const SizedBox(height: 4),
-                Text("$followersCount 粉丝 · $followingCount 关注", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('followers_following_count'.trParams({'followers': '$followersCount', 'following': '$followingCount'}), style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
           ),
@@ -1375,7 +1376,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           ElevatedButton(
             onPressed: () async {
               if (!UserController.to.isLoggedIn) {
-                Fluttertoast.showToast(msg: "请登录后关注");
+                Fluttertoast.showToast(msg: 'login_to_follow'.tr);
                 return;
               }
               try {
@@ -1384,7 +1385,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   _loadPostDetails();
                 }
               } catch (e) {
-                Fluttertoast.showToast(msg: "关注失败");
+                Fluttertoast.showToast(msg: 'follow_failed'.tr);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -1392,7 +1393,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               foregroundColor: isFollowing ? Colors.black : Colors.white,
               elevation: 0,
             ),
-            child: Text(isFollowing ? "已关注" : "关注"),
+            child: Text(isFollowing ? 'following_state'.tr : 'follow'.tr),
           ),
       ],
     );
@@ -1417,9 +1418,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "用户简介",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    Text(
+                      'user_bio'.tr,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close, size: 20),
@@ -1452,7 +1453,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("该作者的更多文章", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        Text('more_from_author'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 12),
         SizedBox(
           height: 170,
@@ -1515,7 +1516,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text("$views 阅读", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                    Text('views_count'.trParams({'count': '$views'}), style: const TextStyle(fontSize: 10, color: Colors.grey)),
                                     Text(dateStr, style: const TextStyle(fontSize: 10, color: Colors.grey)),
                                   ],
                                 )
@@ -1580,7 +1581,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(color: themeColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
-                              child: Text('我', style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
+                              child: Text('me_badge'.tr, style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
                             ),
                         ],
                       ),
@@ -1590,7 +1591,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                           style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.4),
                           children: [
                             if (comment.replyToUser != null) ...[
-                              const TextSpan(text: "回复 "),
+                              TextSpan(text: 'reply_prefix'.tr),
                               TextSpan(
                                 text: "@${comment.replyToUser!.nickname} ",
                                 style: TextStyle(color: themeColor, fontWeight: FontWeight.bold),
@@ -1607,7 +1608,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                           const SizedBox(width: 14),
                           GestureDetector(
                             onTap: () => _startReply(comment),
-                            child: Text("回复", style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold)),
+                            child: Text('reply'.tr, style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold)),
                           )
                         ],
                       ),
@@ -1682,7 +1683,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   child: Row(
                     children: [
                       Text(
-                        '查看全部 ${comment.replies.length} 条回复',
+                        'view_all_replies'.trParams({'count': '${comment.replies.length}'}),
                         style: TextStyle(fontSize: 12, color: themeColor, fontWeight: FontWeight.bold),
                       ),
                       Icon(Icons.keyboard_arrow_right_rounded, size: 14, color: themeColor),
@@ -1714,7 +1715,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   children: [
                     _buildIOSActionItem(
                       icon: Icons.reply,
-                      title: "回复",
+                      title: 'reply'.tr,
                       onTap: () {
                         Navigator.pop(menuContext);
                         _startReply(comment);
@@ -1723,11 +1724,11 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                     const Divider(height: 0.5, indent: 16, endIndent: 16),
                     _buildIOSActionItem(
                       icon: Icons.copy,
-                      title: "复制评论",
+                      title: 'copy_comment'.tr,
                       onTap: () {
                         Clipboard.setData(ClipboardData(text: comment.content));
                         Navigator.pop(menuContext);
-                        Fluttertoast.showToast(msg: "评论已复制到剪切板");
+                        Fluttertoast.showToast(msg: 'comment_copied'.tr);
                       },
                     ),
                   ],
@@ -1739,7 +1740,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                   child: _buildIOSActionItem(
                     icon: Icons.delete_outline,
-                    title: "删除该条评论",
+                    title: 'delete_this_comment'.tr,
                     textColor: Colors.redAccent,
                     onTap: () {
                       Navigator.pop(menuContext);
@@ -1755,7 +1756,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                   alignment: Alignment.center,
-                  child: const Text("取消", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  child: Text('cancel'.tr, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1822,7 +1823,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                         Icon(Icons.edit_outlined, size: 16, color: Colors.grey[500]),
                         const SizedBox(width: 8),
                         Text(
-                          "写下你的看法...",
+                          'write_your_thoughts'.tr,
                           style: TextStyle(color: Colors.grey[500], fontSize: 13),
                         ),
                       ],
@@ -1887,8 +1888,8 @@ class PostSubCommentSheet extends StatelessWidget {
                 ),
                 child: Stack(
                   children: [
-                    const Center(
-                      child: Text('回复详情', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                    Center(
+                      child: Text('reply_detail'.tr, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                     ),
                     Positioned(
                       left: 16,
@@ -1913,11 +1914,11 @@ class PostSubCommentSheet extends StatelessWidget {
                         children: [
                           _buildSingleCommentItem(context, parentComment, isParent: true),
                           Container(height: 8, color: const Color(0xFFF3F4F6)),
-                          const Padding(
-                            padding: EdgeInsets.only(left: 16, top: 12, bottom: 4),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16, top: 12, bottom: 4),
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: Text("全部回复", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF4B5563))),
+                              child: Text('all_replies'.tr, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF4B5563))),
                             ),
                           )
                         ],
@@ -1940,7 +1941,7 @@ class PostSubCommentSheet extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(20)),
-                    child: Text("回复 @${parentComment.author.nickname}...", style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13)),
+                    child: Text('reply_to_hint'.trParams({'nickname': parentComment.author.nickname}), style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13)),
                   ),
                 ),
               ),
@@ -1979,7 +1980,7 @@ class PostSubCommentSheet extends StatelessWidget {
                           margin: const EdgeInsets.only(left: 6),
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(color: themeColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
-                          child: Text('我', style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
+                          child: Text('me_badge'.tr, style: TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
                         ),
                     ],
                   ),
@@ -1989,7 +1990,7 @@ class PostSubCommentSheet extends StatelessWidget {
                       style: const TextStyle(fontSize: 13, color: Color(0xFF1F2937), height: 1.4),
                       children: [
                         if (!isParent && comment.replyToUser != null) ...[
-                          const TextSpan(text: "回复 "),
+                          TextSpan(text: 'reply_prefix'.tr),
                           TextSpan(text: "@${comment.replyToUser!.nickname} ", style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)),
                         ],
                         TextSpan(text: comment.content),
@@ -2001,7 +2002,7 @@ class PostSubCommentSheet extends StatelessWidget {
                     children: [
                       Text(formattedTime, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
                       const SizedBox(width: 14),
-                      Text("回复", style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold)),
+                      Text('reply'.tr, style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold)),
                     ],
                   )
                 ],
@@ -2031,7 +2032,7 @@ class PostSubCommentSheet extends StatelessWidget {
                   children: [
                     _buildSubSheetActionItem(
                       icon: Icons.reply,
-                      title: "回复",
+                      title: 'reply'.tr,
                       onTap: () {
                         Navigator.pop(menuContext);
                         onReplyRequested(comment);
@@ -2040,11 +2041,11 @@ class PostSubCommentSheet extends StatelessWidget {
                     const Divider(height: 0.5, indent: 16, endIndent: 16),
                     _buildSubSheetActionItem(
                       icon: Icons.copy,
-                      title: "复制",
+                      title: 'copy'.tr,
                       onTap: () {
                         Clipboard.setData(ClipboardData(text: comment.content));
                         Navigator.pop(menuContext);
-                        Fluttertoast.showToast(msg: "评论已复制");
+                        Fluttertoast.showToast(msg: 'comment_copied_short'.tr);
                       },
                     ),
                   ],
@@ -2056,7 +2057,7 @@ class PostSubCommentSheet extends StatelessWidget {
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                   child: _buildSubSheetActionItem(
                     icon: Icons.delete_outline,
-                    title: "删除该条回复",
+                    title: 'delete_this_reply'.tr,
                     textColor: Colors.redAccent,
                     onTap: () {
                       Navigator.pop(menuContext);
@@ -2072,7 +2073,7 @@ class PostSubCommentSheet extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                   alignment: Alignment.center,
-                  child: const Text("取消", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  child: Text('cancel'.tr, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
                 ),
               ),
               const SizedBox(height: 8),
@@ -2161,13 +2162,13 @@ class _AnimatedLanguageSheetState extends State<_AnimatedLanguageSheet> with Sin
             ),
           ),
           const SizedBox(height: 20),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: [
                 HugeIcon(icon: HugeIcons.strokeRoundedLanguageSkill, color: Colors.black87),
                 SizedBox(width: 10),
-                Text("选择目标翻译语言", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('select_target_language'.tr, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -2180,7 +2181,7 @@ class _AnimatedLanguageSheetState extends State<_AnimatedLanguageSheet> with Sin
               padding: const EdgeInsets.symmetric(vertical: 10),
               itemBuilder: (context, index) {
                 final key = widget.languages.keys.elementAt(index);
-                final name = widget.languages.values.elementAt(index);
+                final name = widget.languages.values.elementAt(index).tr;
 
                 final animation = Tween<Offset>(
                   begin: const Offset(0, 0.5),
@@ -2431,7 +2432,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
     if (text.isEmpty || _isSending) return;
 
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后发布讨论");
+      Fluttertoast.showToast(msg: 'login_to_post_discussion'.tr);
       return;
     }
 
@@ -2447,12 +2448,12 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
         },
       );
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "讨论发布成功");
+        Fluttertoast.showToast(msg: 'discussion_published'.tr);
         widget.onSuccess();
         Navigator.pop(context);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "讨论发布异常");
+      Fluttertoast.showToast(msg: 'discussion_publish_error'.tr);
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
@@ -2480,8 +2481,8 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const SizedBox(width: 40),
-                    const Text(
-                      "回复",
+                    Text(
+                      'reply'.tr,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -2554,7 +2555,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              "回复给 @${widget.replyToNickname}",
+                              'replying_to'.trParams({'nickname': '${widget.replyToNickname}'}),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: widget.themeColor,
@@ -2625,7 +2626,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                                 onSubmitted: (_) => _submit(), // 物理/虚拟键盘直接回车发送
                                 style: const TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
                                 decoration: InputDecoration(
-                                  hintText: widget.replyToNickname != null ? "写下您的回复..." : "写下您的看法...",
+                                  hintText: widget.replyToNickname != null ? 'write_your_reply'.tr : 'write_your_thoughts'.tr,
                                   hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                                   border: InputBorder.none,
                                   isDense: true,
@@ -2746,7 +2747,7 @@ class CommentAuthor {
   factory CommentAuthor.fromJson(Map<String, dynamic> json) {
     return CommentAuthor(
       id: json['id'] ?? '',
-      nickname: json['nickname'] ?? '已注销用户',
+      nickname: json['nickname'] ?? 'deleted_user'.tr,
       avatar: json['avatar'] ?? '',
     );
   }

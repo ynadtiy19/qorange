@@ -48,18 +48,18 @@ class WalletController extends GetxController {
       );
 
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "🎉 提现申请成功！财务人员将在24小时内核账出款");
+        Fluttertoast.showToast(msg: 'withdrawal_submitted'.tr);
         loadWalletOverview(); // 重新拉取以更新冻结扣减后的余额和近期提现历史 [1]
         return true;
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? "申请提现失败");
+        Fluttertoast.showToast(msg: res.respMsg ?? 'withdrawal_failed'.tr);
         return false;
       }
     } catch (e) {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "发起提现失败，请稍后重试");
+        Fluttertoast.showToast(msg: 'withdrawal_failed_retry'.tr);
       }
       return false;
     }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 class SelectAgentBottomSheet extends StatefulWidget {
   // 🌟 支持传入当前选中的 Key；若未传，则自动使用内存中上一次选择的 Key
@@ -22,31 +23,31 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
   late final PageController _pageController;
   int _currentPage = 0;
 
-  // 🌟 核心改进：人物描述中文本地化，名字与后台传递的 Key 保持英文原样
+  // 🌟 核心改进：人物描述改存多语言词条 key，展示时调用 .tr，切换语言即时生效；名字与后台传递的 Key 保持英文原样
   final List<Map<String, String>> _agents = [
     {
       'key': 'Maya-EN',
       'character': 'Maya',
       'displayName': 'Maya',
-      'desc': '温暖且富有创造力；她是您的故事倾听者与灵感共鸣伙伴。',
+      'descKey': 'agent_desc_1',
     },
     {
       'key': 'Miles-EN',
       'character': 'Miles',
       'displayName': 'Miles',
-      'desc': '随性而敏锐；像老朋友一样直言不讳地为您提供最真诚的建议。',
+      'descKey': 'agent_desc_2',
     },
     {
       'key': 'Simone-EN',
       'character': 'Simone',
       'displayName': 'Simone',
-      'desc': '充满好奇心与求知欲；能将任何深度探讨转化为一场奇妙的思维冒险。',
+      'descKey': 'agent_desc_3',
     },
     {
       'key': 'Charlie-EN',
       'character': 'Charlie',
       'displayName': 'Charlie',
-      'desc': '机智风趣又充满温情；随时准备与您一起深度探索感兴趣的冷门领域。',
+      'descKey': 'agent_desc_4',
     },
   ];
 
@@ -92,9 +93,9 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
             decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
           ),
           const SizedBox(height: 20),
-          const Text(
-            '选择您的 AI 助手',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+          Text(
+            'select_ai_assistant'.tr,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
           const SizedBox(height: 30),
 
@@ -124,7 +125,7 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Text(
-                          agent['desc']!,
+                          agent['descKey']!.tr,
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 13, color: Color(0xFF8B7E74), height: 1.4),
                         ),
@@ -174,7 +175,7 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               child: Text(
-                '选择 ${_agents[_currentPage]['displayName']}',
+                'select_agent_named'.trParams({'name': _agents[_currentPage]['displayName']!}),
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),

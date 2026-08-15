@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 
 import 'auth_state_manager.dart';
 import 'secure_storage_manager.dart';
@@ -153,7 +154,7 @@ class AuthInterceptor extends Interceptor {
     // 拒绝队列里等待的兄弟们
     for (var q in _queue) {
       q.handler.reject(
-        DioException(requestOptions: q.options, error: "登录凭证已彻底失效，请重新登录"),
+        DioException(requestOptions: q.options, error: 'err_session_invalid'.tr),
       );
     }
   }

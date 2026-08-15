@@ -1,3 +1,5 @@
+import 'package:get/get.dart';
+
 class CommunityModel {
   final String id;
   final String name;
@@ -55,7 +57,7 @@ class CommunityModel {
 
     return CommunityModel(
       id: json['id'] ?? '',
-      name: json['name'] ?? '群组社群',
+      name: json['name'] ?? 'default_community_name'.tr,
       category: json['category'] ?? 'general',
       price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
       billingCycle: json['billing_cycle'] ?? 'month',

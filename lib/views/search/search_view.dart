@@ -27,6 +27,15 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
   List<String> _searchHistory = [];
   final List<String> _trendingTags = [];
 
+  // 游客/首次进入时的示例搜索词，跟随当前语言实时取值
+  List<String> get _defaultSearchHistory => [
+        'default_search_1'.tr,
+        'default_search_2'.tr,
+        'default_search_3'.tr,
+        'default_search_4'.tr,
+        'default_search_5'.tr,
+      ];
+
   bool _isSearching = false;
   bool _hasSearched = false;
 
@@ -111,11 +120,11 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final List<String>? localHistory = prefs.getStringList('guest_search_history');
       setState(() {
-        _searchHistory = localHistory ?? ["学术", "说说", "投票", "设计", "青橙"];
+        _searchHistory = localHistory ?? _defaultSearchHistory;
       });
     } catch (_) {
       setState(() {
-        _searchHistory = ["学术", "说说", "投票", "设计", "青橙"];
+        _searchHistory = _defaultSearchHistory;
       });
     }
   }
@@ -291,7 +300,7 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                           textAlign: TextAlign.start, // 🌟 完美对齐：确保输入文本、Hint 及光标指示全靠左对齐 [1]
                           style: const TextStyle(fontSize: 14, color: Colors.black87),
                           decoration: InputDecoration(
-                            hintText: "搜索感兴趣的高能知识与说说...",
+                            hintText: 'search_hint'.tr,
                             hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
                             border: InputBorder.none,
                             isDense: true,
@@ -371,7 +380,7 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
               Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade200),
               const SizedBox(height: 14),
               Text(
-                "没有搜到匹配的结果，换个词试试吧",
+                'no_search_results'.tr,
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
               ),
             ],
@@ -405,16 +414,16 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "最近搜索",
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+                    Text(
+                      'recent_searches'.tr,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
                     ),
                     GestureDetector(
                       onTap: _clearHistory,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         child: Text(
-                          "清空",
+                          'clear_all'.tr,
                           style: TextStyle(fontSize: 12, color: Colors.grey.shade400, fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -451,9 +460,9 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
               ],
 
               // 热门探索
-              const Text(
-                "热门推荐分类",
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+              Text(
+                'trending_categories'.tr,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -489,7 +498,7 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
 
     final author = post['author'] ?? {};
     final authorAvatar = author['avatar'] ?? '';
-    final authorNickname = author['nickname'] ?? '用户';
+    final authorNickname = author['nickname'] ?? 'user'.tr;
 
     final title = post['title'] ?? '';
     final contentMin = post['content_min'] ?? '';

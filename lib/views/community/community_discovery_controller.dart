@@ -120,16 +120,16 @@ class CommunityDiscoveryController extends GetxController {
         data: data,
       );
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "🎉 恭喜您，社群空间创建成功！");
+        Fluttertoast.showToast(msg: 'community_created'.tr);
         // 🌟 强力重洗列表，让最新创建的社群瞬间呈现在最顶部，完美回显！
         fetchDiscoveryList(isRefresh: true);
         return true;
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? "创建社群失败");
+        Fluttertoast.showToast(msg: res.respMsg ?? 'community_create_failed'.tr);
         return false;
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "创建异常: $e");
+      Fluttertoast.showToast(msg: 'community_create_error'.trParams({'error': '$e'}));
       return false;
     }
   }

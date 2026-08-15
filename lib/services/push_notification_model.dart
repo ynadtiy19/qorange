@@ -1,4 +1,6 @@
 // 统一社交通知 / 个性推荐 / 系统广播消息实体模型
+import 'package:get/get.dart';
+
 class PushNotificationModel {
   final String notificationId;
   final String recipientId; // 🌟 核心新增：真正用来比对过滤的接收人 MongoDB ID
@@ -63,7 +65,7 @@ class NotificationSender {
   factory NotificationSender.fromJson(Map<String, dynamic> json) {
     return NotificationSender(
       id: json['id'] ?? '',
-      nickname: json['nickname'] ?? '学者',
+      nickname: json['nickname'] ?? 'scholar'.tr,
       avatar: json['avatar'] ?? '',
       atsign: json['atsign'] ?? '',
     );

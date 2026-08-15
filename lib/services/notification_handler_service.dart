@@ -55,10 +55,10 @@ class NotificationHandlerService extends GetxService {
   }
 
   Future<void> _createNotificationChannel() async {
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    final AndroidNotificationChannel channel = AndroidNotificationChannel(
       'googlechat_alerts',
-      '同频社交动态',
-      description: '点赞、评论、分享、外部链接推送等通知',
+      'notif_channel_social'.tr,
+      description: 'notif_channel_social_desc'.tr,
       importance: Importance.max,
       playSound: true,
       enableVibration: true,
@@ -66,10 +66,10 @@ class NotificationHandlerService extends GetxService {
     );
 
     // 独立创建一个用于更新下载进度的低重要度通道（不发出持续的响铃打扰用户）
-    const AndroidNotificationChannel updateChannel = AndroidNotificationChannel(
+    final AndroidNotificationChannel updateChannel = AndroidNotificationChannel(
       'app_update_channel',
-      '应用更新下载',
-      description: '软件更新下载进度通知',
+      'notif_channel_update'.tr,
+      description: 'notif_channel_update_desc'.tr,
       importance: Importance.low, // 设为 low，防止进度每次变更都发出叮咚声
       playSound: false,
       enableVibration: false,
@@ -145,7 +145,7 @@ class NotificationHandlerService extends GetxService {
       final http.StreamedResponse response = await client.send(request);
 
       if (response.statusCode != 200) {
-        throw HttpException('下载失败，状态码: ${response.statusCode}');
+        throw HttpException('err_download_status'.trParams({'code': '${response.statusCode}'}));
       }
 
       final int totalBytes = response.contentLength ?? 0;
@@ -194,8 +194,8 @@ class NotificationHandlerService extends GetxService {
     final bool isIndeterminate = progress < 0; // 是否显示无进度滚动条
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'app_update_channel',
-      '应用更新下载',
-      channelDescription: '显示更新包的实时下载进度',
+      'notif_channel_update'.tr,
+      channelDescription: 'notif_update_progress_desc'.tr,
       importance: Importance.low,
       priority: Priority.low,
       showProgress: true,
@@ -209,8 +209,8 @@ class NotificationHandlerService extends GetxService {
     final NotificationDetails platformDetails = NotificationDetails(android: androidDetails);
     await _notificationsPlugin.show(
       notificationId,
-      '正在下载系统更新...',
-      isIndeterminate ? '下载中...' : '已完成 $progress%',
+      'notif_downloading_update'.tr,
+      isIndeterminate ? 'notif_downloading'.tr : 'notif_download_percent'.trParams({'progress': '$progress'}),
       platformDetails,
     );
   }
@@ -233,10 +233,10 @@ class NotificationHandlerService extends GetxService {
 
   // 下载成功但用户取消后，常驻在通知栏的备份入口
   Future<void> _showDownloadCompleteNotification(String filePath) async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'app_update_channel',
-      '应用更新下载',
-      channelDescription: '下载完毕提示安装',
+      'notif_channel_update'.tr,
+      channelDescription: 'notif_download_done_desc'.tr,
       importance: Importance.max,
       priority: Priority.high,
       ongoing: false,
@@ -244,8 +244,8 @@ class NotificationHandlerService extends GetxService {
 
     await _notificationsPlugin.show(
       8889, // 独立 ID
-      '🎉 更新包已准备就绪',
-      '点击此处立即安装最新版本',
+      'notif_update_ready'.tr,
+      'notif_update_ready_body'.tr,
       NotificationDetails(android: androidDetails),
       payload: jsonEncode({
         'type': 'installApk',
@@ -258,12 +258,12 @@ class NotificationHandlerService extends GetxService {
   Future<void> _showDownloadFailedNotification(int notificationId) async {
     await _notificationsPlugin.show(
       notificationId,
-      '❌ 更新包下载失败',
-      '网络异常，请稍后重试',
-      const NotificationDetails(
+      'notif_update_failed'.tr,
+      'notif_update_failed_body'.tr,
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'app_update_channel',
-          '应用更新下载',
+          'notif_channel_update'.tr,
           importance: Importance.max,
           priority: Priority.high,
           ongoing: false,
@@ -288,7 +288,7 @@ class NotificationHandlerService extends GetxService {
 
   /// 🌟 将后端的规范 JSON 数据转换为美观的本地通知卡片
   Future<void> handleIncomingNotification(PushNotificationModel note) async {
-    String title = '🔔 新动态';
+    String title = 'notif_default_title'.tr;
     String body = '';
 
     final nickname = note.sender.nickname;
@@ -308,43 +308,43 @@ class NotificationHandlerService extends GetxService {
       if (note.category == 'social') {
         switch (note.type) {
           case 'like':
-            title = '🔥 点赞通知';
-            body = '$nickname 赞了你的观点: "$targetTitle"';
+            title = 'notif_like_title'.tr;
+            body = 'notif_like_body'.trParams({'nickname': nickname, 'title': targetTitle});
             break;
           case 'collect':
-            title = 'bookmark 收藏通知';
-            body = '$nickname 收藏了你的帖子: "$targetTitle"';
+            title = 'notif_collect_title'.tr;
+            body = 'notif_collect_body'.trParams({'nickname': nickname, 'title': targetTitle});
             break;
           case 'comment':
-            title = '💬 新讨论消息';
-            body = '$nickname 对你发表了看法: "$targetTitle"';
+            title = 'notif_comment_title'.tr;
+            body = 'notif_comment_body'.trParams({'nickname': nickname, 'title': targetTitle});
             break;
           case 'repost':
-            title = '🔁 转发通知';
-            body = '$nickname 转发同步了你的帖子: "$targetTitle"';
+            title = 'notif_repost_title'.tr;
+            body = 'notif_repost_body'.trParams({'nickname': nickname, 'title': targetTitle});
             break;
           case 'follow':
-            title = '🎉 关注';
-            body = '$nickname 关注了你，开始倾听你的观点';
+            title = 'notif_follow_title'.tr;
+            body = 'notif_follow_body'.trParams({'nickname': nickname});
             break;
         }
       } else if (note.category == 'recommendation') {
         if (note.type == 'recommendPost') {
-          title = '💡 个性化学术推荐';
-          body = '基于您的研究兴趣，向您推荐好文: "$targetTitle"';
+          title = 'notif_rec_post_title'.tr;
+          body = 'notif_rec_post_body'.trParams({'title': targetTitle});
         } else if (note.type == 'recommendUser') {
-          title = '🤝 推荐认识的学者';
-          body = '推荐您关注同领域的创作者: @$nickname';
+          title = 'notif_rec_user_title'.tr;
+          body = 'notif_rec_user_body'.trParams({'nickname': nickname});
         }
       } else if (note.category == 'landingPage') {
-        title = '🌐 推荐落地页';
-        body = targetTitle.isNotEmpty ? targetTitle : '点击查看最新推荐文章与落地页。';
+        title = 'notif_landing_title'.tr;
+        body = targetTitle.isNotEmpty ? targetTitle : 'notif_landing_body'.tr;
       } else if (note.category == 'system') {
         if (note.type == 'appUpdate') {
-          title = '🚀 发现新版本';
-          body = targetTitle.isNotEmpty ? targetTitle : '点击立即下载更新最新版本';
+          title = 'notif_new_version_title'.tr;
+          body = targetTitle.isNotEmpty ? targetTitle : 'notif_new_version_body'.tr;
         } else {
-          title = '📢 系统广播通知';
+          title = 'notif_broadcast_title'.tr;
           body = targetTitle;
         }
       }
@@ -357,8 +357,8 @@ class NotificationHandlerService extends GetxService {
 
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'googlechat_alerts',
-      '同频社交动态',
-      channelDescription: '点赞、评论、关注、推荐等通知提示',
+      'notif_channel_social'.tr,
+      channelDescription: 'notif_channel_social_desc2'.tr,
       importance: Importance.max,
       priority: Priority.high,
       showWhen: true,
@@ -367,7 +367,7 @@ class NotificationHandlerService extends GetxService {
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,
-        summaryText: '观点同频通知',
+        summaryText: 'notif_summary'.tr,
       ),
     );
 

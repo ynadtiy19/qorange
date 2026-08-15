@@ -1,3 +1,5 @@
+import 'package:get/get.dart';
+
 class ApplicantModel {
   final String userId;
   final String nickname;
@@ -14,7 +16,7 @@ class ApplicantModel {
   factory ApplicantModel.fromJson(Map<String, dynamic> json) {
     return ApplicantModel(
       userId: json['userId'] ?? '',
-      nickname: json['nickname'] ?? '学者',
+      nickname: json['nickname'] ?? 'scholar'.tr,
       avatar: json['avatar'] ?? '',
       appliedAt: json['appliedAt'] ?? '',
     );

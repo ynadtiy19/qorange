@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'dart:typed_data';
 
 import 'api_exception.dart';
@@ -69,7 +70,7 @@ class HttpClient {
       throw ApiException.fromDioException(e);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException(message: "数据解析异常: ${e.toString()}");
+      throw ApiException(message: 'err_parse_data'.trParams({'error': e.toString()}));
     }
   }
 
@@ -182,7 +183,7 @@ class HttpClient {
       throw ApiException.fromDioException(e);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException(message: "文件上传解析异常: ${e.toString()}");
+      throw ApiException(message: 'err_parse_upload'.trParams({'error': e.toString()}));
     }
   }
 
@@ -210,13 +211,13 @@ class HttpClient {
       if (response.data != null) {
         return response.data!.stream;
       } else {
-        throw ApiException(message: "流式请求失败：无数据返回");
+        throw ApiException(message: 'err_stream_no_data'.tr);
       }
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException(message: "流式请求解析异常: ${e.toString()}");
+      throw ApiException(message: 'err_parse_stream'.trParams({'error': e.toString()}));
     }
   }
 }

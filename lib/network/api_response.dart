@@ -1,4 +1,5 @@
 import 'api_exception.dart';
+import 'package:get/get.dart';
 
 /// 统一网络响应数据结构解析
 class ApiResponse<T> {
@@ -19,7 +20,7 @@ class ApiResponse<T> {
     return ApiResponse(
       count: json['count'] ?? 0,
       respCode: json['resp_code'] ?? -1,
-      respMsg: json['resp_msg'] ?? '该api返回的json消息为空',
+      respMsg: json['resp_msg'] ?? 'err_empty_resp_msg'.tr,
       datas: json['datas'] as T?,
     );
   }

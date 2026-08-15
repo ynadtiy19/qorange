@@ -136,7 +136,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                     ],
                   ),
                   const SizedBox(height: 24),
-                  const Text('选择支付方式', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('select_payment_method'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   const SizedBox(height: 12),
                   InkWell(
                     onTap: () => setModalState(() => selectedPayType = 'alipay'),
@@ -159,7 +159,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                             size: 24,
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(child: Text('支付宝支付', style: TextStyle(fontWeight: FontWeight.w600))),
+                          Expanded(child: Text('alipay'.tr, style: TextStyle(fontWeight: FontWeight.w600))),
                           if (selectedPayType == 'alipay')
                             Icon(Icons.check_circle, color: controller.primaryColor, size: 20)
                         ],
@@ -188,7 +188,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                             size: 24,
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(child: Text('微信支付', style: TextStyle(fontWeight: FontWeight.w600))),
+                          Expanded(child: Text('wechat_pay'.tr, style: TextStyle(fontWeight: FontWeight.w600))),
                           if (selectedPayType == 'wxpay')
                             Icon(Icons.check_circle, color: controller.primaryColor, size: 20)
                         ],
@@ -202,7 +202,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('应付总额', style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                          Text('total_due'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
                           const SizedBox(height: 4),
                           Text(
                             '¥${item.price.toStringAsFixed(2)}',
@@ -224,7 +224,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 0,
                           ),
-                          child: const Text('立即购买', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          child: Text('buy_now'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                         ),
                       )
                     ],
@@ -276,7 +276,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
               size: 48,
             ),
             const SizedBox(height: 12),
-            Text("商店暂无此品类商品上架", style: TextStyle(color: Colors.grey.shade400)),
+            Text('shop_empty_category'.tr, style: TextStyle(color: Colors.grey.shade400)),
           ],
         ),
       );
@@ -368,7 +368,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                               ),
                               child: Text(
                                 item.isPurchased
-                                    ? '已拥有'
+                                    ? 'owned'.tr
                                     : item.tag,
                                 style: TextStyle(
                                   color: item.isPurchased ? Colors.green.shade800 : controller.primaryColor,
@@ -427,7 +427,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                                   padding: const EdgeInsets.symmetric(horizontal: 12),
                                 ),
                                 child: Text(
-                                  item.category == 'group' ? '进入空间' : '阅读内容',
+                                  item.category == 'group' ? 'enter_space'.tr : 'read_content'.tr,
                                   style: TextStyle(color: controller.primaryColor, fontSize: 11, fontWeight: FontWeight.bold),
                                 ),
                               ),
@@ -476,7 +476,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('商店', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.black)),
+        title: Text('shop_title'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.black)),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -486,10 +486,10 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
           labelColor: controller.primaryColor,
           unselectedLabelColor: Colors.grey,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-          tabs: const [
-            Tab(text: '全部'),
-            Tab(text: '付费帖子'),
-            Tab(text: '社群'),
+          tabs: [
+            Tab(text: 'shop_tab_all'.tr),
+            Tab(text: 'shop_tab_posts'.tr),
+            Tab(text: 'shop_tab_communities'.tr),
           ],
         ),
       ),
@@ -615,9 +615,9 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
               const SizedBox(height: 24),
               FadeTransition(
                 opacity: _fadeAnimation,
-                child: const Text(
-                  '订单支付成功',
-                  style: TextStyle(
+                child: Text(
+                  'order_paid_success'.tr,
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -627,9 +627,9 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
               const SizedBox(height: 8),
               FadeTransition(
                 opacity: _fadeAnimation,
-                child: const Text(
-                  '商品已成功解锁发货',
-                  style: TextStyle(
+                child: Text(
+                  'goods_unlocked'.tr,
+                  style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
                   ),
@@ -650,9 +650,9 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '凭证清单详情',
-                        style: TextStyle(
+                      Text(
+                        'receipt_details'.tr,
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                           color: Colors.grey,
@@ -723,9 +723,9 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
                               borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          child: const Text(
-                            '立即进入体验',
-                            style: TextStyle(
+                          child: Text(
+                            'enter_now'.tr,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -750,9 +750,9 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: const Text(
-                          '完成并返回',
-                          style: TextStyle(
+                        child: Text(
+                          'done_and_back'.tr,
+                          style: const TextStyle(
                             color: Colors.black87,
                             fontSize: 15,
                             fontWeight: FontWeight.bold,

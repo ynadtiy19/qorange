@@ -182,7 +182,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
-      Fluttertoast.showToast(msg: "无法启动外部支付页面，请确保手机已安装支付宝或相应浏览器");
+      Fluttertoast.showToast(msg: 'cannot_launch_payment'.tr);
     }
   }
 
@@ -200,7 +200,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
   /// 极速付款流程全闭环执行
   Future<void> executePaymentWorkflow(ShopGoods item, String selectedPayType) async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后购买");
+      Fluttertoast.showToast(msg: 'login_to_purchase'.tr);
       return;
     }
 
@@ -233,7 +233,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
 
       if (outTradeNo == null) {
         Get.back();
-        Fluttertoast.showToast(msg: '未获取到订单编号');
+        Fluttertoast.showToast(msg: 'no_order_number'.tr);
         return;
       }
 
@@ -260,17 +260,17 @@ class ShopController extends GetxController with WidgetsBindingObserver {
           // 开启备用手动确认弹窗
           showPaymentCheckDialog(outTradeNo);
         } else {
-          Fluttertoast.showToast(msg: '网关返回支付参数解析异常');
+          Fluttertoast.showToast(msg: 'gateway_parse_error'.tr);
         }
       } else {
-        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? '通道唤起故障');
+        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? 'gateway_launch_error'.tr);
       }
     } catch (e) {
       Get.back();
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: '请求链路异常: $e');
+        Fluttertoast.showToast(msg: 'err_request_link'.trParams({'error': '$e'}));
       }
     }
   }
@@ -284,8 +284,8 @@ class ShopController extends GetxController with WidgetsBindingObserver {
       builder: (context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('支付确认', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          content: const Text('请您在打开的页面中完成支付，支付完成后请点击下方按钮。', style: TextStyle(fontSize: 13, height: 1.4)),
+          title: Text('payment_confirm'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          content: Text('payment_confirm_desc'.tr, style: const TextStyle(fontSize: 13, height: 1.4)),
           actions: [
             TextButton(
               onPressed: () {
@@ -294,7 +294,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
                 isPolling = false;
                 Navigator.pop(context);
               },
-              child: const Text('已取消付款', style: TextStyle(color: Colors.grey)),
+              child: Text('payment_cancelled'.tr, style: const TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -306,7 +306,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text('我已支付完成', style: TextStyle(color: Colors.white)),
+              child: Text('payment_completed'.tr, style: const TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -329,7 +329,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         timer.cancel();
         isPolling = false;
         currentOutTradeNo = null;
-        Fluttertoast.showToast(msg: "未检测到订单支付结果，请稍后手动点击完成验证");
+        Fluttertoast.showToast(msg: 'payment_not_detected'.tr);
       } else {
         verifyPaymentOnBackend(outTradeNo, isSilent: true);
       }
@@ -388,7 +388,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         ));
       } else {
         if (!isSilent) {
-          Fluttertoast.showToast(msg: verifyRes.respMsg ?? '订单尚未成功支付');
+          Fluttertoast.showToast(msg: verifyRes.respMsg ?? 'order_not_paid'.tr);
         }
       }
     } catch (e) {
@@ -397,7 +397,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         if (e is ApiException) {
           Fluttertoast.showToast(msg: e.message);
         } else {
-          Fluttertoast.showToast(msg: '无法连接发货验证网关: $e');
+          Fluttertoast.showToast(msg: 'err_verify_gateway'.trParams({'error': '$e'}));
         }
       }
     }
