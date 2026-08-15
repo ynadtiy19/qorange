@@ -1,42 +1,33 @@
-name: Build & Release APK
+name: Build & Release per Branch
 
 on:
   push:
-    tags:
-      - 'v*' # 只要推送 v 开头的 tag（例如 v1.0.0）就会触发打包并发布 Release
     branches:
-      - main # 推送到 main 分支时自动编译测试（不创建正式 Release）
-  workflow_dispatch: # 支持在 GitHub 网页手动点击触发
+      - main
+      - 'arena/**'                  # 匹配所有 arena/ 开头的分支（包含 01a004f0-qorange）
+  workflow_dispatch:                # 支持在 Actions 界面选择任意分支手动运行
 
-# 赋予创建 Release 和上传文件的写权限
 permissions:
   contents: write
 
 jobs:
-  build-apk:
-    name: Build Flutter APK
+  build:
+    name: Build & Publish APK
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出仓库代码
-      - name: Checkout Repository
+      # 1. 检出触发当前工作流的分支代码
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # 2. 自动修正 CI 环境的 Gradle 配置
-      # 移除本地 127.0.0.1 代理，并将 8G 内存调优为适合 GitHub Runner 的 3.5G
-      - name: Sanitize gradle.properties for CI
+      # 2. 清理本地代理配置，并将 8G 内存调整为适合云端 7G Runner 的 3.5G
+      - name: Sanitize gradle.properties
         run: |
           if [ -f "android/gradle.properties" ]; then
-            echo "Cleaning local proxy settings..."
             sed -i '/systemProp\.http/d' android/gradle.properties
             sed -i '/systemProp\.https/d' android/gradle.properties
-            echo "Adjusting JVM memory limits..."
             sed -i 's/-Xmx[0-9]*[gG]/-Xmx3584m/g' android/gradle.properties
             sed -i 's/-XX:MaxMetaspaceSize=[0-9]*[gG]/-XX:MaxMetaspaceSize=512m/g' android/gradle.properties
-            echo "=== Updated android/gradle.properties ==="
-            cat android/gradle.properties
           fi
 
       # 3. 设置 JDK 17
@@ -50,46 +41,58 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable' # 也可指定固定版本，如 '3.44.2'
+          channel: 'stable'
           cache: true
           cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
 
-      # 5. 设置 Gradle 依赖与构建缓存
+      # 5. Gradle 缓存
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v4
 
-      # 6. 获取 Flutter 依赖项
+      # 6. 获取依赖
       - name: Install Dependencies
         run: flutter pub get
 
-      # 7. 构建 Release APK
+      # 7. 打包 Release APK
       - name: Build APK
         run: flutter build apk --release
 
-      # 8. 重命名 APK，加入版本或 commit 标识方便识别
-      - name: Prepare APK Artifact
+      # 8. 格式化分支名称并重命名 APK（斜杠 / 转为 _ 防止路径错误）
+      - name: Prepare APK and Release metadata
+        id: meta
         run: |
-          TAG_OR_BRANCH="${GITHUB_REF_NAME:-continuous}"
-          SAFE_NAME=$(echo "$TAG_OR_BRANCH" | sed 's/\//_/g')
-          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/qorange-${SAFE_NAME}.apk
+          RAW_BRANCH="${GITHUB_REF_NAME}"
+          # 将分支名中的 "/" 替换为 "_"，例如 arena/01a004f0-qorange -> arena_01a004f0-qorange
+          SAFE_BRANCH=$(echo "${RAW_BRANCH}" | sed 's/\//_/g')
+          
+          APK_NAME="qorange-${SAFE_BRANCH}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/${APK_NAME}"
+          
+          # 输出变量供后续步骤使用
+          echo "safe_branch=${SAFE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "apk_name=${APK_NAME}" >> $GITHUB_OUTPUT
 
-      # 9. 上传到 Actions Artifacts 备查（保存 14 天）
-      - name: Upload APK to Artifacts
+      # 9. 上传到当前分支的 Actions Artifacts
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: qorange-apk-${{ github.ref_name }}
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 14
+          name: qorange-${{ steps.meta.outputs.safe_branch }}
+          path: build/app/outputs/flutter-apk/${{ steps.meta.outputs.apk_name }}
 
-      # 10. 发布到 GitHub Releases（仅在推送 Tag 或手动触发时发布）
-      - name: Publish Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      # 10. 发布到 GitHub Releases（不同分支独立 Release）
+      - name: Create or Update Branch Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+          # Tag 命名：每个分支对应独立的 Tag（如 release-main、release-arena_01a004f0-qorange）
+          tag_name: release-${{ steps.meta.outputs.safe_branch }}
+          target_commitish: ${{ github.sha }}
+          name: "Release [${{ github.ref_name }}]"
+          body: |
+            ### 构建信息
+            - **分支**: `${{ github.ref_name }}`
+            - **Commit**: `${{ github.sha }}`
+            - **构建时间**: ${{ github.event.head_commit.timestamp || 'Manual Trigger' }}
+          prerelease: ${{ github.ref_name != 'main' }} # 非 main 分支自动标记为 Pre-release
+          make_latest: ${{ github.ref_name == 'main' }} # 只有 main 分支才作为正式 Latest
           files: |
-            build/app/outputs/flutter-apk/qorange-*.apk
+            build/app/outputs/flutter-apk/${{ steps.meta.outputs.apk_name }}
