@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
-import 'package:get/get.dart';
+import 'package:get/get.dart' hide Response, FormData, MultipartFile;
 
 /// 全局自定义异常处理类
 class ApiException implements Exception {
@@ -83,6 +83,10 @@ class ApiException implements Exception {
       case DioExceptionType.connectionError:
         return ApiException(message: 'err_connection_lost'.tr);
       case DioExceptionType.unknown:
+        return ApiException(message: 'err_unknown_network'.tr);
+      // 🌟 兜底分支：dio 后续版本新增的异常类型(如 transformTimeout)统一按未知网络错误处理，
+      //    避免依赖升级后 switch 不完备导致编译失败。
+      default:
         return ApiException(message: 'err_unknown_network'.tr);
     }
   }

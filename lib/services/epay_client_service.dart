@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:get/get.dart';
+import 'package:get/get.dart' hide Response, FormData, MultipartFile;
 import '../network/http_client.dart'; // 引入平台的统一请求工具
 
 class EpayClientConfig {
