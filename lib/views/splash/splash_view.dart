@@ -110,7 +110,7 @@ class _SplashViewState extends State<SplashView> {
                                   () => const AgreementWebViewPage(),
                               arguments: {
                                 'title': 'user_agreement'.tr,
-                                'url': 'https://googlechat.zeabur.app/user_agreement.html',
+                                'url': 'https://googlechat.zeabur.app/docs/user_agreement.html',
                               },
                             );
                           },
@@ -130,7 +130,7 @@ class _SplashViewState extends State<SplashView> {
                                   () => const AgreementWebViewPage(),
                               arguments: {
                                 'title': 'privacy_policy'.tr,
-                                'url': 'https://googlechat.zeabur.app/privacy_policy.html',
+                                'url': 'https://googlechat.zeabur.app/docs/privacy_policy.html',
                               },
                             );
                           },

@@ -408,7 +408,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                       () => const AgreementWebViewPage(),
                   arguments: {
                     'title': 'recharge_agreement_title'.tr,
-                    'url': 'https://googlechat.zeabur.app/recharge_agreement.html',
+                    'url': 'https://googlechat.zeabur.app/docs/recharge_agreement.html',
                   },
                 );
               },

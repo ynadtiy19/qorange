@@ -30,7 +30,7 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
     // 从 Get.arguments 中获取标题和网址
     final args = Get.arguments as Map<String, dynamic>? ?? {};
     _title.value = args['title']?.toString() ?? '协议详情';
-    _initialUrl = args['url']?.toString() ?? 'https://googlechat.zeabur.app/user_agreement.html';
+    _initialUrl = args['url']?.toString() ?? 'https://googlechat.zeabur.app/docs/user_agreement.html';
 
     _initWebViewController();
   }
