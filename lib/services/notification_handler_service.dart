@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart'; // 🌟 引入打开文件的插件
+import 'package:package_info_plus/package_info_plus.dart'; // 🌟 引入获取本地包信息插件
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🌟 引入轻量存储插件
 import 'package:url_launcher/url_launcher.dart';
 import 'package:web_socket_channel/web_socket_channel.dart'; // 引入 WebSocket 工具
 
@@ -21,6 +24,9 @@ class NotificationHandlerService extends GetxService {
   // 当前分支与更新配置（可按需指定对应的打包分支）
   static const String appBranch = 'arena/01a004f0-qorange';
   static const String backendApiUrl = 'https://googlechat.zeabur.app';
+
+  // 记录本轮应用生命周期是否已完成检查，防止每次切屏或返回重复弹窗打扰用户
+  bool _hasPromptedThisSession = false;
 
   @override
   void onInit() {
@@ -88,31 +94,74 @@ class NotificationHandlerService extends GetxService {
     await androidImplementation?.createNotificationChannel(updateChannel);
   }
 
-  /// 🌟 启动时自动检查更新：请求后端 API 核验当前分支是否有新的 Release
+  /// 🌟 启动时自动检查更新：提取本地真实 App 版本和 Commit 上报给后端 MongoDB 进行精准比对
   Future<void> checkForUpdate({bool isManualCheck = false}) async {
-    try {
-      final url = Uri.parse('$backendApiUrl/api/check-update?branch=$appBranch&arch=arm64-v8a');
-      final res = await http.get(url).timeout(const Duration(seconds: 8));
+    if (_hasPromptedThisSession && !isManualCheck) return;
 
-      if (res.statusCode == 200) {
-        final json = jsonDecode(utf8.decode(res.bodyBytes));
+    try {
+      // 1. 获取本地真实的应用包信息及上次安装的 Commit
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String localInstalledCommit = prefs.getString('installed_commit_sha') ?? '';
+
+      // 2. 向后端发起带有完整设备环境信息的 POST 校验请求
+      final response = await http.post(
+        Uri.parse('$backendApiUrl/api/check-update'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'branch': appBranch,
+          'version': packageInfo.version,
+          'build_number': packageInfo.buildNumber,
+          'commit_sha': localInstalledCommit,
+          'arch': 'arm64-v8a',
+        }),
+      ).timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(utf8.decode(response.bodyBytes));
         final datas = json['datas'] as Map<String, dynamic>?;
 
         if (datas != null && datas['has_update'] == true) {
+          _hasPromptedThisSession = true;
+
+          final String latestCommit = datas['commit_sha'] ?? '';
           final String wssUrl = datas['wss_download_url'] ?? '';
           final String fallbackUrl = datas['download_url'] ?? '';
           final String tag = datas['tag_name'] ?? 'New Version';
-          final String notes = datas['release_notes'] ?? '优化了系统稳定性';
+          final String rawChangelog = datas['changelog'] ?? datas['release_notes'] ?? '优化系统流畅度与稳定性';
 
-          // 直接向系统通知栏派发版本更新通知
+          // 清洗文本中的 Markdown 标记字符，保证界面极度干净
+          final String cleanChangelog = _cleanMarkdownText(rawChangelog);
+
+          // 🌟 弹出高颜值、无乱码的更新提示对话框
+          _showRefinedUpdateDialog(
+            tag: tag,
+            changelog: cleanChangelog,
+            onConfirm: () async {
+              Get.back();
+              // 本地持久化记录本次更新的 Commit，防止下次启动再次误弹
+              if (latestCommit.isNotEmpty) {
+                await prefs.setString('installed_commit_sha', latestCommit);
+              }
+
+              // 优先走后端 WSS 高速管道中转下载
+              if (wssUrl.isNotEmpty) {
+                _startAppUpdateDownloadWss(wssUrl, fallbackUrl);
+              } else if (fallbackUrl.isNotEmpty) {
+                _startAppUpdateDownload(fallbackUrl);
+              }
+            },
+          );
+
+          // 同时在系统通知栏留存一份更新提示卡片
           await _showUpdateAvailableNotification(
             tag: tag,
-            notes: notes,
+            notes: cleanChangelog,
             downloadUrl: fallbackUrl,
             wssUrl: wssUrl,
           );
         } else if (isManualCheck) {
-          Get.snackbar('检查更新', '当前已是最新版本！', snackPosition: SnackPosition.BOTTOM);
+          Get.snackbar('检查更新', '当前已是最新版本，无需升级！', snackPosition: SnackPosition.BOTTOM);
         }
       }
     } catch (e) {
@@ -120,7 +169,141 @@ class NotificationHandlerService extends GetxService {
     }
   }
 
-  /// 🌟 直接展示新版本发现的通知卡片（无需依赖 PushNotificationModel 子类）
+  /// 🌟 净化原始 Markdown 文本，转换为优雅易读的纯文本换行
+  String _cleanMarkdownText(String raw) {
+    return raw
+        .replaceAll(RegExp(r'#{1,6}\s*'), '') // 去除标题 ###
+        .replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1') // 去除加粗 **
+        .replaceAll(RegExp(r'__([^_]+)__'), r'$1')
+        .replaceAll(RegExp(r'[-*]\s+'), '• ') // 转换列表符为圆点
+        .trim();
+  }
+
+  /// 🌟 设计精致、排版舒适、符合青橙主题色彩的更新弹窗
+  void _showRefinedUpdateDialog({
+    required String tag,
+    required String changelog,
+    required VoidCallback onConfirm,
+  }) {
+    Get.dialog(
+      PopScope(
+        canPop: true,
+        child: Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2C7B6D).withOpacity(0.12),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                )
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEBF5F3),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.rocket_launch_rounded, color: Color(0xFF2C7B6D), size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '发现新版本',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                          ),
+                          Text(
+                            tag,
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF2C7B6D), fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  '更新内容：',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      changelog,
+                      style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF334155)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          Get.back();
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF94A3B8),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('稍后提示', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          onConfirm();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2C7B6D),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Text('立即极速升级', style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      barrierDismissible: true,
+    );
+  }
+
+  /// 🌟 直接展示新版本发现的通知卡片
   Future<void> _showUpdateAvailableNotification({
     required String tag,
     required String notes,
@@ -227,6 +410,7 @@ class NotificationHandlerService extends GetxService {
     IOSink? fileSink;
 
     try {
+      Get.snackbar('正在下载更新', '安装包正在后台通过专线高速通道极速下载...', snackPosition: SnackPosition.TOP);
       await _updateDownloadNotification(0, updateNotificationId);
 
       final Directory tempDir = await getTemporaryDirectory();
@@ -260,7 +444,7 @@ class NotificationHandlerService extends GetxService {
               }
             } catch (_) {}
           } else if (message is List<int>) {
-            // 收到 Raw 二进制字节，直接流式刷盘
+            // 收到 Raw 二进制字节分片，直接流式写入文件
             fileSink?.add(message);
             downloadedBytes += message.length;
 
@@ -578,7 +762,7 @@ class NotificationHandlerService extends GetxService {
         'target_id': note.target.id,
         'target_type': note.target.type,
         'custom_url': note.customData['url'] ?? '',
-        'wss_url': note.customData['wss_url'] ?? '', // 🌟 透传 WSS 链接
+        'wss_url': note.customData['wss_url'] ?? '',
       }),
     );
   }
