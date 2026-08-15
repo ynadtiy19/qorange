@@ -5,7 +5,7 @@ import '../network/http_client.dart'; // 引入平台的统一请求工具
 
 class EpayClientConfig {
   // 易支付的官方请求物理前缀
-  static const String apiUrl = 'https://www.qingtianyzff.com/';
+  static const String apiUrl = 'https://pay.02s.cn/';
 }
 
 class EpayClientService {
