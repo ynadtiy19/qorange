@@ -11,6 +11,7 @@ import 'package:qorange/theme.dart';
 import 'package:qorange/user_controller.dart';
 
 import 'network/auth_state_manager.dart';
+import 'views/comment/agreement_webview_page.dart';
 import 'views/splash/splash_view.dart';
 
 void main() async {
@@ -86,6 +87,14 @@ class MyApp extends StatelessWidget {
       ),
       // 首次加载进入启动页
       home: const SplashView(),
+
+      getPages: [
+        GetPage(
+          name: '/agreement_webview',
+          page: () => const AgreementWebViewPage(),
+          transition: Transition.cupertino, // 带来丝滑的 iOS 侧滑进场特效
+        ),
+      ],
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(

@@ -593,7 +593,7 @@ const Map<String, String> _zhCN = {
   'wechat_channel': '微信收银台',
   'enter_valid_amount': '请输入有效的充值金额',
   'confirm_purchase_amount': '确认购买 ¥@amount / 极速入账',
-  'virtual_service_notice': '代币服务属于虚拟数字服务资产。充值提交即表示您已阅读并同意《虚拟充值服务协议》 [INDEX: 1]。',
+  'virtual_service_notice': '代币服务属于虚拟数字服务资产。充值提交即表示您已阅读并同意《虚拟充值服务协议》。',
   'withdrawal_submitted': '🎉 提现申请成功！财务人员将在24小时内核账出款',
   'withdrawal_failed': '申请提现失败',
   'withdrawal_failed_retry': '发起提现失败，请稍后重试',

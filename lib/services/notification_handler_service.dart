@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart'; // 🌟 引入打开文件的插件
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:web_socket_channel/web_socket_channel.dart'; // 引入 WebSocket 工具
 
 import '../views/post_detail/post_detail_view.dart';
 import '../views/profile/profile_view.dart';
@@ -15,6 +17,10 @@ import 'push_notification_model.dart';
 
 class NotificationHandlerService extends GetxService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  // 当前分支与更新配置（可按需指定对应的打包分支）
+  static const String appBranch = 'arena/01a004f0-qorange';
+  static const String backendApiUrl = 'https://googlechat.zeabur.app';
 
   @override
   void onInit() {
@@ -82,6 +88,91 @@ class NotificationHandlerService extends GetxService {
     await androidImplementation?.createNotificationChannel(updateChannel);
   }
 
+  /// 🌟 启动时自动检查更新：请求后端 API 核验当前分支是否有新的 Release
+  Future<void> checkForUpdate({bool isManualCheck = false}) async {
+    try {
+      final url = Uri.parse('$backendApiUrl/api/check-update?branch=$appBranch&arch=arm64-v8a');
+      final res = await http.get(url).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final json = jsonDecode(utf8.decode(res.bodyBytes));
+        final datas = json['datas'] as Map<String, dynamic>?;
+
+        if (datas != null && datas['has_update'] == true) {
+          final String wssUrl = datas['wss_download_url'] ?? '';
+          final String fallbackUrl = datas['download_url'] ?? '';
+          final String tag = datas['tag_name'] ?? 'New Version';
+          final String notes = datas['release_notes'] ?? '优化了系统稳定性';
+
+          // 直接向系统通知栏派发版本更新通知
+          await _showUpdateAvailableNotification(
+            tag: tag,
+            notes: notes,
+            downloadUrl: fallbackUrl,
+            wssUrl: wssUrl,
+          );
+        } else if (isManualCheck) {
+          Get.snackbar('检查更新', '当前已是最新版本！', snackPosition: SnackPosition.BOTTOM);
+        }
+      }
+    } catch (e) {
+      debugPrint("❌ [AppUpdate] 自动检查更新异常: $e");
+    }
+  }
+
+  /// 🌟 直接展示新版本发现的通知卡片（无需依赖 PushNotificationModel 子类）
+  Future<void> _showUpdateAvailableNotification({
+    required String tag,
+    required String notes,
+    required String downloadUrl,
+    required String wssUrl,
+  }) async {
+    const int updateNoticeId = 9999;
+    final String title = '发现新版本 [$tag]';
+    final String body = '$notes\n点击通知栏将自动通过后端高速通道极速更新！';
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'googlechat_alerts',
+      'notif_channel_social'.tr,
+      channelDescription: 'notif_channel_social_desc2'.tr,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+      color: const Color(0xFF2C7B6D),
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: '版本更新'.tr,
+      ),
+    );
+
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    // 发送通知，payload 里携带 wss_url 和 custom_url 供点击时直接拉起下载
+    await _notificationsPlugin.show(
+      updateNoticeId,
+      title,
+      body,
+      platformDetails,
+      payload: jsonEncode({
+        'type': 'appUpdate',
+        'target_id': tag,
+        'target_type': 'system',
+        'custom_url': downloadUrl,
+        'wss_url': wssUrl,
+      }),
+    );
+  }
+
   /// 🌟 处理系统通知栏点击行为，智能分发路由跳转与更新下载
   void _onNotificationTap(NotificationResponse response) async {
     if (response.payload == null) return;
@@ -92,11 +183,16 @@ class NotificationHandlerService extends GetxService {
       final String targetId = data['target_id'] ?? '';
       final String targetType = data['target_type'] ?? '';
       final String customUrl = data['custom_url'] ?? '';
+      final String wssUrl = data['wss_url'] ?? '';
       final String filePath = data['file_path'] ?? '';
 
-      // 点击更新通知，启动后台流式下载
-      if (type == 'appUpdate' && customUrl.isNotEmpty) {
-        _startAppUpdateDownload(customUrl);
+      // 点击更新通知：优先启动 WSS 后端高速中转代理下载，失败则平滑回退 HTTP
+      if (type == 'appUpdate') {
+        if (wssUrl.isNotEmpty) {
+          _startAppUpdateDownloadWss(wssUrl, customUrl);
+        } else if (customUrl.isNotEmpty) {
+          _startAppUpdateDownload(customUrl);
+        }
         return;
       }
 
@@ -124,7 +220,96 @@ class NotificationHandlerService extends GetxService {
     }
   }
 
-  // 执行 OTA 下载主逻辑
+  /// 🌟 核心升级：通过 WSS WebSocket 管道流式下载 APK，彻底突破国内直连 GitHub 慢的问题
+  Future<void> _startAppUpdateDownloadWss(String wssUrl, String fallbackHttpUrl) async {
+    const int updateNotificationId = 8888;
+    WebSocketChannel? channel;
+    IOSink? fileSink;
+
+    try {
+      await _updateDownloadNotification(0, updateNotificationId);
+
+      final Directory tempDir = await getTemporaryDirectory();
+      final String filePath = '${tempDir.path}/qorange_update.apk';
+      final File file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+
+      fileSink = file.openWrite();
+
+      final Uri uri = Uri.parse(wssUrl);
+      channel = WebSocketChannel.connect(uri);
+
+      int totalBytes = 0;
+      int downloadedBytes = 0;
+      int lastProgressPercent = -1;
+      final Completer<void> completer = Completer<void>();
+
+      channel.stream.listen(
+            (dynamic message) async {
+          if (message is String) {
+            try {
+              final Map<String, dynamic> json = jsonDecode(message);
+              if (json['type'] == 'meta') {
+                totalBytes = json['total_bytes'] ?? 0;
+              } else if (json['type'] == 'done') {
+                if (!completer.isCompleted) completer.complete();
+              } else if (json['type'] == 'error') {
+                if (!completer.isCompleted) completer.completeError(json['message'] ?? '下载失败');
+              }
+            } catch (_) {}
+          } else if (message is List<int>) {
+            // 收到 Raw 二进制字节，直接流式刷盘
+            fileSink?.add(message);
+            downloadedBytes += message.length;
+
+            if (totalBytes > 0) {
+              final int percentage = ((downloadedBytes / totalBytes) * 100).toInt();
+              if (percentage > lastProgressPercent) {
+                lastProgressPercent = percentage;
+                await _updateDownloadNotification(percentage, updateNotificationId);
+              }
+            } else {
+              await _updateDownloadNotification(-1, updateNotificationId);
+            }
+          }
+        },
+        onError: (err) {
+          if (!completer.isCompleted) completer.completeError(err);
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+        cancelOnError: true,
+      );
+
+      // 等待 WebSocket 传输完成
+      await completer.future;
+      await fileSink.flush();
+      await fileSink.close();
+      fileSink = null;
+      channel.sink.close();
+
+      // 清除进度通知并拉起安装
+      await _notificationsPlugin.cancel(updateNotificationId);
+      await _installApk(filePath);
+      await _showDownloadCompleteNotification(filePath);
+
+    } catch (e) {
+      debugPrint("⚠️ [WSS Update] WebSocket 下载异常，降级切换到 HTTP: $e");
+      await fileSink?.close();
+      channel?.sink.close();
+      // 降级使用 HTTP 重试
+      if (fallbackHttpUrl.isNotEmpty) {
+        _startAppUpdateDownload(fallbackHttpUrl);
+      } else {
+        await _showDownloadFailedNotification(updateNotificationId);
+      }
+    }
+  }
+
+  // 执行 OTA HTTP 下载兜底主逻辑
   Future<void> _startAppUpdateDownload(String url) async {
     const int updateNotificationId = 8888; // 固定的下载通知 ID
     try {
@@ -295,7 +480,6 @@ class NotificationHandlerService extends GetxService {
     final targetTitle = note.target.title;
 
     // 🌟🌟 核心安全修正：优先提取 customData 中由后端统一设计好的定制化交易/提现文案
-    // 这完美解决并消除了客户端硬编码造成的交易字段对不上、展现单调不美观的底层局限性 [1]！
     if (note.customData.containsKey('title') && note.customData['title'].toString().isNotEmpty) {
       title = note.customData['title'].toString();
     }
@@ -390,10 +574,11 @@ class NotificationHandlerService extends GetxService {
       body,
       platformDetails,
       payload: jsonEncode({
-        'type': note.type, // 如果为 system/appUpdate，点击将正确触发响应
+        'type': note.type,
         'target_id': note.target.id,
         'target_type': note.target.type,
         'custom_url': note.customData['url'] ?? '',
+        'wss_url': note.customData['wss_url'] ?? '', // 🌟 透传 WSS 链接
       }),
     );
   }

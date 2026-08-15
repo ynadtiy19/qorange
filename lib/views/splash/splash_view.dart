@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/notification_handler_service.dart';
+import '../comment/agreement_webview_page.dart';
 import '../main/main_nav_view.dart';
 
 class SplashView extends StatefulWidget {
@@ -20,6 +23,7 @@ class _SplashViewState extends State<SplashView> {
   void initState() {
     super.initState();
     _checkPrivacy();
+    // ❌ 移除了原先在这里的 checkForUpdate，避免未同意隐私协议前提前触发网络请求
   }
 
   Future<void> _checkPrivacy() async {
@@ -38,7 +42,12 @@ class _SplashViewState extends State<SplashView> {
     }
   }
 
+  /// 🌟 只有在确认用户已同意隐私政策后，才安全初始化网络 SDK 并检测更新
   void _initSafeSDKsAndGo() {
+    // 1. 合规启动后台版本检测
+    Get.find<NotificationHandlerService>().checkForUpdate();
+
+    // 2. 启动开屏动画并跳转主页
     _startAnimationAndGo();
   }
 
@@ -87,14 +96,44 @@ class _SplashViewState extends State<SplashView> {
                     ),
                     children: [
                       TextSpan(text: 'privacy_welcome'.tr),
+                      // 🌟 1. 用户协议
                       TextSpan(
                         text: 'user_agreement'.tr,
-                        style: const TextStyle(color: Colors.blueAccent),
+                        style: const TextStyle(
+                          color: Color(0xFF2C7B6D),
+                          fontWeight: FontWeight.w600,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            HapticFeedback.lightImpact();
+                            Get.to(
+                                  () => const AgreementWebViewPage(),
+                              arguments: {
+                                'title': 'user_agreement'.tr,
+                                'url': 'https://googlechat.zeabur.app/user_agreement.html',
+                              },
+                            );
+                          },
                       ),
-                      TextSpan(text: 'and'.tr),
+                      TextSpan(text: ' ${'and'.tr} '),
+                      // 🌟 2. 隐私政策
                       TextSpan(
                         text: 'privacy_policy'.tr,
-                        style: const TextStyle(color: Colors.blueAccent),
+                        style: const TextStyle(
+                          color: Color(0xFF2C7B6D),
+                          fontWeight: FontWeight.w600,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            HapticFeedback.lightImpact();
+                            Get.to(
+                                  () => const AgreementWebViewPage(),
+                              arguments: {
+                                'title': 'privacy_policy'.tr,
+                                'url': 'https://googlechat.zeabur.app/privacy_policy.html',
+                              },
+                            );
+                          },
                       ),
                       TextSpan(text: 'privacy_desc'.tr),
                     ],
@@ -125,6 +164,7 @@ class _SplashViewState extends State<SplashView> {
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setBool('has_agreed_privacy', true);
                           Get.back();
+                          // 点击同意后，合规触发 SDK 与更新检测
                           _initSafeSDKsAndGo();
                         },
                         style: ElevatedButton.styleFrom(

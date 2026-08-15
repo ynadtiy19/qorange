@@ -5,6 +5,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../comment/agreement_webview_page.dart';
 import 'wallet_controller.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
@@ -400,10 +401,28 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              'virtual_service_notice'.tr,
-              style: TextStyle(color: premiumGray.withOpacity(0.8), fontSize: 10, height: 1.4),
-              textAlign: TextAlign.center,
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Get.to(
+                      () => const AgreementWebViewPage(),
+                  arguments: {
+                    'title': 'recharge_agreement_title'.tr,
+                    'url': 'https://googlechat.zeabur.app/recharge_agreement.html',
+                  },
+                );
+              },
+              child: Text(
+                'virtual_service_notice'.tr,
+                style: TextStyle(
+                  color: premiumGray.withOpacity(0.8),
+                  fontSize: 10,
+                  height: 1.4,
+                  decoration: TextDecoration.underline, // 加上下划线引导点击
+                  decorationColor: premiumGray.withOpacity(0.4),
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
             const SizedBox(height: 30),
           ],
