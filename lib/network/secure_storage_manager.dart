@@ -97,8 +97,20 @@ class SecureStorageManager {
     await _storage.delete(key: key);
   }
 
-  /// 清空所有数据 (退出登录时使用)
+  /// 清空当前会话凭证 (退出登录时使用)
+  ///
+  /// 🌟 注意：这里只清除本次登录会话相关的 Token 与用户标识，
+  /// 必须保留 [_keySavedCredentials]（用户主动勾选记住的账号列表），
+  /// 否则退出登录后登录页的"钥匙"快捷填充入口会消失。
   Future<void> clearAll() async {
+    await _storage.delete(key: _keyAccessToken);
+    await _storage.delete(key: _keyRefreshToken);
+    await _storage.delete(key: _keyUserId);
+  }
+
+  /// 彻底抹除包括已记住账号在内的全部本地安全数据
+  /// (仅在用户显式要求清除数据时调用)
+  Future<void> wipeAll() async {
     await _storage.deleteAll();
   }
 }
