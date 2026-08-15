@@ -1,0 +1,95 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*' # 只要推送 v 开头的 tag（例如 v1.0.0）就会触发打包并发布 Release
+    branches:
+      - main # 推送到 main 分支时自动编译测试（不创建正式 Release）
+  workflow_dispatch: # 支持在 GitHub 网页手动点击触发
+
+# 赋予创建 Release 和上传文件的写权限
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Flutter APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 检出仓库代码
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. 自动修正 CI 环境的 Gradle 配置
+      # 移除本地 127.0.0.1 代理，并将 8G 内存调优为适合 GitHub Runner 的 3.5G
+      - name: Sanitize gradle.properties for CI
+        run: |
+          if [ -f "android/gradle.properties" ]; then
+            echo "Cleaning local proxy settings..."
+            sed -i '/systemProp\.http/d' android/gradle.properties
+            sed -i '/systemProp\.https/d' android/gradle.properties
+            echo "Adjusting JVM memory limits..."
+            sed -i 's/-Xmx[0-9]*[gG]/-Xmx3584m/g' android/gradle.properties
+            sed -i 's/-XX:MaxMetaspaceSize=[0-9]*[gG]/-XX:MaxMetaspaceSize=512m/g' android/gradle.properties
+            echo "=== Updated android/gradle.properties ==="
+            cat android/gradle.properties
+          fi
+
+      # 3. 设置 JDK 17
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 4. 设置 Flutter 环境并开启 SDK 缓存
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable' # 也可指定固定版本，如 '3.44.2'
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+
+      # 5. 设置 Gradle 依赖与构建缓存
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v4
+
+      # 6. 获取 Flutter 依赖项
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # 7. 构建 Release APK
+      - name: Build APK
+        run: flutter build apk --release
+
+      # 8. 重命名 APK，加入版本或 commit 标识方便识别
+      - name: Prepare APK Artifact
+        run: |
+          TAG_OR_BRANCH="${GITHUB_REF_NAME:-continuous}"
+          SAFE_NAME=$(echo "$TAG_OR_BRANCH" | sed 's/\//_/g')
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/qorange-${SAFE_NAME}.apk
+
+      # 9. 上传到 Actions Artifacts 备查（保存 14 天）
+      - name: Upload APK to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qorange-apk-${{ github.ref_name }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+      # 10. 发布到 GitHub Releases（仅在推送 Tag 或手动触发时发布）
+      - name: Publish Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            build/app/outputs/flutter-apk/qorange-*.apk
