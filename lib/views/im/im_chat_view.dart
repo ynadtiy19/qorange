@@ -82,7 +82,7 @@ class _ImChatViewState extends State<ImChatView> {
 
     return Scaffold(
       backgroundColor: _bgSlate,
-      resizeToAvoidBottomInset: true, // 🌟 确保物理键盘顶起时整体平滑位移
+      resizeToAvoidBottomInset: true, // 🌟 键盘弹出时平滑撑起
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -148,7 +148,7 @@ class _ImChatViewState extends State<ImChatView> {
       ),
       body: Stack(
         children: [
-          // 🌟 1. 自定义壁纸背景层 (支持本地图片与网络高清图)
+          // 🌟 1. 自定义壁纸背景层
           Positioned.fill(
             child: Obx(() {
               if (_controller.customBgPath.value.isNotEmpty) {
@@ -161,7 +161,7 @@ class _ImChatViewState extends State<ImChatView> {
             }),
           ),
 
-          // 轻微半透明蒙层（确保无论壁纸颜色多亮，文字气泡都清晰舒适）
+          // 轻微半透明蒙层
           Obx(() {
             final hasBg = _controller.customBgPath.value.isNotEmpty || _controller.customBgUrl.value.isNotEmpty;
             if (!hasBg) return const SizedBox.shrink();
@@ -170,10 +170,10 @@ class _ImChatViewState extends State<ImChatView> {
             );
           }),
 
-          // 🌟 2. 前台主内容区域
+          // 🌟 2. 核心主内容区
           Column(
             children: [
-              // 陌生人审核提示悬浮横幅
+              // 陌生人审核提示横幅
               Obx(() {
                 if (_controller.relationshipStatus.value == 'stranger_pending') {
                   return _buildStrangerBanner();
@@ -181,30 +181,38 @@ class _ImChatViewState extends State<ImChatView> {
                 return const SizedBox.shrink();
               }),
 
-              // 消息气泡列表
+              // 🌟 核心：reverse: true 聊天消息列表 (天然在底部，向上加载历史)
               Expanded(
-                child: Obx(() {
-                  if (_controller.isLoadingHistory.value && _controller.messages.isEmpty) {
-                    return const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2));
-                  }
+                child: Stack(
+                  children: [
+                    Obx(() {
+                      if (_controller.isLoadingHistory.value && _controller.messages.isEmpty) {
+                        return const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2));
+                      }
 
-                  return ListView.builder(
-                    controller: _controller.scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: _controller.messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = _controller.messages[index];
-                      final bool isMe = msg.senderId == myId;
-                      return _buildMessageBubble(context, msg, isMe);
-                    },
-                  );
-                }),
+                      return ListView.builder(
+                        controller: _controller.scrollController,
+                        reverse: true, // 🌟 index 0 为最新消息位于最底部
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        itemCount: _controller.messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = _controller.messages[index];
+                          final bool isMe = msg.senderId == myId;
+                          return _buildMessageBubbleItem(context, msg, isMe);
+                        },
+                      );
+                    }),
+
+                    // 🌟 悬浮回底按钮 / 新消息动态胶囊
+                    _buildFloatingScrollDownButton(),
+                  ],
+                ),
               ),
 
-              // 底部自适应输入工具栏与拓展盘
+              // 底部自适应输入栏
               _buildInputBar(context),
 
-              // 🌟 3. 展开的多功能操作盘（发图、发青橙币、收款、拍照等）
+              // 展开的多功能操作盘
               Obx(() {
                 if (!_controller.isAttachmentOpen.value) return const SizedBox.shrink();
                 return _buildAttachmentDrawer(context);
@@ -213,6 +221,69 @@ class _ImChatViewState extends State<ImChatView> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 🌟 自适应返回底部/新消息动态悬浮胶囊
+  Widget _buildFloatingScrollDownButton() {
+    return Positioned(
+      right: 16,
+      bottom: 16,
+      child: Obx(() {
+        final bool show = _controller.showScrollDownBtn.value;
+        final int newCount = _controller.newMessagesWhileBrowsingCount.value;
+
+        return AnimatedOpacity(
+          opacity: show ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: IgnorePointer(
+            ignoring: !show,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _controller.scrollToBottom();
+                },
+                borderRadius: BorderRadius.circular(24),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  padding: EdgeInsets.symmetric(horizontal: newCount > 0 ? 12 : 10, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: newCount > 0 ? _goldAccent : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (newCount > 0) ...[
+                        Text(
+                          '$newCount 条新消息',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 20,
+                        color: newCount > 0 ? Colors.white : _primaryTeal,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 
@@ -251,37 +322,40 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 多模态气泡构建器
-  Widget _buildMessageBubble(BuildContext context, ImMessageModel msg, bool isMe) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Container(
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.76),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              color: isMe ? _primaryTeal : Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18),
-                topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(isMe ? 18 : 4),
-                bottomRight: Radius.circular(isMe ? 4 : 18),
+  /// 🌟 包含长按撤回/复制交互的气泡包装项
+  Widget _buildMessageBubbleItem(BuildContext context, ImMessageModel msg, bool isMe) {
+    return GestureDetector(
+      onLongPress: () => _showMessageContextMenu(context, msg, isMe),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Container(
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.76),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: isMe ? _primaryTeal : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isMe ? 18 : 4),
+                  bottomRight: Radius.circular(isMe ? 4 : 18),
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2)),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2)),
-              ],
+              child: _buildBubbleContent(context, msg, isMe),
             ),
-            child: _buildBubbleContent(msg, isMe),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildBubbleContent(ImMessageModel msg, bool isMe) {
+  Widget _buildBubbleContent(BuildContext context, ImMessageModel msg, bool isMe) {
     final textColor = isMe ? Colors.white : const Color(0xFF1E293B);
 
     if (msg.isRevoked) {
@@ -299,20 +373,29 @@ class _ImChatViewState extends State<ImChatView> {
       );
     }
 
-    // 2. 图片消息
+    // 2. 🌟 图片消息 (点击打开全功能手势缩放查看器)
     else if (msg.msgType == 'image') {
       final imgUrl = msg.payload['url']?.toString() ?? '';
-      return ClipRRect(
+      return InkWell(
+        onTap: () => _openInteractiveImageViewer(context, imgUrl),
         borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          imgUrl,
-          fit: BoxFit.cover,
-          loadingBuilder: (c, w, p) => p == null ? w : const SizedBox(height: 120, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            imgUrl,
+            fit: BoxFit.cover,
+            loadingBuilder: (c, w, p) => p == null
+                ? w
+                : const SizedBox(
+              height: 120,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+          ),
         ),
       );
     }
 
-    // 3. 🌟 青橙币直接转账 (Token Transfer / 红包)
+    // 3. 青橙币直接转账
     else if (msg.msgType == 'token_transfer') {
       final double tokens = double.tryParse(msg.payload['tokens']?.toString() ?? '0') ?? 0.0;
       final String remark = msg.payload['remark']?.toString() ?? '青橙币转账';
@@ -345,7 +428,7 @@ class _ImChatViewState extends State<ImChatView> {
       );
     }
 
-    // 4. 🌟 青橙币请款收款单 (Token Payment Request)
+    // 4. 青橙币请款收款单
     else if (msg.msgType == 'token_request') {
       final double tokens = double.tryParse(msg.payload['tokens']?.toString() ?? '0') ?? 0.0;
       final String remark = msg.payload['remark']?.toString() ?? '请款单';
@@ -425,7 +508,60 @@ class _ImChatViewState extends State<ImChatView> {
     return Text(msg.payload['text']?.toString() ?? '[消息]', style: TextStyle(color: textColor));
   }
 
-  /// 🌟 底部自适应输入工具栏 (支持物理键盘回车 1~5 行撑大位移)
+  /// 🌟 长按消息气泡上下文菜单 (2分钟内撤回与复制)
+  void _showMessageContextMenu(BuildContext context, ImMessageModel msg, bool isMe) {
+    HapticFeedback.mediumImpact();
+    final bool canRevoke = isMe && !msg.isRevoked && DateTime.now().difference(msg.createdAt).inMinutes < 2;
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (msg.msgType == 'text' && !msg.isRevoked)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded, color: Color(0xFF475569)),
+                title: const Text('复制文本', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Get.back();
+                  Clipboard.setData(ClipboardData(text: msg.payload['text']?.toString() ?? ''));
+                  Fluttertoast.showToast(msg: '已复制到剪贴板');
+                },
+              ),
+            if (canRevoke)
+              ListTile(
+                leading: const Icon(Icons.undo_rounded, color: Color(0xFFEF4444)),
+                title: const Text('撤回消息 (2分钟内)', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Get.back();
+                  _controller.revokeMessage(msg.messageId);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 🌟 打开支持双击缩放、手势捏合与本地保存的图片预览器
+  void _openInteractiveImageViewer(BuildContext context, String imageUrl) {
+    HapticFeedback.lightImpact();
+    Get.to(
+          () => _InteractiveImagePreviewPage(
+        imageUrl: imageUrl,
+        onSave: () => _controller.saveImageToDevice(imageUrl),
+      ),
+      transition: Transition.fadeIn,
+      fullscreenDialog: true,
+    );
+  }
+
+  /// 底部自适应多行输入工具栏 (1~5 行丝滑撑大)
   Widget _buildInputBar(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(
@@ -441,7 +577,6 @@ class _ImChatViewState extends State<ImChatView> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // 左侧拓展盘开关按钮 (+)
           IconButton(
             icon: Obx(() => AnimatedRotation(
               turns: _controller.isAttachmentOpen.value ? 0.125 : 0.0,
@@ -454,12 +589,10 @@ class _ImChatViewState extends State<ImChatView> {
             )),
             onPressed: () {
               HapticFeedback.lightImpact();
-              FocusScope.of(context).unfocus(); // 收起键盘展开面板
+              FocusScope.of(context).unfocus();
               _controller.isAttachmentOpen.toggle();
             },
           ),
-
-          // 核心多行输入框 (1~5 行弹性高度撑大)
           Expanded(
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 2),
@@ -471,7 +604,7 @@ class _ImChatViewState extends State<ImChatView> {
               child: TextField(
                 controller: _controller.textEditingController,
                 minLines: 1,
-                maxLines: 5, // 🌟 物理键盘换行时，输入框优雅撑大最多 5 行
+                maxLines: 5,
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 onTap: () {
@@ -490,8 +623,6 @@ class _ImChatViewState extends State<ImChatView> {
             ),
           ),
           const SizedBox(width: 8),
-
-          // 发送按钮
           Padding(
             padding: const EdgeInsets.only(bottom: 2),
             child: Material(
@@ -518,7 +649,7 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 🌟 展开的多功能操作盘组件
+  /// 展开的多功能操作盘
   Widget _buildAttachmentDrawer(BuildContext context) {
     return Container(
       height: 220,
@@ -610,7 +741,7 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 🌟 弹出背景选择面板（支持拍照、相册、从数据库 Pinterest 意境池精选、恢复默认）
+  /// 弹出背景选择面板
   void _showBackgroundPickerSheet(BuildContext context) {
     Get.bottomSheet(
       Container(
@@ -645,14 +776,12 @@ class _ImChatViewState extends State<ImChatView> {
                 if (img != null) _controller.setCustomBackground(filePath: img.path);
               },
             ),
-            // 🌟 核心升级：拉起 Pinterest 意境图库资产挑选大厅
             ListTile(
               leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF8B5CF6)),
               title: const Text('从 Pinterest 意境池精选壁纸', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('浏览并选用数据库已存储的高清大图', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
               onTap: () {
-                Get.back(); // 关闭当前简易菜单
-                // 拉起完整的双列瀑布流壁纸抽屉
+                Get.back();
                 Get.bottomSheet(
                   PinterestGalleryPickerSheet(
                     onImageSelected: (url) {
@@ -678,7 +807,6 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 弹出发送青橙币对话框
   void _showTokenTransferDialog(BuildContext context) {
     final amountCtrl = TextEditingController();
     final remarkCtrl = TextEditingController();
@@ -728,7 +856,6 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 弹出请求青橙币收款对话框
   void _showTokenRequestDialog(BuildContext context) {
     final amountCtrl = TextEditingController();
     final remarkCtrl = TextEditingController();
@@ -798,6 +925,89 @@ class _ImChatViewState extends State<ImChatView> {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 🌟 全屏沉浸式图片预览页 (支持双指缩放、双击缩放、手势拖拽退出与本地保存)
+class _InteractiveImagePreviewPage extends StatefulWidget {
+  final String imageUrl;
+  final VoidCallback onSave;
+
+  const _InteractiveImagePreviewPage({
+    required this.imageUrl,
+    required this.onSave,
+  });
+
+  @override
+  State<_InteractiveImagePreviewPage> createState() => _InteractiveImagePreviewPageState();
+}
+
+class _InteractiveImagePreviewPageState extends State<_InteractiveImagePreviewPage> {
+  final TransformationController _transformController = TransformationController();
+  TapDownDetails? _doubleTapDetails;
+
+  void _handleDoubleTap() {
+    if (_transformController.value != Matrix4.identity()) {
+      // 已经放大过，双击还原
+      _transformController.value = Matrix4.identity();
+    } else {
+      // 双击放大 2.5 倍
+      final position = _doubleTapDetails?.localPosition ?? Offset.zero;
+      _transformController.value = Matrix4.identity()
+        ..translate(-position.dx * 1.5, -position.dy * 1.5)
+        ..scale(2.5);
+    }
+  }
+
+  @override
+  void dispose() {
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+          onPressed: () => Get.back(),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_rounded, color: Colors.white, size: 24),
+            tooltip: '保存到本地',
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              widget.onSave();
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: GestureDetector(
+        onDoubleTapDown: (details) => _doubleTapDetails = details,
+        onDoubleTap: _handleDoubleTap,
+        child: Center(
+          child: InteractiveViewer(
+            transformationController: _transformController,
+            minScale: 0.8,
+            maxScale: 4.0,
+            child: Image.network(
+              widget.imageUrl,
+              fit: BoxFit.contain,
+              loadingBuilder: (c, child, progress) {
+                if (progress == null) return child;
+                return const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2));
+              },
+            ),
+          ),
         ),
       ),
     );

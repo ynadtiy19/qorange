@@ -4,9 +4,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:qorange/models/im_message_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,10 +29,15 @@ class ImChatController extends GetxController {
     required this.partnerNickname,
   });
 
+  // 🌟 reverse: true 架构下，index 0 为最新消息（位于最底部）
   final RxList<ImMessageModel> messages = <ImMessageModel>[].obs;
   final RxBool isLoadingHistory = false.obs;
   final RxBool isSending = false.obs;
   final RxBool isUploadingMedia = false.obs;
+
+  // 🌟 悬浮回底按钮与未读新消息追踪
+  final RxBool showScrollDownBtn = false.obs;
+  final RxInt newMessagesWhileBrowsingCount = 0.obs;
 
   // 🌟 陌生人单条防骚扰状态管控
   final RxString relationshipStatus = 'friend'.obs; // friend, stranger_pending, accepted, blocked
@@ -57,7 +65,27 @@ class ImChatController extends GetxController {
     if (relationshipStatus.value == 'stranger_pending' && strangerMessageCount.value >= 1) {
       canSend.value = false;
     }
+
+    _setupScrollListener();
     fetchHistoryMessages(refresh: true);
+  }
+
+  /// 监听滚动位置，控制悬浮回底胶囊显隐
+  void _setupScrollListener() {
+    scrollController.addListener(() {
+      if (!scrollController.hasClients) return;
+      final offset = scrollController.offset;
+
+      // 在 reverse: true 中，offset > 120 说明用户已向上翻阅历史消息
+      if (offset > 120) {
+        if (!showScrollDownBtn.value) showScrollDownBtn.value = true;
+      } else {
+        if (showScrollDownBtn.value) {
+          showScrollDownBtn.value = false;
+          newMessagesWhileBrowsingCount.value = 0;
+        }
+      }
+    });
   }
 
   /// 分页拉取历史聊天记录
@@ -84,14 +112,17 @@ class ImChatController extends GetxController {
             .map((item) => ImMessageModel.fromJson(item as Map<String, dynamic>))
             .toList();
 
+        // 🌟 转换为 reverse: true 顺序（最新在 0）
+        final reversedBatch = loaded.reversed.toList();
+
         if (refresh) {
-          messages.assignAll(loaded);
+          messages.assignAll(reversedBatch);
           if (Get.isRegistered<ImConversationController>()) {
             ImConversationController.to.markConversationAsRead(conversationId);
           }
-          _scrollToBottom(immediate: true);
         } else {
-          messages.insertAll(0, loaded);
+          // 向上加载更多历史：追加在列表尾部（即屏幕顶部）
+          messages.addAll(reversedBatch);
         }
 
         if (loaded.length < 25) _hasMore = false;
@@ -127,8 +158,9 @@ class ImChatController extends GetxController {
 
       if (res.datas != null) {
         final sentMsg = ImMessageModel.fromJson(res.datas!);
-        messages.add(sentMsg);
-        _scrollToBottom();
+        // 插入到 index 0（即最底部最新）
+        messages.insert(0, sentMsg);
+        scrollToBottom();
 
         if (msgType == 'text') textEditingController.clear();
 
@@ -153,6 +185,29 @@ class ImChatController extends GetxController {
     }
   }
 
+  /// 🌟 撤回消息（2 分钟内）
+  Future<void> revokeMessage(String messageId) async {
+    try {
+      final res = await HttpClient.instance.put<Map<String, dynamic>>(
+        '/api-im/messages',
+        data: {
+          'action': 'revoke',
+          'message_id': messageId,
+          'conversation_id': conversationId,
+        },
+      );
+
+      if (res.respCode == 0) {
+        onMessageRevoked(messageId);
+        Fluttertoast.showToast(msg: '消息已撤回');
+      } else {
+        Fluttertoast.showToast(msg: res.respMsg);
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: '撤回异常: $e');
+    }
+  }
+
   /// 🌟 从本地相册/相机选取图片，直传后端二进制接口并发送
   Future<void> pickAndSendImage(ImageSource source) async {
     try {
@@ -169,7 +224,6 @@ class ImChatController extends GetxController {
 
       final Uint8List imageBytes = await pickedFile.readAsBytes();
 
-      // 向后端二进制接口 POST 上传
       final res = await HttpClient.instance.postBinary<Map<String, dynamic>>(
         '/api-im/upload?type=image&ext=jpg',
         data: imageBytes,
@@ -198,7 +252,34 @@ class ImChatController extends GetxController {
     }
   }
 
-  /// 🌟 直接发送青橙币 (Token Transfer / 红包)
+  /// 🌟 保存网络图片到本地设备
+  Future<void> saveImageToDevice(String imageUrl) async {
+    try {
+      Fluttertoast.showToast(msg: '正在保存图片...');
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        Directory? dir;
+        if (Platform.isAndroid) {
+          dir = await getExternalStorageDirectory();
+        } else {
+          dir = await getApplicationDocumentsDirectory();
+        }
+
+        final fileName = 'qorange_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final savePath = '${dir?.path}/$fileName';
+        final file = File(savePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        Fluttertoast.showToast(msg: '图片已保存成功！');
+      } else {
+        Fluttertoast.showToast(msg: '下载图片失败');
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: '保存失败: $e');
+    }
+  }
+
+  /// 🌟 发送青橙币直接转账
   Future<void> sendTokenTransfer({required double tokens, String remark = '请喝咖啡'}) async {
     if (tokens <= 0) return;
     await sendMessage(
@@ -210,8 +291,8 @@ class ImChatController extends GetxController {
     );
   }
 
-  /// 🌟 发起青橙币请款单 (Token Payment Request)
-  Future<void> sendTokenRequest({required double tokens, String remark = '稿费结算'}) async {
+  /// 🌟 发起青橙币请款单
+  Future<void> sendTokenRequest({required double tokens, String remark = '款项结算'}) async {
     if (tokens <= 0) return;
     await sendMessage(
       msgType: 'token_request',
@@ -222,7 +303,7 @@ class ImChatController extends GetxController {
     );
   }
 
-  /// 🌟 在聊天气泡内点击【立即支付请款】完成原子扣款
+  /// 🌟 气泡内点击支付请款
   Future<void> payTokenRequest(String messageId) async {
     try {
       final res = await HttpClient.instance.post<Map<String, dynamic>>(
@@ -234,7 +315,6 @@ class ImChatController extends GetxController {
       );
 
       if (res.respCode == 0) {
-        // 本地即时更新该条消息的气泡状态
         final index = messages.indexWhere((m) => m.messageId == messageId);
         if (index != -1) {
           final old = messages[index];
@@ -263,39 +343,51 @@ class ImChatController extends GetxController {
     }
   }
 
-  /// 🌟 自定义并持久化当前聊天的背景壁纸
+  /// 🌟 设置并持久化聊天背景
   Future<void> setCustomBackground({String? filePath, String? networkUrl}) async {
     final prefs = await SharedPreferences.getInstance();
+    final myId = UserController.to.user.value?.id ?? 'guest';
+    final keyPrefix = 'chat_bg_${myId}_$conversationId';
+
     if (filePath != null && filePath.isNotEmpty) {
       customBgPath.value = filePath;
       customBgUrl.value = '';
-      await prefs.setString('chat_bg_path_$conversationId', filePath);
-      await prefs.remove('chat_bg_url_$conversationId');
+      await prefs.setString('${keyPrefix}_path', filePath);
+      await prefs.remove('${keyPrefix}_url');
     } else if (networkUrl != null && networkUrl.isNotEmpty) {
       customBgUrl.value = networkUrl;
       customBgPath.value = '';
-      await prefs.setString('chat_bg_url_$conversationId', networkUrl);
-      await prefs.remove('chat_bg_path_$conversationId');
+      await prefs.setString('${keyPrefix}_url', networkUrl);
+      await prefs.remove('${keyPrefix}_path');
     } else {
-      // 恢复默认背景
       customBgPath.value = '';
       customBgUrl.value = '';
-      await prefs.remove('chat_bg_path_$conversationId');
-      await prefs.remove('chat_bg_url_$conversationId');
+      await prefs.remove('${keyPrefix}_path');
+      await prefs.remove('${keyPrefix}_url');
     }
     Fluttertoast.showToast(msg: '聊天背景已更新');
   }
 
   Future<void> loadCustomBackground() async {
     final prefs = await SharedPreferences.getInstance();
-    customBgPath.value = prefs.getString('chat_bg_path_$conversationId') ?? '';
-    customBgUrl.value = prefs.getString('chat_bg_url_$conversationId') ?? '';
+    final myId = UserController.to.user.value?.id ?? 'guest';
+    final keyPrefix = 'chat_bg_${myId}_$conversationId';
+
+    customBgPath.value = prefs.getString('${keyPrefix}_path') ?? '';
+    customBgUrl.value = prefs.getString('${keyPrefix}_url') ?? '';
   }
 
-  /// 接收到 AtSign 推过来的实时新消息
+  /// 🌟 收到 AtSign 实时新消息
   void onIncomingMessage(ImMessageModel newMsg) {
-    messages.add(newMsg);
-    _scrollToBottom();
+    messages.insert(0, newMsg);
+
+    // 如果用户正在向上翻看历史消息，累加未读提醒数；如果在底部，则平滑滚到底部
+    if (showScrollDownBtn.value) {
+      newMessagesWhileBrowsingCount.value += 1;
+      HapticFeedback.lightImpact();
+    } else {
+      scrollToBottom();
+    }
 
     if (relationshipStatus.value == 'stranger_pending' && newMsg.senderId == partnerId) {
       relationshipStatus.value = 'accepted';
@@ -356,13 +448,15 @@ class ImChatController extends GetxController {
     } catch (_) {}
   }
 
-  void _scrollToBottom({bool immediate = false}) {
-    final duration = immediate ? Duration.zero : const Duration(milliseconds: 250);
+  /// 滚动到最新底部 (在 reverse: true 中，offset 0 即为最底部)
+  void scrollToBottom() {
+    newMessagesWhileBrowsingCount.value = 0;
+    showScrollDownBtn.value = false;
     Future.delayed(const Duration(milliseconds: 50), () {
       if (scrollController.hasClients) {
         scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: duration,
+          0.0,
+          duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
       }
