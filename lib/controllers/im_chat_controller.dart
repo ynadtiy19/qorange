@@ -100,6 +100,48 @@ class ImChatController extends GetxController {
     return messages.first.senderId == myId;
   }
 
+
+  /// 🌟 实时向后端发送已读回执 (清零 MongoDB 数据库里的未读数)
+  Future<void> sendReadAck() async {
+    try {
+      await HttpClient.instance.put(
+        '/api-im/messages',
+        data: {
+          'action': 'read_ack',
+          'conversation_id': conversationId,
+        },
+      );
+    } catch (_) {}
+  }
+
+  /// 🌟 收到对方支付青橙币收款单的实时信号：气泡秒级变为【已完成支付】
+  void onTokenRequestStatusChanged(String messageId, String status) {
+    final index = messages.indexWhere((m) => m.messageId == messageId);
+    if (index != -1) {
+      final old = messages[index];
+      final updatedPayload = Map<String, dynamic>.from(old.payload);
+      updatedPayload['status'] = status;
+      if (status == 'paid') {
+        updatedPayload['paid_at'] = DateTime.now().toIso8601String();
+      }
+
+      messages[index] = ImMessageModel(
+        messageId: old.messageId,
+        conversationId: old.conversationId,
+        senderId: old.senderId,
+        recipientId: old.recipientId,
+        msgType: old.msgType,
+        payload: updatedPayload,
+        isRead: old.isRead,
+        isRevoked: old.isRevoked,
+        createdAt: old.createdAt,
+      );
+
+      HapticFeedback.mediumImpact();
+      Fluttertoast.showToast(msg: '收款单已到账！');
+    }
+  }
+
   /// 监听滚动位置，控制悬浮回底胶囊显隐
   void _setupScrollListener() {
     scrollController.addListener(() {
@@ -470,6 +512,9 @@ class ImChatController extends GetxController {
     if (Get.isRegistered<ImConversationController>()) {
       ImConversationController.to.markConversationAsRead(conversationId);
     }
+
+    // 🌟 核心修复：在聊天窗口中实时收到消息时，静默向后端发送已读回执清空数据库！
+    sendReadAck();
   }
 
   /// 接收到撤回信号
@@ -538,6 +583,8 @@ class ImChatController extends GetxController {
 
   @override
   void onClose() {
+    // 🌟 核心修复：在聊天窗口中实时收到消息时，静默向后端发送已读回执清空数据库！
+    sendReadAck();
     textEditingController.dispose();
     scrollController.dispose();
     super.onClose();

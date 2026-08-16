@@ -238,35 +238,48 @@ class FrontendChatService extends GetxService {
     }
   }
 
-  /// 处理状态信号 (撤回/已读回执)
+  /// 🌟 修复后的标准状态信号处理：解开死锁嵌套 + 完整支持撤回与青橙币收款单同步
   void _onImStatusReceived(AtNotification notification) async {
     final String? jsonVal = notification.value;
-    if (jsonVal == null) return;
+    if (jsonVal == null || jsonVal.isEmpty) return;
+
     try {
       final Map<String, dynamic> data = jsonDecode(jsonVal);
       final signalType = data['signal_type']?.toString();
       final conversationId = data['conversation_id']?.toString();
 
-      // 🌟 带 Tag 查找活跃会话控制器
-      if (conversationId != null && Get.isRegistered<ImChatController>(tag: conversationId)) {
+      if (conversationId == null) return;
+
+      // =========================================================
+      // 🌟 1. 聊天窗口内的气泡实时状态响应 (仅在聊天窗口打开时触发)
+      // =========================================================
+      if (Get.isRegistered<ImChatController>(tag: conversationId)) {
         final chatCtrl = Get.find<ImChatController>(tag: conversationId);
+
+        // a. 处理消息撤回
         if (signalType == 'revoke') {
           final String msgId = data['extra']?['message_id']?.toString() ?? '';
-          // 1. 如果正在聊天窗口内，气泡即刻变灰
-          if (conversationId != null && Get.isRegistered<ImChatController>(tag: conversationId)) {
-            final chatCtrl = Get.find<ImChatController>(tag: conversationId);
-            chatCtrl.onMessageRevoked(msgId);
-          }
-
-          // 🌟 2. 无论在不在聊天窗口，消息大厅列表卡片的预览都实时变为【此消息已被撤回】
-          if (conversationId != null && Get.isRegistered<ImConversationController>()) {
-            ImConversationController.to.onMessageRevokedInConversation(conversationId);
-          }
+          chatCtrl.onMessageRevoked(msgId);
+        }
+        // b. 🌟 补齐：处理青橙币收款单支付成功实时变状态！
+        else if (signalType == 'token_request_status_change') {
+          final String msgId = data['extra']?['message_id']?.toString() ?? '';
+          final String status = data['extra']?['status']?.toString() ?? 'paid';
+          chatCtrl.onTokenRequestStatusChanged(msgId, status);
         }
       }
-    } catch (_) {}
-  }
 
+      // =========================================================
+      // 🌟 2. 消息大厅列表卡片实时响应 (独立于聊天窗口，无论在不在都要更新！)
+      // =========================================================
+      if (signalType == 'revoke' && Get.isRegistered<ImConversationController>()) {
+        // 解开死锁：只要收到撤回信号，会话大厅卡片必定被实时更新为【此消息已被撤回】
+        ImConversationController.to.onMessageRevokedInConversation(conversationId);
+      }
+    } catch (e) {
+      debugPrint("🔴 [Frontend] 状态信号解析异常: $e");
+    }
+  }
   /// 离线消息拉取
   Future<void> _pullKeysByRegex(AtClient atClient, String regexPattern) async {
     try {
