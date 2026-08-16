@@ -23,6 +23,17 @@ class ImMessageModel {
   });
 
   factory ImMessageModel.fromJson(Map<String, dynamic> json) {
+    // 🌟 核心修复：自动识别并修正 UTC 时区，避免 8 小时时区差导致无法撤回
+    DateTime parsedTime = DateTime.now();
+    if (json['created_at'] != null) {
+      String rawDate = json['created_at'].toString();
+      // 如果后端发来的时间没有带时区后缀，强制补上 Z (UTC) 后再转为手机本地时区
+      if (!rawDate.endsWith('Z') && !rawDate.contains('+')) {
+        rawDate = '${rawDate}Z';
+      }
+      parsedTime = (DateTime.tryParse(rawDate) ?? DateTime.now()).toLocal();
+    }
+
     return ImMessageModel(
       messageId: json['id']?.toString() ?? json['message_id']?.toString() ?? '',
       conversationId: json['conversation_id']?.toString() ?? '',
@@ -34,9 +45,7 @@ class ImMessageModel {
           : (json['payload'] is Map ? Map<String, dynamic>.from(json['payload'] as Map) : {}),
       isRead: json['is_read'] == true,
       isRevoked: json['is_revoked'] == true,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
+      createdAt: parsedTime, // 🌟 准确的手机本地时间
     );
   }
 

@@ -334,8 +334,10 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 陌生人审核横幅
+  /// 🌟 严格区分发信者与收信者的陌生人横幅
   Widget _buildStrangerBanner() {
+    final bool isMeSender = _controller.isLastSenderMe;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
@@ -344,26 +346,35 @@ class _ImChatViewState extends State<ImChatView> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.shield_outlined, color: _goldAccent, size: 18),
+          Icon(
+            isMeSender ? Icons.hourglass_top_rounded : Icons.shield_outlined,
+            color: _goldAccent,
+            size: 18,
+          ),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
-              '对方为未互关陌生人，仅可发送 1 条打招呼私信',
-              style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+              isMeSender
+                  ? '已发送打招呼消息，等待对方回复后解锁畅聊'
+                  : '对方为未互关陌生人，发来 1 条打招呼私信',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
             ),
           ),
-          TextButton(
-            onPressed: () => _controller.acceptStrangerRequest(),
-            style: TextButton.styleFrom(
-              backgroundColor: _primaryTeal,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+
+          // 🌟 核心修复：只有接收方（对方给我发）才显示【同意沟通】按钮！发起方绝对不显示！
+          if (!isMeSender)
+            TextButton(
+              onPressed: () => _controller.acceptStrangerRequest(),
+              style: TextButton.styleFrom(
+                backgroundColor: _primaryTeal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('同意沟通', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
             ),
-            child: const Text('同意沟通', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-          ),
         ],
       ),
     );
@@ -629,46 +640,155 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 长按消息气泡菜单
+  /// 🌟 极简高颜值长按消息上下文操作面板
   void _showMessageContextMenu(BuildContext context, ImMessageModel msg, bool isMe) {
     HapticFeedback.mediumImpact();
-    final bool canRevoke = isMe && !msg.isRevoked && DateTime.now().difference(msg.createdAt).inMinutes < 2;
+
+    final int diffInSeconds = DateTime.now().difference(msg.createdAt).inSeconds.abs();
+    final bool canRevoke = isMe && !msg.isRevoked && diffInSeconds <= 120;
+    final int remainSec = 120 - diffInSeconds;
+
+    String previewText = '[消息]';
+    if (msg.msgType == 'text') previewText = msg.payload['text']?.toString() ?? '';
+    if (msg.msgType == 'image') previewText = '[图片]';
+    if (msg.msgType == 'voice') previewText = '[语音留言]';
+    if (msg.msgType == 'post_card') previewText = '[文章分享] ${msg.payload['title'] ?? ''}';
 
     Get.bottomSheet(
       Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 20,
+              offset: Offset(0, -4),
+            )
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (msg.msgType == 'text' && !msg.isRevoked)
-              ListTile(
-                leading: const Icon(Icons.copy_rounded, color: Color(0xFF475569)),
-                title: const Text('复制文本', style: TextStyle(fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Get.back();
-                  Clipboard.setData(ClipboardData(text: msg.payload['text']?.toString() ?? ''));
-                  Fluttertoast.showToast(msg: '已复制到剪贴板');
-                },
+            // 顶部小把手
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2),
               ),
-            if (canRevoke)
-              ListTile(
-                leading: const Icon(Icons.undo_rounded, color: Color(0xFFEF4444)),
-                title: const Text('撤回消息 (2分钟内)', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Get.back();
-                  _controller.revokeMessage(msg.messageId);
-                },
+            ),
+            const SizedBox(height: 16),
+
+            // 消息快照引用卡片
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: _primaryTeal,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      previewText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 操作选项列表
+            Row(
+              children: [
+                // 1. 复制文本 (仅文字消息展现)
+                if (msg.msgType == 'text' && !msg.isRevoked)
+                  Expanded(
+                    child: _buildContextMenuButton(
+                      icon: Icons.copy_rounded,
+                      label: '复制文本',
+                      color: const Color(0xFF1E293B),
+                      bgColor: const Color(0xFFF1F5F9),
+                      onTap: () {
+                        Get.back();
+                        Clipboard.setData(ClipboardData(text: msg.payload['text']?.toString() ?? ''));
+                        Fluttertoast.showToast(msg: '已复制到剪贴板');
+                      },
+                    ),
+                  ),
+
+                if (msg.msgType == 'text' && !msg.isRevoked && canRevoke)
+                  const SizedBox(width: 12),
+
+                // 2. 撤回按钮 (2分钟内高亮)
+                if (canRevoke)
+                  Expanded(
+                    child: _buildContextMenuButton(
+                      icon: Icons.undo_rounded,
+                      label: '撤回 (${remainSec}s)',
+                      color: const Color(0xFFEF4444),
+                      bgColor: const Color(0xFFFEF2F2),
+                      onTap: () {
+                        Get.back();
+                        _controller.revokeMessage(msg.messageId);
+                      },
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildContextMenuButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color bgColor,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: color),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
   /// 打开全功能手势缩放图片预览页
   void _openInteractiveImageViewer(BuildContext context, String imageUrl) {
     HapticFeedback.lightImpact();
@@ -1057,7 +1177,7 @@ class _ImChatViewState extends State<ImChatView> {
   void _showMoreOptionsModal(BuildContext context) {
     Get.bottomSheet(
       Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1065,14 +1185,50 @@ class _ImChatViewState extends State<ImChatView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.block_flipped, color: Color(0xFFEF4444)),
-              title: const Text('拉黑此用户', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600)),
-              onTap: () {
-                Get.back();
-                _controller.blockUser();
-              },
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
+            const SizedBox(height: 16),
+            Obx(() {
+              final bool isBlocked = _controller.isBlockedByMe.value || _controller.relationshipStatus.value == 'blocked';
+
+              return ListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                tileColor: isBlocked ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+                leading: Icon(
+                  isBlocked ? Icons.check_circle_outline_rounded : Icons.block_flipped,
+                  color: isBlocked ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                ),
+                title: Text(
+                  isBlocked ? '解除拉黑' : '拉黑此用户',
+                  style: TextStyle(
+                    color: isBlocked ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  isBlocked ? '解除后可恢复正常私信交流' : '拉黑后对方将无法向您发送任何私信',
+                  style: TextStyle(
+                    color: isBlocked ? const Color(0xFF059669) : const Color(0xFF991B1B),
+                    fontSize: 11,
+                  ),
+                ),
+                onTap: () {
+                  Get.back();
+                  if (isBlocked) {
+                    _controller.unblockUser(); // 🌟 执行解除拉黑
+                  } else {
+                    _controller.blockUser();   // 🌟 执行拉黑
+                  }
+                },
+              );
+            }),
           ],
         ),
       ),

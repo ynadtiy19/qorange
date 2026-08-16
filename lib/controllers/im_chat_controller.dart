@@ -70,6 +70,36 @@ class ImChatController extends GetxController {
     fetchHistoryMessages(refresh: true);
   }
 
+
+  // 🌟 新增：独立标记是我拉黑了对方，还是被对方拉黑
+  final RxBool isBlockedByMe = false.obs;
+
+  /// 🌟 解除拉黑当前用户
+  Future<void> unblockUser() async {
+    try {
+      final res = await HttpClient.instance.post(
+        '/api-im/relationship',
+        data: {'action': 'unblock', 'target_user_id': partnerId},
+      );
+      if (res.respCode == 0) {
+        isBlockedByMe.value = false;
+        relationshipStatus.value = 'accepted';
+        canSend.value = true;
+        Fluttertoast.showToast(msg: '已解除拉黑');
+      }
+    } catch (_) {
+      Fluttertoast.showToast(msg: '网络异常');
+    }
+  }
+
+  /// 🌟 判定最后一条打招呼消息是否是由我发出的
+  bool get isLastSenderMe {
+    if (messages.isEmpty) return false;
+    final myId = UserController.to.user.value?.id ?? '';
+    // reverse: true 下 index 0 为最新消息
+    return messages.first.senderId == myId;
+  }
+
   /// 监听滚动位置，控制悬浮回底胶囊显隐
   void _setupScrollListener() {
     scrollController.addListener(() {
