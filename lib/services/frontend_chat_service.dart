@@ -252,7 +252,16 @@ class FrontendChatService extends GetxService {
         final chatCtrl = Get.find<ImChatController>(tag: conversationId);
         if (signalType == 'revoke') {
           final String msgId = data['extra']?['message_id']?.toString() ?? '';
-          chatCtrl.onMessageRevoked(msgId);
+          // 1. 如果正在聊天窗口内，气泡即刻变灰
+          if (conversationId != null && Get.isRegistered<ImChatController>(tag: conversationId)) {
+            final chatCtrl = Get.find<ImChatController>(tag: conversationId);
+            chatCtrl.onMessageRevoked(msgId);
+          }
+
+          // 🌟 2. 无论在不在聊天窗口，消息大厅列表卡片的预览都实时变为【此消息已被撤回】
+          if (conversationId != null && Get.isRegistered<ImConversationController>()) {
+            ImConversationController.to.onMessageRevokedInConversation(conversationId);
+          }
         }
       }
     } catch (_) {}

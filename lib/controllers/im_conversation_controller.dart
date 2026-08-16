@@ -117,6 +117,29 @@ class ImConversationController extends GetxController {
     _recalculateTotalUnread();
   }
 
+
+  /// 🌟 收到撤回事件（自己撤回或对方撤回）时：实时将消息列表卡片的最后一条预览修改为【此消息已被撤回】
+  void onMessageRevokedInConversation(String conversationId) {
+    final index = conversations.indexWhere((c) => c.conversationId == conversationId);
+    if (index != -1) {
+      final old = conversations[index];
+      conversations[index] = ImConversationModel(
+        conversationId: old.conversationId,
+        partnerId: old.partnerId,
+        partnerNickname: old.partnerNickname,
+        partnerAvatar: old.partnerAvatar,
+        partnerUsername: old.partnerUsername,
+        lastMsgPreview: '此消息已被撤回', // 🌟 实时响应式修改卡片预览
+        lastMsgType: 'text',
+        unreadCount: old.unreadCount > 0 ? old.unreadCount - 1 : 0, // 如果对方未读撤回，红点自动减 1
+        relationshipStatus: old.relationshipStatus,
+        strangerMessageCount: old.strangerMessageCount,
+        updatedAt: old.updatedAt,
+      );
+      _recalculateTotalUnread();
+    }
+  }
+
   /// 🌟 进入单聊窗口时：消除该会话的未读数，底部导航栏小红点同步扣减
   void markConversationAsRead(String conversationId) {
     final index = conversations.indexWhere((c) => c.conversationId == conversationId);

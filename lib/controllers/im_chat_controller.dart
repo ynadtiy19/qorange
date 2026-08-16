@@ -229,6 +229,10 @@ class ImChatController extends GetxController {
 
       if (res.respCode == 0) {
         onMessageRevoked(messageId);
+        // 🌟 核心联动：自己撤回最新消息时，立刻将消息列表大厅的卡片预览也更新为【此消息已被撤回】
+        if (Get.isRegistered<ImConversationController>()) {
+          ImConversationController.to.onMessageRevokedInConversation(conversationId);
+        }
         Fluttertoast.showToast(msg: '消息已撤回');
       } else {
         Fluttertoast.showToast(msg: res.respMsg);
