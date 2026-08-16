@@ -132,25 +132,35 @@ jobs:
           files: |
             build/app/outputs/flutter-apk/qorange-${{ steps.meta.outputs.safe_branch }}-*.apk
 
-      # 13. 打包发布成功后，自动抓取本次 Git Commit 内容写入 MongoDB
+      # 13. 打包发布成功后，自动从 pubspec.yaml 提取版本号写入 MongoDB
       - name: Sync Release to MongoDB
         run: |
           SAFE_BRANCH="${{ steps.meta.outputs.safe_branch }}"
           APK_URL="https://github.com/ynadtiy19/qorange/releases/download/release-${SAFE_BRANCH}/qorange-${SAFE_BRANCH}-arm64-v8a.apk"
           
-          # 🌟 自动提取本地最后一次提交的 commit 说明，并转义换行符
+          # 🌟 1. 自动从 pubspec.yaml 提取版本名称 (1.9.0) 与构建号 (2)
+          APP_VERSION=$(grep 'version:' pubspec.yaml | head -n1 | cut -d ' ' -f2 | cut -d '+' -f1)
+          BUILD_NUMBER=$(grep 'version:' pubspec.yaml | head -n1 | cut -d '+' -f2)
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER="${{ github.run_number }}"
+          fi
+
+          # 🌟 2. 自动提取本地最后一次提交的 commit 说明
           COMMIT_MSG=$(git log -1 --pretty=%B | tr '\n' ' ' | sed 's/"/\\"/g')
           if [ -z "$COMMIT_MSG" ]; then
-            COMMIT_MSG="日常优化与问题修复"
+            COMMIT_MSG="升级至 v${APP_VERSION}，优化系统稳定性"
           fi
           
+          # 🌟 3. 将包含 version 和 build_number 的完整数据同步至后端
           curl -s -X POST "https://googlechat.zeabur.app/api/publish-release" \
             -H "Content-Type: application/json" \
             -d "{
               \"secret\": \"qorange_ci_secret_2026\",
               \"branch\": \"${{ github.ref_name }}\",
               \"commit_sha\": \"${{ github.sha }}\",
-              \"tag_name\": \"release-${SAFE_BRANCH}\",
+              \"tag_name\": \"v${APP_VERSION}\",
+              \"version\": \"${APP_VERSION}\",
+              \"build_number\": ${BUILD_NUMBER},
               \"changelog\": \"$COMMIT_MSG\",
               \"download_url\": \"${APK_URL}\",
               \"arch\": \"arm64-v8a\"
