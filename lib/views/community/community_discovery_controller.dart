@@ -125,7 +125,7 @@ class CommunityDiscoveryController extends GetxController {
         fetchDiscoveryList(isRefresh: true);
         return true;
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'community_create_failed'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
         return false;
       }
     } catch (e) {

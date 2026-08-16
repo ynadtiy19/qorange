@@ -132,11 +132,17 @@ jobs:
           files: |
             build/app/outputs/flutter-apk/qorange-${{ steps.meta.outputs.safe_branch }}-*.apk
 
-      # 13. 打包发布成功后，自动将最新包属性与直链写入 MongoDB
+      # 13. 打包发布成功后，自动抓取本次 Git Commit 内容写入 MongoDB
       - name: Sync Release to MongoDB
         run: |
           SAFE_BRANCH="${{ steps.meta.outputs.safe_branch }}"
           APK_URL="https://github.com/ynadtiy19/qorange/releases/download/release-${SAFE_BRANCH}/qorange-${SAFE_BRANCH}-arm64-v8a.apk"
+          
+          # 🌟 自动提取本地最后一次提交的 commit 说明，并转义换行符
+          COMMIT_MSG=$(git log -1 --pretty=%B | tr '\n' ' ' | sed 's/"/\\"/g')
+          if [ -z "$COMMIT_MSG" ]; then
+            COMMIT_MSG="日常优化与问题修复"
+          fi
           
           curl -s -X POST "https://googlechat.zeabur.app/api/publish-release" \
             -H "Content-Type: application/json" \
@@ -145,7 +151,7 @@ jobs:
               \"branch\": \"${{ github.ref_name }}\",
               \"commit_sha\": \"${{ github.sha }}\",
               \"tag_name\": \"release-${SAFE_BRANCH}\",
-              \"changelog\": \"• 升级底层核心引擎\n• 优化多语种同传与实时交互\n• 提升系统流畅度与稳定性\",
+              \"changelog\": \"$COMMIT_MSG\",
               \"download_url\": \"${APK_URL}\",
               \"arch\": \"arm64-v8a\"
             }"

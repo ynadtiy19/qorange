@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/notification_handler_service.dart';
 import '../comment/agreement_webview_page.dart';
 import '../main/main_nav_view.dart';
 
@@ -23,7 +22,6 @@ class _SplashViewState extends State<SplashView> {
   void initState() {
     super.initState();
     _checkPrivacy();
-    // ❌ 移除了原先在这里的 checkForUpdate，避免未同意隐私协议前提前触发网络请求
   }
 
   Future<void> _checkPrivacy() async {
@@ -42,12 +40,8 @@ class _SplashViewState extends State<SplashView> {
     }
   }
 
-  /// 🌟 只有在确认用户已同意隐私政策后，才安全初始化网络 SDK 并检测更新
+  /// 🌟 闪屏页平滑过渡到主页（版本检测移入 MainNavView 执行，彻底防止弹窗被销毁）
   void _initSafeSDKsAndGo() {
-    // 1. 合规启动后台版本检测
-    Get.find<NotificationHandlerService>().checkForUpdate();
-
-    // 2. 启动开屏动画并跳转主页
     _startAnimationAndGo();
   }
 
@@ -164,7 +158,6 @@ class _SplashViewState extends State<SplashView> {
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setBool('has_agreed_privacy', true);
                           Get.back();
-                          // 点击同意后，合规触发 SDK 与更新检测
                           _initSafeSDKsAndGo();
                         },
                         style: ElevatedButton.styleFrom(

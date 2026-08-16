@@ -52,7 +52,7 @@ class WalletController extends GetxController {
         loadWalletOverview(); // 重新拉取以更新冻结扣减后的余额和近期提现历史 [1]
         return true;
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'withdrawal_failed'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
         return false;
       }
     } catch (e) {

@@ -40,7 +40,7 @@ class VoiceWebSocketService {
       );
 
       if (res.respCode != 0 || res.datas == null) {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'voice_init_failed'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
         return;
       }
 

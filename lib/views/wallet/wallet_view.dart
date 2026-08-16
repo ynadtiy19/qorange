@@ -7,8 +7,6 @@ import 'package:hugeicons/hugeicons.dart';
 import 'wallet_controller.dart';
 import 'withdrawal_receipt_view.dart';
 import 'token_recharge_paywall_view.dart'; // 🌟 桥接全新高阶付费墙充值页面
-import '../../network/api_exception.dart';
-import '../../network/http_client.dart';
 
 class WalletView extends StatefulWidget {
   const WalletView({super.key});

@@ -27,6 +27,26 @@ class AppTranslations extends Translations {
 
 /// zh_CN
 const Map<String, String> _zhCN = {
+
+
+  // ================= 邮件分享与通讯录 =================
+  'email_share': '邮件分享',
+  'select_email_recipient': '选择邮件收件人',
+  'select_email_recipient_desc': '内容将由青橙官方专线加密投递至对方邮箱',
+  'search_recipient_hint': '搜索用户名、昵称或邮箱...',
+  'no_email_contacts': '暂无可投递的联系人',
+  'email_binding_tip': '好友在“设置 - 绑定邮箱”后将在此处呈现',
+  'sending_email': '正在通过官方通道投递...',
+  'email_sent_success': '邮件已成功送达至对方邮箱！',
+  'email_send_failed': '邮件发送失败，请稍后重试',
+  'send': '投递',
+
+  // ================= 设置与安全邮箱 =================
+  'security_email': '安全联系邮箱',
+  'security_email_hint': '输入邮箱以开启站内好友邮件分享接收',
+  'invalid_email_format': '邮箱格式不正确，请输入有效邮箱',
+
+
   // ── 通用与导航 / General & navigation ──
   'app_name': '青橙',
   'nav_home': '首页',
@@ -650,6 +670,24 @@ const Map<String, String> _zhCN = {
 
 /// en_US
 const Map<String, String> _enUS = {
+
+  // ================= Email Share & Contacts =================
+  'email_share': 'Email Share',
+  'select_email_recipient': 'Select Recipient',
+  'select_email_recipient_desc': 'Content will be delivered securely via official email channel',
+  'search_recipient_hint': 'Search username, nickname, or email...',
+  'no_email_contacts': 'No contacts available',
+  'email_binding_tip': 'Friends who bound their email in Settings will appear here',
+  'sending_email': 'Sending via official channel...',
+  'email_sent_success': 'Email sent successfully!',
+  'email_send_failed': 'Failed to send email, please try again',
+  'send': 'Send',
+
+  // ================= Settings & Security Email =================
+  'security_email': 'Security Email',
+  'security_email_hint': 'Enter email to receive shared posts and notices',
+  'invalid_email_format': 'Invalid email format, please check',
+
   // ── 通用与导航 / General & navigation ──
   'app_name': 'Qorange',
   'nav_home': 'Home',
@@ -1273,6 +1311,23 @@ const Map<String, String> _enUS = {
 
 /// es_ES
 const Map<String, String> _esES = {
+
+  // ================= Email Share & Contacts =================
+  'email_share': 'Compartir por correo',
+  'select_email_recipient': 'Seleccionar destinatario',
+  'select_email_recipient_desc': 'El contenido se entregará de forma segura a través del canal oficial',
+  'search_recipient_hint': 'Buscar por nombre, apodo o correo...',
+  'no_email_contacts': 'No hay contactos disponibles con correo',
+  'email_binding_tip': 'Los amigos que vinculen su correo en Ajustes aparecerán aquí',
+  'sending_email': 'Enviando por canal oficial...',
+  'email_sent_success': '¡Correo enviado con éxito!',
+  'email_send_failed': 'Error al enviar el correo, inténtelo de nuevo',
+  'send': 'Enviar',
+
+  // ================= Settings & Security Email =================
+  'security_email': 'Correo de seguridad',
+  'security_email_hint': 'Ingrese su correo para recibir publicaciones y avisos',
+  'invalid_email_format': 'Formato de correo no válido',
   // ── 通用与导航 / General & navigation ──
   'app_name': 'Qorange',
   'nav_home': 'Inicio',
@@ -1896,6 +1951,24 @@ const Map<String, String> _esES = {
 
 /// fr_FR
 const Map<String, String> _frFR = {
+
+  // ================= Email Share & Contacts =================
+  'email_share': 'Partage par e-mail',
+  'select_email_recipient': 'Sélectionner un destinataire',
+  'select_email_recipient_desc': 'Le contenu sera transmis en toute sécurité via le canal officiel',
+  'search_recipient_hint': 'Rechercher par pseudo ou e-mail...',
+  'no_email_contacts': 'Aucun contact avec e-mail lié',
+  'email_binding_tip': 'Les amis ayant lié leur e-mail dans Paramètres apparaîtront ici',
+  'sending_email': 'Envoi en cours via le canal officiel...',
+  'email_sent_success': 'E-mail envoyé avec succès !',
+  'email_send_failed': 'Échec de l’envoi de l’e-mail, veuillez réessayer',
+  'send': 'Envoyer',
+
+  // ================= Settings & Security Email =================
+  'security_email': 'E-mail de sécurité',
+  'security_email_hint': 'Entrez votre e-mail pour recevoir les partages et alertes',
+  'invalid_email_format': 'Format d’e-mail invalide',
+
   // ── 通用与导航 / General & navigation ──
   'app_name': 'Qorange',
   'nav_home': 'Accueil',
@@ -2519,6 +2592,22 @@ const Map<String, String> _frFR = {
 
 /// it_IT
 const Map<String, String> _itIT = {
+  // ================= Email Share & Contacts =================
+  'email_share': 'Condivisione email',
+  'select_email_recipient': 'Seleziona destinatario',
+  'select_email_recipient_desc': 'Il contenuto sarà inviato in modo sicuro tramite il canale ufficiale',
+  'search_recipient_hint': 'Cerca per nome, nickname o email...',
+  'no_email_contacts': 'Nessun contatto con email collegata',
+  'email_binding_tip': 'Gli amici che collegano l\'email nelle Impostazioni appariranno qui',
+  'sending_email': 'Invio in corso tramite canale ufficiale...',
+  'email_sent_success': 'Email inviata con successo!',
+  'email_send_failed': 'Invio email non riuscito, riprova più tardi',
+  'send': 'Invia',
+
+  // ================= Settings & Security Email =================
+  'security_email': 'Email di sicurezza',
+  'security_email_hint': 'Inserisci l\'email per ricevere condivisioni e avvisi',
+  'invalid_email_format': 'Formato email non valido',
   // ── 通用与导航 / General & navigation ──
   'app_name': 'Qorange',
   'nav_home': 'Home',

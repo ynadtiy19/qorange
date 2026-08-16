@@ -388,7 +388,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         ));
       } else {
         if (!isSilent) {
-          Fluttertoast.showToast(msg: verifyRes.respMsg ?? 'order_not_paid'.tr);
+          Fluttertoast.showToast(msg: verifyRes.respMsg);
         }
       }
     } catch (e) {

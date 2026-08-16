@@ -210,7 +210,7 @@ class CommunitySpaceController extends GetxController
         Fluttertoast.showToast(msg: 'paid_community_unlocked'.tr);
         loadSpaceDetails(); // 重新拉取空间状态，解除防火墙限制
       } else {
-        Fluttertoast.showToast(msg: verifyRes.respMsg ?? 'payment_verify_failed'.tr);
+        Fluttertoast.showToast(msg: verifyRes.respMsg);
       }
     } catch (e) {
       Get.back();
@@ -241,10 +241,10 @@ class CommunitySpaceController extends GetxController
       Get.back(); // 关闭加载框
 
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'apply_submitted'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
         loadSpaceDetails(); // 🌟 重新拉取最新的状态（自动回显为：applying 审核中状态） [1]
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'apply_failed'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
       }
     } catch (e) {
       Get.back();
@@ -292,7 +292,7 @@ class CommunitySpaceController extends GetxController
         loadSpacePosts(); // 立即静默洗牌刷新群贴列表，展示最新数据
         return true;
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'discussion_post_failed'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
         return false;
       }
     } catch (e) {

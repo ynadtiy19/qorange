@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 
+import '../../services/notification_handler_service.dart';
 import '../../user_controller.dart';
 import '../community/community_discovery_view.dart';
 import '../home/home_view.dart';
@@ -26,6 +27,15 @@ class _MainNavViewState extends State<MainNavView> {
     const ShopView(), // 3. 商店
     const ProfileView(), // 4. 个人主页
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 🌟 在主页渲染完成后触发检测：弹窗会牢牢固定在主界面上，绝对不会自动消失！
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Get.find<NotificationHandlerService>().checkForUpdate();
+    });
+  }
 
   void _onTap(int index) async {
     // 对“我的（索引 3）”进行拦截

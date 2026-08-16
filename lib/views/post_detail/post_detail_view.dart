@@ -117,6 +117,22 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     }
   }
 
+  /// 🌟 唤起带有交错入场动画的高颜值收件人面板
+  void _openEmailContactPicker(String postType) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _AnimatedEmailContactSheet(
+          postId: widget.postId,
+          postType: postType,
+          themeColor: const Color.fromRGBO(44, 123, 109, 1.0),
+        );
+      },
+    );
+  }
+
   void _loadQuillContent(Map<String, dynamic> post) {
     final type = post['post_type'] ?? 'quill';
     if (type != 'quill') return; // 图文说说等非 Quill 类型不进行富文本解析
@@ -651,6 +667,22 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                       } else {
                         Fluttertoast.showToast(msg: 'cannot_open_browser'.tr);
                       }
+                    },
+                  ),
+                  const SizedBox(width: 16),
+
+
+                  _buildShareOption(
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedMail01,
+                      color: Color.fromRGBO(44, 123, 109, 1.0),
+                      size: 22,
+                    ),
+                    label: 'email_share'.tr, // 或 '邮件分享'
+                    onTap: () {
+                      Get.back(); // 关闭当前外层面板
+                      final String currentPostType = _post?['post_type']?.toString() ?? 'quill';
+                      _openEmailContactPicker(currentPostType);
                     },
                   ),
                   const SizedBox(width: 16),
@@ -1849,6 +1881,437 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
   }
 }
 
+
+/// 🌟 带有平滑交错入场动画与实时检索的邮件联系人底部弹窗
+class _AnimatedEmailContactSheet extends StatefulWidget {
+  final String postId;
+  final String postType;
+  final Color themeColor;
+
+  const _AnimatedEmailContactSheet({
+    required this.postId,
+    required this.postType,
+    required this.themeColor,
+  });
+
+  @override
+  State<_AnimatedEmailContactSheet> createState() => _AnimatedEmailContactSheetState();
+}
+
+class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  final TextEditingController _searchController = TextEditingController();
+
+  List<dynamic> _allContacts = [];
+  List<dynamic> _filteredContacts = [];
+  bool _isLoading = true;
+  String? _sendingUserId; // 记录正在发送的目标用户ID（行内 Loading 状态）
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _fetchContacts();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchContacts() async {
+    try {
+      final res = await HttpClient.instance.get<List<dynamic>>('/api-email/contacts');
+      if (mounted) {
+        setState(() {
+          _allContacts = res.datas ?? [];
+          _filteredContacts = List.from(_allContacts);
+          _isLoading = false;
+        });
+        _animController.forward(from: 0.0);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _onSearchChanged(String query) {
+    final cleanQuery = query.trim().toLowerCase();
+    setState(() {
+      if (cleanQuery.isEmpty) {
+        _filteredContacts = List.from(_allContacts);
+      } else {
+        _filteredContacts = _allContacts.where((u) {
+          final nickname = (u['nickname'] ?? '').toString().toLowerCase();
+          final username = (u['username'] ?? '').toString().toLowerCase();
+          final email = (u['email'] ?? '').toString().toLowerCase();
+          return nickname.contains(cleanQuery) ||
+              username.contains(cleanQuery) ||
+              email.contains(cleanQuery);
+        }).toList();
+      }
+    });
+    _animController.forward(from: 0.0);
+  }
+
+  Future<void> _handleSendEmail(dynamic user) async {
+    final targetUserId = user['user_id']?.toString() ?? '';
+    if (targetUserId.isEmpty || _sendingUserId != null) return;
+
+    HapticFeedback.lightImpact();
+    setState(() => _sendingUserId = targetUserId);
+
+    try {
+      final res = await HttpClient.instance.post(
+        '/api-email/send',
+        data: {
+          'target_user_id': targetUserId,
+          'type': widget.postType == 'quill' ? 'post' : widget.postType,
+          'target_id': widget.postId,
+        },
+      );
+
+      if (mounted) {
+        setState(() => _sendingUserId = null);
+      }
+
+      if (res.respCode == 0) {
+        Fluttertoast.showToast(msg: res.respMsg);
+        Navigator.pop(context);
+      } else {
+        Fluttertoast.showToast(msg: res.respMsg);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _sendingUserId = null);
+      }
+      Fluttertoast.showToast(msg: 'email_send_failed'.tr);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.72,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            // 顶部下拉药丸指示条
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // 头部标题栏
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 10, 16, 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: widget.themeColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.mark_email_read_rounded, color: widget.themeColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'select_email_recipient'.tr, // 或 '邮件直投分享'
+                          style: const TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        Text(
+                          'select_email_recipient_desc'.tr, // 或 '通过官方安全专线将排版投递至对方邮箱'
+                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 22),
+                  ),
+                ],
+              ),
+            ),
+
+            // 现代感 Squircle 搜索输入栏
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        style: const TextStyle(fontSize: 13.5, color: Color(0xFF1E293B)),
+                        decoration: InputDecoration(
+                          hintText: 'search_recipient_hint'.tr, // 或 '搜索用户名、昵称或邮箱...'
+                          hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                    if (_searchController.text.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                        child: const Icon(Icons.cancel, color: Color(0xFFCBD5E1), size: 16),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            const Divider(height: 16, thickness: 0.8, color: Color(0xFFF1F5F9)),
+
+            // 列表内容区
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                child: CircularProgressIndicator(color: widget.themeColor, strokeWidth: 2),
+              )
+                  : _filteredContacts.isEmpty
+                  ? _buildEmptyState()
+                  : ListView.builder(
+                itemCount: _filteredContacts.length,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final user = _filteredContacts[index];
+
+                  // 计算交错入场动画曲线 (Staggered Animation)
+                  final animation = Tween<Offset>(
+                    begin: const Offset(0, 0.4),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: _animController,
+                      curve: Interval(
+                        (index * 0.05).clamp(0.0, 0.6),
+                        (0.4 + index * 0.05).clamp(0.0, 1.0),
+                        curve: Curves.easeOutBack,
+                      ),
+                    ),
+                  );
+
+                  final fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+                    CurvedAnimation(
+                      parent: _animController,
+                      curve: Interval(
+                        (index * 0.05).clamp(0.0, 0.6),
+                        (0.3 + index * 0.05).clamp(0.0, 1.0),
+                      ),
+                    ),
+                  );
+
+                  return AnimatedBuilder(
+                    animation: _animController,
+                    builder: (context, child) {
+                      return FadeTransition(
+                        opacity: fadeAnim,
+                        child: SlideTransition(
+                          position: animation,
+                          child: _buildContactCard(user),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 优雅的联系人卡片项
+  Widget _buildContactCard(dynamic user) {
+    final userId = user['user_id']?.toString() ?? '';
+    final avatar = user['avatar']?.toString() ?? '';
+    final nickname = user['nickname']?.toString() ?? '用户';
+    final username = user['username']?.toString() ?? '';
+    final email = user['email']?.toString() ?? '';
+    final isThisSending = _sendingUserId == userId;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.015),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // 头像
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: widget.themeColor.withOpacity(0.08),
+            backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+            child: avatar.isEmpty
+                ? Icon(Icons.person, color: widget.themeColor, size: 20)
+                : null,
+          ),
+          const SizedBox(width: 12),
+
+          // 昵称与邮箱信息
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        nickname,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E293B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (username.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '@$username',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  email,
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+
+          // 发送动作按钮（带行内 Loading）
+          ElevatedButton(
+            onPressed: isThisSending ? null : () => _handleSendEmail(user),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: widget.themeColor,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              disabledBackgroundColor: widget.themeColor.withOpacity(0.6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              minimumSize: const Size(64, 34),
+            ),
+            child: isThisSending
+                ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+            )
+                : Text(
+              'send'.tr, // 或 '投递'
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 搜索为空或无联系人的占位视图
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Icon(Icons.person_search_rounded, color: Color(0xFF94A3B8), size: 26),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _searchController.text.isEmpty
+                  ? 'no_email_contacts'.tr // 或 '暂无已绑定邮箱的联系人'
+                  : 'no_search_results'.tr, // 或 '未找到匹配的联系人'
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'email_binding_tip'.tr, // 或 '好友在“设置 - 绑定邮箱”后将在此处呈现'
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 // 专门用来渲染子评论二级详情树的底部滑出 sheet
 class PostSubCommentSheet extends StatelessWidget {
   final CommentModel parentComment;

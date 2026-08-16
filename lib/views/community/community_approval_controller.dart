@@ -64,7 +64,7 @@ class CommunityApprovalController extends GetxController {
         // 🌟 核心：通知空间主控制器，同步扣减并更新小红点气泡
         _syncPendingCountToSpaceHeader();
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'approve_failed'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
       }
     } catch (e) {
       Get.back();
@@ -96,7 +96,7 @@ class CommunityApprovalController extends GetxController {
         applicants.removeWhere((element) => element.userId == applicantUserId);
         _syncPendingCountToSpaceHeader();
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'approve_failed'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
       }
     } catch (e) {
       Get.back();

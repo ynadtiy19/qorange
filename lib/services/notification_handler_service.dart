@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
@@ -101,7 +102,6 @@ class NotificationHandlerService extends GetxService {
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
       final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      // 如果用户今天点击过“稍后提示”，非手动检查时不重复打扰
       final String lastIgnoredTag = prefs.getString('ignored_update_tag') ?? '';
 
       final response = await http.post(
@@ -109,11 +109,11 @@ class NotificationHandlerService extends GetxService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'branch': appBranch,
-          'version': packageInfo.version, // 例如 "1.0.0"
-          'build_number': int.tryParse(packageInfo.buildNumber) ?? 1, // 例如 1, 2, 3
+          'version': packageInfo.version,
+          'build_number': int.tryParse(packageInfo.buildNumber) ?? 1,
           'arch': 'arm64-v8a',
         }),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
         final json = jsonDecode(utf8.decode(response.bodyBytes));
@@ -122,7 +122,6 @@ class NotificationHandlerService extends GetxService {
         if (datas != null && datas['has_update'] == true) {
           final String tag = datas['tag_name'] ?? 'New Version';
 
-          // 如果该版本被用户暂时忽略过，且非手动点击检查，则静默跳过
           if (!isManualCheck && lastIgnoredTag == tag) {
             _isChecking = false;
             return;
@@ -133,7 +132,7 @@ class NotificationHandlerService extends GetxService {
           final String rawChangelog = datas['changelog'] ?? '优化系统流畅度与稳定性';
           final String cleanChangelog = _cleanMarkdownText(rawChangelog);
 
-          // 🌟 只展示精致的更新弹窗，不再无脑向通知栏重复堆叠通知！
+          // 🌟 1. 弹出牢牢固定、只能手动点击关闭的居中弹窗
           _showRefinedUpdateDialog(
             tag: tag,
             changelog: cleanChangelog,
@@ -151,8 +150,16 @@ class NotificationHandlerService extends GetxService {
               }
             },
           );
+
+          // 🌟 2. 同时向通知栏发送常驻通知卡片
+          await _showUpdateAvailableNotification(
+            tag: tag,
+            notes: cleanChangelog,
+            downloadUrl: fallbackUrl,
+            wssUrl: wssUrl,
+          );
         } else if (isManualCheck) {
-          Get.snackbar('检查更新', '当前已是最新版本 (${packageInfo.version})', snackPosition: SnackPosition.BOTTOM);
+          Fluttertoast.showToast(msg: '当前已是最新版本 (${packageInfo.version})');
         }
       }
     } catch (e) {
@@ -171,7 +178,7 @@ class NotificationHandlerService extends GetxService {
         .trim();
   }
 
-  /// 🌟 极简高颜值弹窗
+  /// 🌟 极简高颜值弹窗（barrierDismissible: false 必须手动点击）
   void _showRefinedUpdateDialog({
     required String tag,
     required String changelog,
@@ -180,7 +187,7 @@ class NotificationHandlerService extends GetxService {
   }) {
     Get.dialog(
       PopScope(
-        canPop: true,
+        canPop: false, // 拦截物理返回键，强制用户做选择
         child: Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           elevation: 0,
@@ -256,7 +263,10 @@ class NotificationHandlerService extends GetxService {
                   children: [
                     Expanded(
                       child: TextButton(
-                        onPressed: onIgnore,
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          onIgnore();
+                        },
                         style: TextButton.styleFrom(
                           foregroundColor: const Color(0xFF94A3B8),
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -268,7 +278,10 @@ class NotificationHandlerService extends GetxService {
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
-                        onPressed: onConfirm,
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          onConfirm();
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2C7B6D),
                           foregroundColor: Colors.white,
@@ -286,7 +299,59 @@ class NotificationHandlerService extends GetxService {
           ),
         ),
       ),
-      barrierDismissible: true,
+      barrierDismissible: false, // 🌟 必须手动点击按钮关闭，点击弹窗外空白处不消失
+    );
+  }
+
+  /// 🌟 向系统通知栏发送版本更新通知卡片
+  Future<void> _showUpdateAvailableNotification({
+    required String tag,
+    required String notes,
+    required String downloadUrl,
+    required String wssUrl,
+  }) async {
+    const int updateNoticeId = 9999;
+    final String title = '发现新版本 [$tag]';
+    final String body = '$notes\n点击通知栏将自动通过后端高速通道极速更新！';
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'googlechat_alerts',
+      'notif_channel_social'.tr,
+      channelDescription: 'notif_channel_social_desc2'.tr,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+      color: const Color(0xFF2C7B6D),
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: '版本更新'.tr,
+      ),
+    );
+
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notificationsPlugin.show(
+      updateNoticeId,
+      title,
+      body,
+      platformDetails,
+      payload: jsonEncode({
+        'type': 'appUpdate',
+        'target_id': tag,
+        'target_type': 'system',
+        'custom_url': downloadUrl,
+        'wss_url': wssUrl,
+      }),
     );
   }
 
@@ -339,7 +404,7 @@ class NotificationHandlerService extends GetxService {
     IOSink? fileSink;
 
     try {
-      Get.snackbar('正在下载更新', '安装包正在后台通过专线高速通道极速下载...', snackPosition: SnackPosition.TOP);
+      Fluttertoast.showToast(msg: '正在下载更新');
       await _updateDownloadNotification(0, updateNotificationId);
 
       final Directory tempDir = await getTemporaryDirectory();
@@ -609,8 +674,13 @@ class NotificationHandlerService extends GetxService {
         title = 'notif_landing_title'.tr;
         body = targetTitle.isNotEmpty ? targetTitle : 'notif_landing_body'.tr;
       } else if (note.category == 'system') {
-        title = 'notif_broadcast_title'.tr;
-        body = targetTitle;
+        if (note.type == 'appUpdate') {
+          title = 'notif_new_version_title'.tr;
+          body = targetTitle.isNotEmpty ? targetTitle : 'notif_new_version_body'.tr;
+        } else {
+          title = 'notif_broadcast_title'.tr;
+          body = targetTitle;
+        }
       }
     }
 
