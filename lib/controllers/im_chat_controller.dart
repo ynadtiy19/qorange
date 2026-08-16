@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:qorange/models/im_message_model.dart';
+import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../user_controller.dart';
+import 'im_conversation_controller.dart';
 
 class ImChatController extends GetxController {
   final String conversationId;
@@ -36,6 +37,10 @@ class ImChatController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // 初始化时如果处于陌生人待批准状态且已有发信记录，锁定发信按钮
+    if (relationshipStatus.value == 'stranger_pending' && strangerMessageCount.value >= 1) {
+      canSend.value = false;
+    }
     fetchHistoryMessages(refresh: true);
   }
 
@@ -65,6 +70,11 @@ class ImChatController extends GetxController {
 
         if (refresh) {
           messages.assignAll(loaded);
+          // 首次进入成功加载后，精准消除本会话未读红点
+          if (Get.isRegistered<ImConversationController>()) {
+            ImConversationController.to.markConversationAsRead(conversationId);
+          }
+          _scrollToBottom(immediate: true);
         } else {
           messages.insertAll(0, loaded);
         }
@@ -119,7 +129,11 @@ class ImChatController extends GetxController {
         }
       }
     } catch (e) {
-      Fluttertoast.showToast(msg:'网络异常');
+      if (e is ApiException) {
+        Fluttertoast.showToast(msg: e.message);
+      } else {
+        Fluttertoast.showToast(msg: '网络连接异常，请重试');
+      }
     } finally {
       isSending.value = false;
     }
@@ -130,10 +144,15 @@ class ImChatController extends GetxController {
     messages.add(newMsg);
     _scrollToBottom();
 
-    // 如果对方回复了，陌生人锁定自动解除
+    // 对方回复了，解除陌生人锁定
     if (relationshipStatus.value == 'stranger_pending' && newMsg.senderId == partnerId) {
       relationshipStatus.value = 'accepted';
       canSend.value = true;
+    }
+
+    // 消除已在查看中的会话红点
+    if (Get.isRegistered<ImConversationController>()) {
+      ImConversationController.to.markConversationAsRead(conversationId);
     }
   }
 
@@ -166,17 +185,33 @@ class ImChatController extends GetxController {
       if (res.respCode == 0) {
         relationshipStatus.value = 'accepted';
         canSend.value = true;
-        Fluttertoast.showToast(msg:'已同意沟通');
+        Fluttertoast.showToast(msg: '已同意沟通，信道已完全解锁');
       }
     } catch (_) {}
   }
 
-  void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
+  /// 拉黑当前用户
+  Future<void> blockUser() async {
+    try {
+      final res = await HttpClient.instance.post(
+        '/api-im/relationship',
+        data: {'action': 'block', 'target_user_id': partnerId},
+      );
+      if (res.respCode == 0) {
+        relationshipStatus.value = 'blocked';
+        canSend.value = false;
+        Fluttertoast.showToast(msg: '已将该用户加入黑名单');
+      }
+    } catch (_) {}
+  }
+
+  void _scrollToBottom({bool immediate = false}) {
+    final duration = immediate ? Duration.zero : const Duration(milliseconds: 250);
+    Future.delayed(const Duration(milliseconds: 50), () {
       if (scrollController.hasClients) {
         scrollController.animateTo(
           scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
+          duration: duration,
           curve: Curves.easeOut,
         );
       }

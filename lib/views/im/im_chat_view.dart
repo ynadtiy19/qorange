@@ -4,11 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../controllers/im_chat_controller.dart';
+import '../../controllers/im_conversation_controller.dart';
 import '../../models/im_message_model.dart';
 import '../../user_controller.dart';
 import '../post_detail/post_detail_view.dart';
 
-class ImChatView extends StatelessWidget {
+class ImChatView extends StatefulWidget {
   final String conversationId;
   final String partnerId;
   final String partnerNickname;
@@ -24,21 +25,52 @@ class ImChatView extends StatelessWidget {
     this.initialRelationshipStatus = 'friend',
   });
 
+  @override
+  State<ImChatView> createState() => _ImChatViewState();
+}
+
+class _ImChatViewState extends State<ImChatView> {
+  late ImChatController _controller;
+  Worker? _userWorker;
+
   static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
   static const Color _bgSlate = Color(0xFFF8FAFC);
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.put(
+  void initState() {
+    super.initState();
+    // 1. 注入当前会话的独立控制器（以 conversationId 作为 Tag 隔离）
+    _controller = Get.put(
       ImChatController(
-        conversationId: conversationId,
-        partnerId: partnerId,
-        partnerNickname: partnerNickname,
+        conversationId: widget.conversationId,
+        partnerId: widget.partnerId,
+        partnerNickname: widget.partnerNickname,
       ),
-      tag: conversationId, // 标签隔离，防止多会话串流
+      tag: widget.conversationId,
     );
+    _controller.relationshipStatus.value = widget.initialRelationshipStatus;
 
-    controller.relationshipStatus.value = initialRelationshipStatus;
+    // 🌟 2. 监听登录/换账号状态变化：及时刷新聊天流
+    _userWorker = ever(UserController.to.user, (user) {
+      if (mounted) {
+        if (UserController.to.isLoggedIn) {
+          _controller.fetchHistoryMessages(refresh: true);
+        } else {
+          _controller.messages.clear();
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _userWorker?.dispose();
+    Get.delete<ImChatController>(tag: widget.conversationId);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final myId = UserController.to.user.value?.id ?? '';
 
     return Scaffold(
@@ -56,21 +88,36 @@ class ImChatView extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.network(partnerAvatar, width: 34, height: 34, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox()),
+              child: Image.network(
+                widget.partnerAvatar,
+                width: 34,
+                height: 34,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 34,
+                  height: 34,
+                  color: const Color(0xFFE2E8F0),
+                  child: const Icon(Icons.person, size: 18, color: Color(0xFF94A3B8)),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  partnerNickname,
+                  widget.partnerNickname,
                   style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.w700),
                 ),
                 Obx(() => Text(
-                  controller.relationshipStatus.value == 'stranger_pending' ? '陌生人消息请求' : '在线',
+                  _controller.relationshipStatus.value == 'stranger_pending'
+                      ? '陌生人消息请求'
+                      : (_controller.relationshipStatus.value == 'blocked' ? '已拉黑' : '在线'),
                   style: TextStyle(
                     fontSize: 11,
-                    color: controller.relationshipStatus.value == 'stranger_pending' ? const Color(0xFFD97706) : _primaryTeal,
+                    color: _controller.relationshipStatus.value == 'stranger_pending'
+                        ? const Color(0xFFD97706)
+                        : (_controller.relationshipStatus.value == 'blocked' ? const Color(0xFFEF4444) : _primaryTeal),
                     fontWeight: FontWeight.w600,
                   ),
                 )),
@@ -81,7 +128,7 @@ class ImChatView extends StatelessWidget {
         actions: [
           IconButton(
             icon: const HugeIcon(icon: HugeIcons.strokeRoundedMoreHorizontal, color: Color(0xFF64748B), size: 22),
-            onPressed: () => _showMoreOptionsModal(context, controller),
+            onPressed: () => _showMoreOptionsModal(context, _controller),
           ),
           const SizedBox(width: 4),
         ],
@@ -90,8 +137,8 @@ class ImChatView extends StatelessWidget {
         children: [
           // 1. 陌生人审核提示悬浮横幅
           Obx(() {
-            if (controller.relationshipStatus.value == 'stranger_pending') {
-              return _buildStrangerBanner(controller);
+            if (_controller.relationshipStatus.value == 'stranger_pending') {
+              return _buildStrangerBanner(_controller);
             }
             return const SizedBox.shrink();
           }),
@@ -99,16 +146,16 @@ class ImChatView extends StatelessWidget {
           // 2. 消息气泡流
           Expanded(
             child: Obx(() {
-              if (controller.isLoadingHistory.value && controller.messages.isEmpty) {
+              if (_controller.isLoadingHistory.value && _controller.messages.isEmpty) {
                 return const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2));
               }
 
               return ListView.builder(
-                controller: controller.scrollController,
+                controller: _controller.scrollController,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                itemCount: controller.messages.length,
+                itemCount: _controller.messages.length,
                 itemBuilder: (context, index) {
-                  final msg = controller.messages[index];
+                  final msg = _controller.messages[index];
                   final bool isMe = msg.senderId == myId;
                   return _buildMessageBubble(context, msg, isMe);
                 },
@@ -117,7 +164,7 @@ class ImChatView extends StatelessWidget {
           ),
 
           // 3. 底部自适应输入工具栏
-          _buildInputBar(context, controller),
+          _buildInputBar(context, _controller),
         ],
       ),
     );
@@ -203,7 +250,6 @@ class ImChatView extends StatelessWidget {
         child: Image.network(imgUrl, fit: BoxFit.cover),
       );
     } else if (msg.msgType == 'post_card') {
-      // 🌟 文章分享卡片
       final title = msg.payload['title']?.toString() ?? '文章推荐';
       final postId = msg.payload['post_id']?.toString() ?? '';
       return InkWell(
@@ -313,7 +359,7 @@ class ImChatView extends StatelessWidget {
               title: const Text('拉黑此用户', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600)),
               onTap: () {
                 Get.back();
-                // 触发拉黑 API
+                controller.blockUser();
               },
             ),
           ],

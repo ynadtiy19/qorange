@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:qorange/models/im_message_model.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../network/http_client.dart';
 import '../../user_controller.dart';
+import 'im_chat_controller.dart';
 
 class ImConversationController extends GetxController {
   static ImConversationController get to => Get.find<ImConversationController>();
@@ -70,6 +70,14 @@ class ImConversationController extends GetxController {
     if (newMsg.msgType == 'post_card') preview = '[文章推荐]';
     if (newMsg.msgType == 'poll_card') preview = '[投票邀请]';
 
+    // 检查当前用户是否正打开着这个会话窗口
+    bool isCurrentChatActive = false;
+    if (Get.isRegistered<ImChatController>(tag: newMsg.conversationId)) {
+      isCurrentChatActive = true;
+    }
+
+    final int unreadIncrement = isCurrentChatActive ? 0 : 1;
+
     if (index != -1) {
       final old = conversations[index];
       final updated = ImConversationModel(
@@ -80,7 +88,7 @@ class ImConversationController extends GetxController {
         partnerUsername: old.partnerUsername,
         lastMsgPreview: preview,
         lastMsgType: newMsg.msgType,
-        unreadCount: old.unreadCount + 1,
+        unreadCount: old.unreadCount + unreadIncrement,
         relationshipStatus: old.relationshipStatus,
         strangerMessageCount: old.strangerMessageCount,
         updatedAt: DateTime.now(),
@@ -98,7 +106,7 @@ class ImConversationController extends GetxController {
         partnerUsername: '',
         lastMsgPreview: preview,
         lastMsgType: newMsg.msgType,
-        unreadCount: 1,
+        unreadCount: unreadIncrement,
         relationshipStatus: 'stranger_pending',
         strangerMessageCount: 1,
         updatedAt: DateTime.now(),
