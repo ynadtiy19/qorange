@@ -60,7 +60,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'app_name'.tr,
+      title: 'Qorange',
       debugShowCheckedModeBanner: false,
       translations: AppTranslations(),
       locale: LanguageService.to.currentLocale,
