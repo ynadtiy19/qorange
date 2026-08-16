@@ -12,6 +12,7 @@ import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../network/auth_state_manager.dart';
 import '../../network/secure_storage_manager.dart';
+import '../im/im_chat_view.dart';
 import '../post_detail/post_detail_view.dart';
 import '../main/main_nav_view.dart';
 import '../login/login_view.dart';
@@ -208,6 +209,42 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
     super.dispose();
   }
 
+
+
+  /// 🌟 统一拉起与该创作者的 IM 私聊窗口
+  void _navigateToChat(Map<String, dynamic> profile) {
+    HapticFeedback.lightImpact();
+
+    // 1. 未登录拦截：跳转登录页
+    if (!UserController.to.isLoggedIn) {
+      Get.to(() => const LoginView(), transition: Transition.rightToLeftWithFade);
+      return;
+    }
+
+    final myId = UserController.to.user.value?.id ?? '';
+    final partnerId = profile['id']?.toString() ?? '';
+    if (partnerId.isEmpty || myId == partnerId) return;
+
+    // 2. 构造唯一会话 ID
+    final List<String> sortedIds = [myId, partnerId]..sort();
+    final String conversationId = 'CONV_${sortedIds[0]}_${sortedIds[1]}';
+
+    final bool isFollowing = profile['is_following'] == true;
+    final partnerAvatar = profile['avatar'] ?? '';
+    final partnerNickname = profile['nickname'] ?? '用户';
+
+    // 3. 进入聊天窗口
+    Get.to(
+          () => ImChatView(
+        conversationId: conversationId,
+        partnerId: partnerId,
+        partnerNickname: partnerNickname,
+        partnerAvatar: partnerAvatar,
+        initialRelationshipStatus: isFollowing ? 'accepted' : 'stranger_pending',
+      ),
+      transition: Transition.cupertino,
+    );
+  }
 
   // 解析并格式化注册时间：日期写法交由各语言词条决定 (中文 xxxx年xx月 / 英文 5/2026)
   String _getJoinedDateString(dynamic createdAt) {
@@ -430,31 +467,74 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                             const SizedBox(height: 4),
                             Text(handleText, style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
                             const SizedBox(height: 18),
-                            SizedBox(
-                              width: 220,
-                              height: 40,
-                              child: isMe
-                                  ? ElevatedButton.icon(
-                                onPressed: () => Get.to(() => const ProfileEditView())?.then((_) => _controller.loadProfile()),
-                                icon: const HugeIcon(icon: HugeIcons.strokeRoundedPencilEdit02, color: Colors.white, size: 16),
-                                label: Text('edit_profile'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF0066FF),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            // 🌟 核心修改：操作按钮区（自己主页显示编辑资料，他人主页显示【关注 + 发私信】双按钮）
+                            if (isMe)
+                              SizedBox(
+                                width: 220,
+                                height: 40,
+                                child: ElevatedButton.icon(
+                                  onPressed: () => Get.to(() => const ProfileEditView())?.then((_) => _controller.loadProfile()),
+                                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedPencilEdit02, color: Colors.white, size: 16),
+                                  label: Text('edit_profile'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF0066FF),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  ),
                                 ),
                               )
-                                  : ElevatedButton(
-                                onPressed: _controller.toggleFollow,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: profile['is_following'] ? Colors.grey.shade100 : themeColor,
-                                  foregroundColor: profile['is_following'] ? Colors.black87 : Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                ),
-                                child: Text(profile['is_following'] ? 'following_state'.tr : 'follow_them'.tr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                            else
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // 1. 关注 / 已关注 按钮
+                                  SizedBox(
+                                    width: 120,
+                                    height: 40,
+                                    child: ElevatedButton(
+                                      onPressed: _controller.toggleFollow,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: profile['is_following'] ? Colors.grey.shade100 : themeColor,
+                                        foregroundColor: profile['is_following'] ? Colors.black87 : Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                      ),
+                                      child: Text(
+                                        profile['is_following'] ? 'following_state'.tr : 'follow_them'.tr,
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+
+                                  // 2. 🌟 新增：高质感【发私信】按钮
+                                  SizedBox(
+                                    width: 110,
+                                    height: 40,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () => _navigateToChat(profile),
+                                      icon: HugeIcon(
+                                        icon: HugeIcons.strokeRoundedBubbleChat,
+                                        color: themeColor,
+                                        size: 16,
+                                      ),
+                                      label: const Text(
+                                        '发私信',
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFEBF5F3),
+                                        foregroundColor: themeColor,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(20),
+                                          side: BorderSide(color: themeColor.withOpacity(0.2), width: 1),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
                             const SizedBox(height: 24),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
