@@ -187,6 +187,27 @@ class HttpClient {
     }
   }
 
+  /// 🌟 发送纯二进制字节流 (图片 / 声音文件) —— 复用统一管道，享受自动加签与日志
+  Future<ApiResponse<T>> postBinary<T>(
+      String path, {
+        required Uint8List data,
+        Map<String, dynamic>? queryParameters,
+        Duration? sendTimeout,
+        Duration? receiveTimeout,
+      }) async {
+    return _request<T>(
+      path,
+      method: 'POST',
+      data: data, // Dio 原生支持直接传入 Uint8List
+      queryParameters: queryParameters,
+      headers: {
+        'Content-Type': 'application/octet-stream',
+      },
+      sendTimeout: sendTimeout,
+      receiveTimeout: receiveTimeout,
+    );
+  }
+
   Future<Stream<Uint8List>> postStream(
       String path, {
         dynamic data,
