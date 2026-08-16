@@ -1,6 +1,9 @@
 // lib/views/im/im_chat_view.dart
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -8,6 +11,8 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../controllers/im_chat_controller.dart';
 import '../../models/im_message_model.dart';
@@ -39,6 +44,11 @@ class _ImChatViewState extends State<ImChatView> {
   late ImChatController _controller;
   Worker? _userWorker;
 
+  // 全局语音播放器管理
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  String _currentlyPlayingUrl = '';
+  bool _isPlayingAudio = false;
+
   static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
   static const Color _goldAccent = Color(0xFFD97706);
   static const Color _bgSlate = Color(0xFFF8FAFC);
@@ -67,13 +77,50 @@ class _ImChatViewState extends State<ImChatView> {
         }
       }
     });
+
+    // 监听音频播放状态
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isPlayingAudio = state == PlayerState.playing;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _userWorker?.dispose();
+    _audioPlayer.dispose();
     Get.delete<ImChatController>(tag: widget.conversationId);
     super.dispose();
+  }
+
+  /// 🌟 播放/暂停远程音频
+  void _togglePlayAudio(String audioUrl) async {
+    if (audioUrl.isEmpty) return;
+    HapticFeedback.lightImpact();
+
+    if (_currentlyPlayingUrl == audioUrl && _isPlayingAudio) {
+      await _audioPlayer.pause();
+    } else {
+      _currentlyPlayingUrl = audioUrl;
+      await _audioPlayer.stop();
+      await _audioPlayer.play(UrlSource(audioUrl));
+    }
+  }
+
+  /// 🌟 生成 Cloudinary 专属声波波形 PNG 直链
+  String _getCloudinaryWaveformUrl(String audioUrl, {bool isMe = false}) {
+    if (!audioUrl.contains('cloudinary.com')) return '';
+    // 将 .m4a / .mp3 / .aac 替换为 .png
+    final pngUrl = audioUrl.replaceAll(RegExp(r'\.(m4a|mp3|aac|wav|ogg)$', caseSensitive: false), '.png');
+    // 根据己方/对方自动设定声波柱颜色：己方白声波，对方青橙绿声波
+    final colorParam = isMe ? 'co_rgb:ffffff' : 'co_rgb:2C7B6D';
+    if (pngUrl.contains('/upload/')) {
+      return pngUrl.replaceFirst('/upload/', '/upload/w_140,h_28,c_fill,b_transparent,$colorParam/');
+    }
+    return pngUrl;
   }
 
   @override
@@ -82,7 +129,7 @@ class _ImChatViewState extends State<ImChatView> {
 
     return Scaffold(
       backgroundColor: _bgSlate,
-      resizeToAvoidBottomInset: true, // 🌟 键盘弹出时平滑撑起
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -148,7 +195,7 @@ class _ImChatViewState extends State<ImChatView> {
       ),
       body: Stack(
         children: [
-          // 🌟 1. 自定义壁纸背景层
+          // 1. 自定义壁纸背景层
           Positioned.fill(
             child: Obx(() {
               if (_controller.customBgPath.value.isNotEmpty) {
@@ -170,7 +217,7 @@ class _ImChatViewState extends State<ImChatView> {
             );
           }),
 
-          // 🌟 2. 核心主内容区
+          // 2. 主内容区
           Column(
             children: [
               // 陌生人审核提示横幅
@@ -181,7 +228,7 @@ class _ImChatViewState extends State<ImChatView> {
                 return const SizedBox.shrink();
               }),
 
-              // 🌟 核心：reverse: true 聊天消息列表 (天然在底部，向上加载历史)
+              // 消息气泡列表 (reverse: true 架构)
               Expanded(
                 child: Stack(
                   children: [
@@ -192,7 +239,7 @@ class _ImChatViewState extends State<ImChatView> {
 
                       return ListView.builder(
                         controller: _controller.scrollController,
-                        reverse: true, // 🌟 index 0 为最新消息位于最底部
+                        reverse: true, // index 0 为最新消息
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         itemCount: _controller.messages.length,
                         itemBuilder: (context, index) {
@@ -203,13 +250,13 @@ class _ImChatViewState extends State<ImChatView> {
                       );
                     }),
 
-                    // 🌟 悬浮回底按钮 / 新消息动态胶囊
+                    // 悬浮回底按钮 / 新消息动态胶囊
                     _buildFloatingScrollDownButton(),
                   ],
                 ),
               ),
 
-              // 底部自适应输入栏
+              // 底部自适应多行输入栏
               _buildInputBar(context),
 
               // 展开的多功能操作盘
@@ -224,7 +271,7 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 🌟 自适应返回底部/新消息动态悬浮胶囊
+  /// 自适应返回底部/新消息动态悬浮胶囊
   Widget _buildFloatingScrollDownButton() {
     return Positioned(
       right: 16,
@@ -322,7 +369,7 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 🌟 包含长按撤回/复制交互的气泡包装项
+  /// 包含长按撤回/复制交互的气泡包装项
   Widget _buildMessageBubbleItem(BuildContext context, ImMessageModel msg, bool isMe) {
     return GestureDetector(
       onLongPress: () => _showMessageContextMenu(context, msg, isMe),
@@ -373,7 +420,7 @@ class _ImChatViewState extends State<ImChatView> {
       );
     }
 
-    // 2. 🌟 图片消息 (点击打开全功能手势缩放查看器)
+    // 2. 图片消息 (点击打开手势缩放查看器)
     else if (msg.msgType == 'image') {
       final imgUrl = msg.payload['url']?.toString() ?? '';
       return InkWell(
@@ -395,7 +442,63 @@ class _ImChatViewState extends State<ImChatView> {
       );
     }
 
-    // 3. 青橙币直接转账
+    // 3. 🌟 语音消息气泡 (真实播放 + Cloudinary 自动声波 PNG 渲染)
+    else if (msg.msgType == 'voice') {
+      final String audioUrl = msg.payload['url']?.toString() ?? '';
+      final int duration = int.tryParse(msg.payload['duration_sec']?.toString() ?? '0') ?? 0;
+      final bool isCurrentActive = _currentlyPlayingUrl == audioUrl && _isPlayingAudio;
+      final String waveformPngUrl = _getCloudinaryWaveformUrl(audioUrl, isMe: isMe);
+
+      return InkWell(
+        onTap: () => _togglePlayAudio(audioUrl),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 播放/暂停图标
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isMe ? Colors.white.withOpacity(0.2) : _primaryTeal.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isCurrentActive ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: textColor,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // 🌟 声波展示区：优先加载 Cloudinary 云端计算出的真实声波 PNG
+              if (waveformPngUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.network(
+                    waveformPngUrl,
+                    width: 110,
+                    height: 24,
+                    fit: BoxFit.fill,
+                    errorBuilder: (_, __, ___) => _buildFallbackWaveform(textColor),
+                  ),
+                )
+              else
+                _buildFallbackWaveform(textColor),
+
+              const SizedBox(width: 10),
+              Text(
+                '$duration"',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: textColor),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 4. 青橙币直接转账
     else if (msg.msgType == 'token_transfer') {
       final double tokens = double.tryParse(msg.payload['tokens']?.toString() ?? '0') ?? 0.0;
       final String remark = msg.payload['remark']?.toString() ?? '青橙币转账';
@@ -428,7 +531,7 @@ class _ImChatViewState extends State<ImChatView> {
       );
     }
 
-    // 4. 青橙币请款收款单
+    // 5. 青橙币请款收款单
     else if (msg.msgType == 'token_request') {
       final double tokens = double.tryParse(msg.payload['tokens']?.toString() ?? '0') ?? 0.0;
       final String remark = msg.payload['remark']?.toString() ?? '请款单';
@@ -475,7 +578,7 @@ class _ImChatViewState extends State<ImChatView> {
       );
     }
 
-    // 5. 文章推荐卡片
+    // 6. 文章推荐卡片
     else if (msg.msgType == 'post_card') {
       final title = msg.payload['title']?.toString() ?? '文章推荐';
       final postId = msg.payload['post_id']?.toString() ?? '';
@@ -508,7 +611,25 @@ class _ImChatViewState extends State<ImChatView> {
     return Text(msg.payload['text']?.toString() ?? '[消息]', style: TextStyle(color: textColor));
   }
 
-  /// 🌟 长按消息气泡上下文菜单 (2分钟内撤回与复制)
+  Widget _buildFallbackWaveform(Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(
+        10,
+            (i) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+          width: 2.5,
+          height: (8 + (i % 4) * 4).toDouble(),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 长按消息气泡菜单
   void _showMessageContextMenu(BuildContext context, ImMessageModel msg, bool isMe) {
     HapticFeedback.mediumImpact();
     final bool canRevoke = isMe && !msg.isRevoked && DateTime.now().difference(msg.createdAt).inMinutes < 2;
@@ -548,7 +669,7 @@ class _ImChatViewState extends State<ImChatView> {
     );
   }
 
-  /// 🌟 打开支持双击缩放、手势捏合与本地保存的图片预览器
+  /// 打开全功能手势缩放图片预览页
   void _openInteractiveImageViewer(BuildContext context, String imageUrl) {
     HapticFeedback.lightImpact();
     Get.to(
@@ -661,6 +782,17 @@ class _ImChatViewState extends State<ImChatView> {
         crossAxisSpacing: 12,
         physics: const NeverScrollableScrollPhysics(),
         children: [
+          // 1. 语音留言
+          _buildActionItem(
+            icon: HugeIcons.strokeRoundedMic01,
+            label: '语音留言',
+            color: const Color(0xFFEF4444),
+            onTap: () {
+              _controller.isAttachmentOpen.value = false;
+              _showVoiceRecordDialog(context);
+            },
+          ),
+          // 2. 拍照
           _buildActionItem(
             icon: HugeIcons.strokeRoundedCamera01,
             label: '拍照',
@@ -670,6 +802,7 @@ class _ImChatViewState extends State<ImChatView> {
               _controller.pickAndSendImage(ImageSource.camera);
             },
           ),
+          // 3. 相册图片
           _buildActionItem(
             icon: HugeIcons.strokeRoundedImage02,
             label: '相册图片',
@@ -679,6 +812,7 @@ class _ImChatViewState extends State<ImChatView> {
               _controller.pickAndSendImage(ImageSource.gallery);
             },
           ),
+          // 4. 发送青橙币
           _buildActionItem(
             icon: HugeIcons.strokeRoundedCoins01,
             label: '发送青橙币',
@@ -688,6 +822,7 @@ class _ImChatViewState extends State<ImChatView> {
               _showTokenTransferDialog(context);
             },
           ),
+          // 5. 发起收款
           _buildActionItem(
             icon: HugeIcons.strokeRoundedReceiptDollar,
             label: '发起收款',
@@ -697,6 +832,7 @@ class _ImChatViewState extends State<ImChatView> {
               _showTokenRequestDialog(context);
             },
           ),
+          // 6. 更换壁纸
           _buildActionItem(
             icon: HugeIcons.strokeRoundedPaintBoard,
             label: '更换壁纸',
@@ -738,6 +874,19 @@ class _ImChatViewState extends State<ImChatView> {
           Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
         ],
       ),
+    );
+  }
+
+  /// 🌟 录音与实时波形采集弹窗
+  void _showVoiceRecordDialog(BuildContext context) {
+    Get.bottomSheet(
+      _VoiceRecordBottomSheet(
+        onVoiceRecorded: (audioBytes, durationSec) {
+          _controller.sendVoiceMessage(audioBytes: audioBytes, durationSec: durationSec);
+        },
+      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 
@@ -931,6 +1080,172 @@ class _ImChatViewState extends State<ImChatView> {
   }
 }
 
+/// 🌟 极简高颜值录音采集抽屉 (带脉冲声波与计时器)
+class _VoiceRecordBottomSheet extends StatefulWidget {
+  final Function(Uint8List audioBytes, int durationSec) onVoiceRecorded;
+
+  const _VoiceRecordBottomSheet({required this.onVoiceRecorded});
+
+  @override
+  State<_VoiceRecordBottomSheet> createState() => _VoiceRecordBottomSheetState();
+}
+
+class _VoiceRecordBottomSheetState extends State<_VoiceRecordBottomSheet> {
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  bool _isRecording = false;
+  int _recordDuration = 0;
+  Timer? _timer;
+  String? _recordedFilePath;
+
+  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+
+  @override
+  void initState() {
+    super.initState();
+    _startRecording();
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final Directory tempDir = await getTemporaryDirectory();
+        _recordedFilePath = '${tempDir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+        await _audioRecorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100),
+          path: _recordedFilePath!,
+        );
+
+        HapticFeedback.mediumImpact();
+        setState(() {
+          _isRecording = true;
+          _recordDuration = 0;
+        });
+
+        _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+          setState(() {
+            _recordDuration++;
+          });
+        });
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: '无法开启麦克风录音: $e');
+      Get.back();
+    }
+  }
+
+  Future<void> _stopAndSend() async {
+    _timer?.cancel();
+    HapticFeedback.lightImpact();
+
+    final path = await _audioRecorder.stop();
+    setState(() {
+      _isRecording = false;
+    });
+
+    if (path != null && _recordDuration >= 1) {
+      final file = File(path);
+      if (await file.exists()) {
+        final Uint8List bytes = await file.readAsBytes();
+        Get.back();
+        widget.onVoiceRecorded(bytes, _recordDuration);
+      }
+    } else {
+      Fluttertoast.showToast(msg: '录音时间太短');
+      Get.back();
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    _timer?.cancel();
+    await _audioRecorder.stop();
+    HapticFeedback.lightImpact();
+    if (_recordedFilePath != null) {
+      final file = File(_recordedFilePath!);
+      if (await file.exists()) await file.delete();
+    }
+    Get.back();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _audioRecorder.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String minutes = (_recordDuration ~/ 60).toString().padLeft(2, '0');
+    final String seconds = (_recordDuration % 60).toString().padLeft(2, '0');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('正在录制语音留言', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+          const SizedBox(height: 18),
+
+          // 录音计时器
+          Text(
+            '$minutes:$seconds',
+            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: _primaryTeal, letterSpacing: 1),
+          ),
+          const SizedBox(height: 24),
+
+          // 脉冲呼吸麦克风动效
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEF4444).withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                child: const Icon(Icons.mic_rounded, color: Colors.white, size: 30),
+              ),
+            ),
+          ).animate(onPlay: (controller) => controller.repeat(reverse: true)).scale(begin: const Offset(1, 1), end: const Offset(1.15, 1.15), duration: 800.ms),
+
+          const SizedBox(height: 32),
+
+          // 操作按钮 (取消 / 发送)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              TextButton.icon(
+                onPressed: _cancelRecording,
+                icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8)),
+                label: const Text('取消', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w600, fontSize: 14)),
+              ),
+              ElevatedButton.icon(
+                onPressed: _stopAndSend,
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: const Text('发送语音', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryTeal,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 🌟 全屏沉浸式图片预览页 (支持双指缩放、双击缩放、手势拖拽退出与本地保存)
 class _InteractiveImagePreviewPage extends StatefulWidget {
   final String imageUrl;
@@ -951,10 +1266,8 @@ class _InteractiveImagePreviewPageState extends State<_InteractiveImagePreviewPa
 
   void _handleDoubleTap() {
     if (_transformController.value != Matrix4.identity()) {
-      // 已经放大过，双击还原
       _transformController.value = Matrix4.identity();
     } else {
-      // 双击放大 2.5 倍
       final position = _doubleTapDetails?.localPosition ?? Offset.zero;
       _transformController.value = Matrix4.identity()
         ..translate(-position.dx * 1.5, -position.dy * 1.5)

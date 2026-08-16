@@ -57,6 +57,8 @@ dependencies:
   open_filex: ^4.7.0
   webview_flutter: ^4.14.1
   package_info_plus: ^9.0.1
+  record: ^7.1.1
+  audioplayers: ^6.8.1
 
   flutter_local_notifications: ^19.5.0
   at_client: ^3.9.2

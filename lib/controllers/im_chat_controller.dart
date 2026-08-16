@@ -252,6 +252,45 @@ class ImChatController extends GetxController {
     }
   }
 
+  /// 🌟 录音二进制数据上传至后端 Cloudinary 并发送语音消息
+  Future<void> sendVoiceMessage({
+    required Uint8List audioBytes,
+    required int durationSec,
+  }) async {
+    if (audioBytes.isEmpty || durationSec <= 0) return;
+
+    try {
+      isUploadingMedia.value = true;
+      Fluttertoast.showToast(msg: '正在发送语音...');
+
+      // 1. 发送录音纯二进制流 (type=voice&ext=m4a)
+      final res = await HttpClient.instance.postBinary<Map<String, dynamic>>(
+        '/api-im/upload?type=voice&ext=m4a',
+        data: audioBytes,
+      );
+
+      if (res.datas != null && res.datas!['url'] != null) {
+        final String audioUrl = res.datas!['url'].toString();
+        final int finalDuration = res.datas!['duration_sec'] as int? ?? durationSec;
+
+        // 2. 发送语音消息信封
+        await sendMessage(
+          msgType: 'voice',
+          payload: {
+            'url': audioUrl,
+            'duration_sec': finalDuration,
+          },
+        );
+      } else {
+        Fluttertoast.showToast(msg: '语音上传失败');
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: '发送语音异常: $e');
+    } finally {
+      isUploadingMedia.value = false;
+    }
+  }
+
   /// 🌟 保存网络图片到本地设备
   Future<void> saveImageToDevice(String imageUrl) async {
     try {
