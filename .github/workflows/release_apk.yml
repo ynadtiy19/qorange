@@ -16,21 +16,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出代码
+      # 1. 检出代码（完整拉取 Git 历史以准确读取 Commit Log）
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 2. 深度优化 gradle.properties：清理代理 + 调整内存 + 开启并行与构建缓存
       - name: Optimize gradle.properties
         run: |
           if [ -f "android/gradle.properties" ]; then
-            # 清除本地代理
             sed -i '/systemProp\.http/d' android/gradle.properties
             sed -i '/systemProp\.https/d' android/gradle.properties
-            # 限制内存到 3.5G 避免 GitHub Actions OOM
             sed -i 's/-Xmx[0-9]*[gG]/-Xmx3584m/g' android/gradle.properties
             sed -i 's/-XX:MaxMetaspaceSize=[0-9]*[gG]/-XX:MaxMetaspaceSize=512m/g' android/gradle.properties
-            # 开启 Gradle 构建缓存与并行编译加速
             echo "org.gradle.caching=true" >> android/gradle.properties
             echo "org.gradle.parallel=true" >> android/gradle.properties
           fi
@@ -54,9 +53,9 @@ jobs:
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: false # 允许写入并更新缓存
+          cache-read-only: false
 
-      # 6. 设置 C/C++ 编译缓存（加速 CMake 与 Native 库编译）
+      # 6. 设置 C/C++ 编译缓存
       - name: Setup ccache for C/C++ Native Code
         uses: hendrikmuhs/ccache-action@v1.2
         with:
@@ -113,48 +112,62 @@ jobs:
           name: qorange-${{ steps.meta.outputs.safe_branch }}-apks
           path: build/app/outputs/flutter-apk/qorange-${{ steps.meta.outputs.safe_branch }}-*.apk
 
-      # 12. 发布到 GitHub Releases
-      - name: Create or Update Branch Release
-        uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # 🌟 必须使用替换掉斜杠的纯净 Tag 名称 (如 release-arena_01a004f0-qorange)
-          tag_name: release-${{ steps.meta.outputs.safe_branch }}
-          target_commitish: ${{ github.sha }}
-          name: "Release [${{ github.ref_name }}]"
-          body: |
-            ### 构建信息
-            - **分支**: `${{ github.ref_name }}`
-            - **Commit**: `${{ github.sha }}`
-            - **构建时间**: ${{ github.event.head_commit.timestamp || 'Manual Trigger' }}
-            
-            ### 架构下载建议：
-            - **arm64-v8a**: 推荐大多数现代安卓手机下载（体积最小）
-            - **armeabi-v7a**: 适用于老旧 32 位手机
-            - **x86_64**: 适用于电脑模拟器
-          prerelease: ${{ github.ref_name != 'main' }}
-          make_latest: ${{ github.ref_name == 'main' }}
-          overwrite_files: true
-          files: |
-            build/app/outputs/flutter-apk/qorange-${{ steps.meta.outputs.safe_branch }}-*.apk
+      # 12. 🌟 核心升级：改用 GitHub 官方原生 CLI (gh) 发布，彻底消灭 503 与分支解析错误
+      - name: Publish Release via GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SAFE_BRANCH="${{ steps.meta.outputs.safe_branch }}"
+          TAG_NAME="release-${SAFE_BRANCH}"
+          TITLE="Release [${{ github.ref_name }}]"
+          
+          BODY="### 构建信息
+          - **分支**: \`${{ github.ref_name }}\`
+          - **Commit**: \`${{ github.sha }}\`
+          - **构建时间**: $(date '+%Y-%m-%d %H:%M:%S')
+          
+          ### 架构下载建议：
+          - **arm64-v8a**: 推荐大多数现代安卓手机下载（体积最小）
+          - **armeabi-v7a**: 适用于老旧 32 位手机
+          - **x86_64**: 适用于电脑模拟器"
+
+          echo "Publishing release for tag: $TAG_NAME ..."
+
+          # 检查 Release 是否已存在，存在则更新，不存在则新建
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME exists. Updating release info and assets..."
+            gh release edit "$TAG_NAME" --title "$TITLE" --notes "$BODY" --target "${{ github.sha }}"
+            gh release upload "$TAG_NAME" build/app/outputs/flutter-apk/qorange-${SAFE_BRANCH}-*.apk --clobber
+          else
+            echo "Creating new release $TAG_NAME..."
+            gh release create "$TAG_NAME" build/app/outputs/flutter-apk/qorange-${SAFE_BRANCH}-*.apk \
+              --title "$TITLE" \
+              --notes "$BODY" \
+              --target "${{ github.sha }}" \
+              --clobber \
+              --prerelease
+          fi
+
       # 13. 打包发布成功后，自动从 pubspec.yaml 提取版本号写入 MongoDB
       - name: Sync Release to MongoDB
         run: |
           SAFE_BRANCH="${{ steps.meta.outputs.safe_branch }}"
           APK_URL="https://github.com/ynadtiy19/qorange/releases/download/release-${SAFE_BRANCH}/qorange-${SAFE_BRANCH}-arm64-v8a.apk"
           
-          # 🌟 自动提取版本名 (1.9.0) 与构建号 (2)
+          # 自动从 pubspec.yaml 提取版本名称 (如 1.9.0) 与构建号 (如 2)
           APP_VERSION=$(grep 'version:' pubspec.yaml | head -n1 | cut -d ' ' -f2 | cut -d '+' -f1)
           BUILD_NUMBER=$(grep 'version:' pubspec.yaml | head -n1 | cut -d '+' -f2)
           if [ -z "$BUILD_NUMBER" ]; then
             BUILD_NUMBER="${{ github.run_number }}"
           fi
 
+          # 自动提取最后一次提交的 commit 说明
           COMMIT_MSG=$(git log -1 --pretty=%B | tr '\n' ' ' | sed 's/"/\\"/g')
           if [ -z "$COMMIT_MSG" ]; then
             COMMIT_MSG="升级至 v${APP_VERSION}，优化系统稳定性"
           fi
           
+          # 将包含 version 与 build_number 的完整数据同步至后端
           curl -s -X POST "https://googlechat.zeabur.app/api/publish-release" \
             -H "Content-Type: application/json" \
             -d "{
