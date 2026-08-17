@@ -118,7 +118,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # 🌟 必须使用替换掉斜杠的纯净 Tag 名称 (如 release-arena_01a004f0-qorange)
           tag_name: release-${{ steps.meta.outputs.safe_branch }}
+          target_commitish: ${{ github.sha }}
           name: "Release [${{ github.ref_name }}]"
           body: |
             ### 构建信息
@@ -135,7 +137,6 @@ jobs:
           overwrite_files: true
           files: |
             build/app/outputs/flutter-apk/qorange-${{ steps.meta.outputs.safe_branch }}-*.apk
-
       # 13. 打包发布成功后，自动从 pubspec.yaml 提取版本号写入 MongoDB
       - name: Sync Release to MongoDB
         run: |
