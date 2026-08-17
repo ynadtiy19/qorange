@@ -112,7 +112,7 @@ jobs:
           name: qorange-${{ steps.meta.outputs.safe_branch }}-apks
           path: build/app/outputs/flutter-apk/qorange-${{ steps.meta.outputs.safe_branch }}-*.apk
 
-      # 12. 🌟 核心升级：改用 GitHub 官方原生 CLI (gh) 发布，彻底消灭 503 与分支解析错误
+      # 12. 发布到 GitHub Releases（官方原生 CLI 修正版）
       - name: Publish Release via GitHub CLI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,21 +133,20 @@ jobs:
 
           echo "Publishing release for tag: $TAG_NAME ..."
 
-          # 检查 Release 是否已存在，存在则更新，不存在则新建
+          # 检查 Release 是否已存在
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             echo "Release $TAG_NAME exists. Updating release info and assets..."
             gh release edit "$TAG_NAME" --title "$TITLE" --notes "$BODY" --target "${{ github.sha }}"
             gh release upload "$TAG_NAME" build/app/outputs/flutter-apk/qorange-${SAFE_BRANCH}-*.apk --clobber
           else
             echo "Creating new release $TAG_NAME..."
+            # 🌟 修复：创建时去除 --clobber 参数
             gh release create "$TAG_NAME" build/app/outputs/flutter-apk/qorange-${SAFE_BRANCH}-*.apk \
               --title "$TITLE" \
               --notes "$BODY" \
               --target "${{ github.sha }}" \
-              --clobber \
               --prerelease
           fi
-
       # 13. 打包发布成功后，自动从 pubspec.yaml 提取版本号写入 MongoDB
       - name: Sync Release to MongoDB
         run: |
