@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../network/http_client.dart';
 import '../views/post_detail/post_detail_view.dart';
 import '../views/profile/profile_view.dart';
 import 'push_notification_model.dart';
@@ -96,79 +97,120 @@ class NotificationHandlerService extends GetxService {
   /// 🌟 启动时自动检查更新：精准上报本地编译包信息
   Future<void> checkForUpdate({bool isManualCheck = false}) async {
     if (_isChecking) return;
+
     _isChecking = true;
 
     try {
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      final String lastIgnoredTag = prefs.getString('ignored_update_tag') ?? '';
+      final SharedPreferences prefs =
+      await SharedPreferences.getInstance();
 
-      final response = await http.post(
-        Uri.parse('$backendApiUrl/api/check-update'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final String lastIgnoredTag =
+          prefs.getString('ignored_update_tag') ?? '';
+
+      final response =
+      await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api/check-update',
+        data: {
           'branch': appBranch,
           'version': packageInfo.version,
-          'build_number': int.tryParse(packageInfo.buildNumber) ?? 1,
+          'build_number':
+          int.tryParse(packageInfo.buildNumber) ?? 1,
           'arch': 'arm64-v8a',
-        }),
-      ).timeout(const Duration(seconds: 6));
+        },
+        receiveTimeout: const Duration(seconds: 6),
+      );
 
-      if (response.statusCode == 200) {
-        final json = jsonDecode(utf8.decode(response.bodyBytes));
-        final datas = json['datas'] as Map<String, dynamic>?;
+      final Map<String, dynamic>? datas = response.datas;
 
-        if (datas != null && datas['has_update'] == true) {
-          final String tag = datas['tag_name'] ?? 'New Version';
+      if (datas != null && datas['has_update'] == true) {
+        final String tag =
+            datas['tag_name']?.toString() ?? 'New Version';
 
-          if (!isManualCheck && lastIgnoredTag == tag) {
-            _isChecking = false;
-            return;
-          }
+        if (!isManualCheck && lastIgnoredTag == tag) {
+          _isChecking = false;
+          return;
+        }
 
-          final String wssUrl = datas['wss_download_url'] ?? '';
-          final String fallbackUrl = datas['download_url'] ?? '';
-          final String rawChangelog = datas['changelog'] ?? '优化系统流畅度与稳定性';
-          final String cleanChangelog = _cleanMarkdownText(rawChangelog);
+        final String wssUrl =
+            datas['wss_download_url']?.toString() ?? '';
 
-          // 🌟 1. 弹出牢牢固定、只能手动点击关闭的居中弹窗
-          _showRefinedUpdateDialog(
-            tag: tag,
-            changelog: cleanChangelog,
-            onIgnore: () async {
-              Get.back();
-              await prefs.setString('ignored_update_tag', tag);
-            },
-            onConfirm: () async {
-              Get.back();
-              await prefs.remove('ignored_update_tag');
-              if (wssUrl.isNotEmpty) {
-                _startAppUpdateDownloadWss(wssUrl, fallbackUrl);
-              } else if (fallbackUrl.isNotEmpty) {
-                _startAppUpdateDownload(fallbackUrl);
-              }
-            },
+        final String fallbackUrl =
+            datas['download_url']?.toString() ?? '';
+
+        final String rawChangelog =
+            datas['changelog']?.toString() ??
+                '优化系统流畅度与稳定性';
+
+        final String cleanChangelog =
+        _cleanMarkdownText(rawChangelog);
+
+        // 🌟 1. 弹出牢牢固定、只能手动点击关闭的居中弹窗
+        _showRefinedUpdateDialog(
+          tag: tag,
+          changelog: cleanChangelog,
+          onIgnore: () async {
+            Get.back();
+
+            await prefs.setString(
+              'ignored_update_tag',
+              tag,
+            );
+          },
+          onConfirm: () async {
+            Get.back();
+
+            await prefs.remove(
+              'ignored_update_tag',
+            );
+
+            if (wssUrl.isNotEmpty) {
+              _startAppUpdateDownloadWss(
+                wssUrl,
+                fallbackUrl,
+              );
+            } else if (fallbackUrl.isNotEmpty) {
+              _startAppUpdateDownload(
+                fallbackUrl,
+              );
+            }
+          },
+        );
+
+        // 🌟 2. 同时向通知栏发送常驻通知卡片
+        await _showUpdateAvailableNotification(
+          tag: tag,
+          notes: cleanChangelog,
+          downloadUrl: fallbackUrl,
+          wssUrl: wssUrl,
+        );
+      } else {
+        if (isManualCheck) {
+          Fluttertoast.showToast(
+            msg:
+            '当前已是最新版本 (${packageInfo.version}+${packageInfo.buildNumber})',
           );
-
-          // 🌟 2. 同时向通知栏发送常驻通知卡片
-          await _showUpdateAvailableNotification(
-            tag: tag,
-            notes: cleanChangelog,
-            downloadUrl: fallbackUrl,
-            wssUrl: wssUrl,
-          );
-        } else if (isManualCheck) {
-          Fluttertoast.showToast(msg: '当前已是最新版本 (${packageInfo.version})');
         }
       }
-    } catch (e) {
-      debugPrint("❌ [AppUpdate] 自动检查更新异常: $e");
+    } catch (e, stackTrace) {
+      debugPrint(
+        '❌ [AppUpdate] 自动检查更新异常: $e',
+      );
+
+      debugPrint(
+        '❌ [AppUpdate] StackTrace: $stackTrace',
+      );
+
+      if (isManualCheck) {
+        Fluttertoast.showToast(
+          msg: '检查更新失败，请稍后重试',
+        );
+      }
     } finally {
       _isChecking = false;
     }
   }
-
   String _cleanMarkdownText(String raw) {
     return raw
         .replaceAll(RegExp(r'#{1,6}\s*'), '')
