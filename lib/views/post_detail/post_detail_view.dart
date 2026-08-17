@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../user_controller.dart';
+import '../../widgets/post_share_to_chat_sheet.dart';
 import '../../widgets/quill_custom_divider.dart';
 import '../../services/quill_translation_service.dart';
 import '../profile/profile_view.dart';
@@ -434,20 +435,24 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
       return;
     }
 
-// 1. 尝试拉取关注列表，即使失败也允许用户继续进行外部链接分享
-    List<dynamic> topFollowed = [];
+    const themeColor = Color.fromRGBO(44, 123, 109, 1.0);
+
+    // 🌟 核心优化：复用极简的 /api-im/contacts 接口，秒级拉取关注与私聊去重好友
+    List<dynamic> contacts = [];
     try {
-      final res = await HttpClient.instance.get<Map<String, dynamic>>('/api-users/profile');
-      topFollowed = res.datas?['top_followed_users'] as List? ?? [];
+      final res = await HttpClient.instance.get<List<dynamic>>('/api-im/contacts');
+      contacts = res.datas ?? [];
     } catch (e) {
-// 仅作轻提示，不中断后续外部链接分享的操作
       Fluttertoast.showToast(msg: 'load_followers_failed'.tr);
     }
 
-// 拼接需要分享的外部链接
+    // 拼接需要分享的外部链接
     final String shareUrl = "https://posts.zeabur.app/?id=${widget.postId}";
+    final String currentTitle = _post?['title']?.toString() ?? '文章分享';
+    final String currentThumbnail = _post?['thumbnail']?.toString() ?? '';
+    final String currentCategory = _post?['category']?.toString() ?? 'general';
 
-// 2. 唤起重构后的现代化二级分享面板
+    // 2. 唤起现代化二级分享面板
     Get.bottomSheet(
       Container(
         decoration: const BoxDecoration(
@@ -466,7 +471,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-// 顶部下拉条指示器
+              // 顶部下拉条指示器
               Container(
                 width: 36,
                 height: 4,
@@ -477,7 +482,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 ),
               ),
 
-// 标题头部栏
+              // 标题头部栏
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -503,7 +508,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               ),
               const SizedBox(height: 16),
 
-// ================== 第一层：站内好友定向分享 ==================
+              // ================== 第一层：站内关注好友头像快捷分享 ==================
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -520,7 +525,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
               SizedBox(
                 height: 96,
-                child: topFollowed.isEmpty
+                child: contacts.isEmpty
                     ? Container(
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
@@ -546,9 +551,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 )
                     : ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  itemCount: topFollowed.length,
+                  itemCount: contacts.length,
                   itemBuilder: (context, index) {
-                    final f = topFollowed[index];
+                    final f = contacts[index];
                     final avatarUrl = f['avatar'] as String? ?? '';
                     final nickname = f['nickname'] as String? ?? 'user'.tr;
 
@@ -617,7 +622,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 child: Divider(color: Colors.grey[100], thickness: 1, height: 1),
               ),
 
-// ================== 第二层：外部链接与应用分享 ==================
+              // ================== 第二层：微操作单元 (支持水平滚动) ==================
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -632,86 +637,113 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               ),
               const SizedBox(height: 12),
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-// 1. 复制外部链接
-                  _buildShareOption(
-                    icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedCopy01,
-                      color: Colors.black87,
-                      size: 22,
+              // 🌟 核心改进：用 SingleChildScrollView 支持平滑横向滚动，容纳 5 大操作项
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    // 🌟 1. 新增：私信好友 (拉起 PostShareToChatSheet)
+                    _buildShareOption(
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedBubbleChat,
+                        color: themeColor,
+                        size: 22,
+                      ),
+                      label: '私信转发',
+                      onTap: () {
+                        Get.back(); // 关闭外层主面板
+                        Get.bottomSheet(
+                          PostShareToChatSheet(
+                            postId: widget.postId,
+                            postTitle: currentTitle,
+                            postThumbnail: currentThumbnail,
+                            postCategory: currentCategory,
+                          ),
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                        );
+                      },
                     ),
-                    label: 'copy_link'.tr,
-                    onTap: () async {
-                      await Clipboard.setData(ClipboardData(text: shareUrl));
-                      Fluttertoast.showToast(msg: 'link_copied'.tr);
-                      Get.back();
-                    },
-                  ),
-                  const SizedBox(width: 16),
+                    const SizedBox(width: 18),
 
-// 2. 浏览器打开
-                  _buildShareOption(
-                    icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedGlobal,
-                      color: Colors.black87,
-                      size: 22,
-                    ),
-                    label: 'open_in_browser'.tr,
-                    onTap: () async {
-                      final uri = Uri.parse(shareUrl);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    // 2. 邮件分享 (拉起邮件通讯录)
+                    _buildShareOption(
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedMail01,
+                        color: themeColor,
+                        size: 22,
+                      ),
+                      label: 'email_share'.tr,
+                      onTap: () {
                         Get.back();
-                      } else {
-                        Fluttertoast.showToast(msg: 'cannot_open_browser'.tr);
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 16),
-
-
-                  _buildShareOption(
-                    icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedMail01,
-                      color: Color.fromRGBO(44, 123, 109, 1.0),
-                      size: 22,
+                        final String currentPostType = _post?['post_type']?.toString() ?? 'quill';
+                        _openEmailContactPicker(currentPostType);
+                      },
                     ),
-                    label: 'email_share'.tr, // 或 '邮件分享'
-                    onTap: () {
-                      Get.back(); // 关闭当前外层面板
-                      final String currentPostType = _post?['post_type']?.toString() ?? 'quill';
-                      _openEmailContactPicker(currentPostType);
-                    },
-                  ),
-                  const SizedBox(width: 16),
+                    const SizedBox(width: 18),
 
-// 3. 系统原生应用分享
-                  _buildShareOption(
-                    icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedShare01,
-                      color: Colors.black87,
-                      size: 22,
+                    // 3. 复制外部链接
+                    _buildShareOption(
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedCopy01,
+                        color: Colors.black87,
+                        size: 22,
+                      ),
+                      label: 'copy_link'.tr,
+                      onTap: () async {
+                        await Clipboard.setData(ClipboardData(text: shareUrl));
+                        Fluttertoast.showToast(msg: 'link_copied'.tr);
+                        Get.back();
+                      },
                     ),
-                    label: 'system_share'.tr,
-                    onTap: () async {
-// 提前关闭 BottomSheet，避免与原生底部分享弹窗在界面上重叠导致动画卡顿
-                      Get.back();
-                      await Share.share(
-                        'share_text'.trParams({'url': shareUrl}),
-                        subject: 'share_subject'.tr,
-                      );
-                    },
-                  ),
-                ],
+                    const SizedBox(width: 18),
+
+                    // 4. 浏览器打开
+                    _buildShareOption(
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedGlobal,
+                        color: Colors.black87,
+                        size: 22,
+                      ),
+                      label: 'open_in_browser'.tr,
+                      onTap: () async {
+                        final uri = Uri.parse(shareUrl);
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          Get.back();
+                        } else {
+                          Fluttertoast.showToast(msg: 'cannot_open_browser'.tr);
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 18),
+
+                    // 5. 系统原生分享
+                    _buildShareOption(
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedShare01,
+                        color: Colors.black87,
+                        size: 22,
+                      ),
+                      label: 'system_share'.tr,
+                      onTap: () async {
+                        Get.back();
+                        await Share.share(
+                          'share_text'.trParams({'url': shareUrl}),
+                          subject: 'share_subject'.tr,
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 8),
             ],
           ),
         ),
       ),
-      isScrollControlled: true, // 确保高度自适应，防裁剪
+      isScrollControlled: true,
     );
   }
 

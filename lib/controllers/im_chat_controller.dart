@@ -458,6 +458,25 @@ class ImChatController extends GetxController {
     }
   }
 
+
+  /// 🌟 发送文章推荐卡片
+  Future<void> sendPostCard({
+    required String postId,
+    required String title,
+    required String thumbnail,
+    String category = 'general',
+  }) async {
+    await sendMessage(
+      msgType: 'post_card',
+      payload: {
+        'post_id': postId,
+        'title': title,
+        'thumbnail': thumbnail,
+        'category': category,
+      },
+    );
+  }
+
   /// 🌟 设置并持久化聊天背景
   Future<void> setCustomBackground({String? filePath, String? networkUrl}) async {
     final prefs = await SharedPreferences.getInstance();

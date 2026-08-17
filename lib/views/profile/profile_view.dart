@@ -8,6 +8,7 @@ import 'package:qorange/user_controller.dart';
 import 'package:qorange/views/profile/setting_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../controllers/im_chat_controller.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../network/auth_state_manager.dart';
@@ -211,11 +212,11 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
 
 
 
-  /// 🌟 统一拉起与该创作者的 IM 私聊窗口
+  /// 🌟 统一拉起与该创作者的 IM 私聊窗口 (智能防套娃与防崩溃)
   void _navigateToChat(Map<String, dynamic> profile) {
     HapticFeedback.lightImpact();
 
-    // 1. 未登录拦截：跳转登录页
+    // 1. 未登录拦截
     if (!UserController.to.isLoggedIn) {
       Get.to(() => const LoginView(), transition: Transition.rightToLeftWithFade);
       return;
@@ -225,15 +226,23 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
     final partnerId = profile['id']?.toString() ?? '';
     if (partnerId.isEmpty || myId == partnerId) return;
 
-    // 2. 构造唯一会话 ID
+    // 2. 构造唯一会话 ID 与专属路由名
     final List<String> sortedIds = [myId, partnerId]..sort();
     final String conversationId = 'CONV_${sortedIds[0]}_${sortedIds[1]}';
+    final String chatRouteName = '/im_chat_$conversationId';
 
     final bool isFollowing = profile['is_following'] == true;
     final partnerAvatar = profile['avatar'] ?? '';
     final partnerNickname = profile['nickname'] ?? '用户';
 
-    // 3. 进入聊天窗口
+    // 🌟 核心防套娃机制：检查当前会话控制器是否已在堆栈底层活跃
+    if (Get.isRegistered<ImChatController>(tag: conversationId)) {
+      // 如果底层已经打开过该聊天窗口，直接一层层 Pop 回到该窗口，绝不重复推入！
+      Get.until((route) => route.settings.name == chatRouteName || route.isFirst);
+      return;
+    }
+
+    // 🌟 首次打开：推入新页面并打上唯一的 routeName 标识
     Get.to(
           () => ImChatView(
         conversationId: conversationId,
@@ -242,10 +251,10 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
         partnerAvatar: partnerAvatar,
         initialRelationshipStatus: isFollowing ? 'accepted' : 'stranger_pending',
       ),
+      routeName: chatRouteName, // 🌟 关键：打上专属路由名
       transition: Transition.cupertino,
     );
   }
-
   // 解析并格式化注册时间：日期写法交由各语言词条决定 (中文 xxxx年xx月 / 英文 5/2026)
   String _getJoinedDateString(dynamic createdAt) {
     if (createdAt == null) {
@@ -406,13 +415,26 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // 🌟 核心改进一：将左侧区域使用 Expanded 包裹，使其自适应吸收除右侧图标外的剩余空间
+                          // 🌟 核心升级：检测当前页面是否处于推入堆栈（从帖子详情、聊天页等推入）
+                          // 如果不是根 Tab（即可以回退），左侧默认展示精致的原生返回按钮
+                          if (widget.profileId != null && Navigator.of(context).canPop()) ...[
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19, color: Color(0xFF1E293B)),
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                Get.back();
+                              },
+                            ),
+                            const SizedBox(width: 14),
+                          ],
+
                           Expanded(
                             child: Row(
                               children: [
                                 CircleAvatar(radius: 18, backgroundImage: NetworkImage(profile['avatar'] ?? '')),
                                 const SizedBox(width: 10),
-                                // 🌟 核心改进二：将文本 Column 使用 Expanded 包裹，使内部 Text 可以获得确切的宽度限制
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,14 +443,14 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                       Text(
                                         profile['nickname'] ?? 'anonymous_author'.tr,
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
-                                        maxLines: 1, // 🌟 限制为单行展示
-                                        overflow: TextOverflow.ellipsis, // 🌟 超长时尾部展示省略号
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       Text(
                                         handleText,
                                         style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                        maxLines: 1, // 🌟 限制为单行展示
-                                        overflow: TextOverflow.ellipsis, // 🌟 超长时尾部展示省略号
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),

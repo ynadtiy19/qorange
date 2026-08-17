@@ -17,8 +17,10 @@ import 'package:record/record.dart';
 import '../../controllers/im_chat_controller.dart';
 import '../../models/im_message_model.dart';
 import '../../user_controller.dart';
+import '../../widgets/im_post_picker_bottom_sheet.dart';
 import '../../widgets/pinterest_gallery_picker_sheet.dart';
 import '../post_detail/post_detail_view.dart';
+import '../profile/profile_view.dart';
 
 class ImChatView extends StatefulWidget {
   final String conversationId;
@@ -56,15 +58,19 @@ class _ImChatViewState extends State<ImChatView> {
   @override
   void initState() {
     super.initState();
-    // 1. 注入当前会话的独立控制器
-    _controller = Get.put(
-      ImChatController(
-        conversationId: widget.conversationId,
-        partnerId: widget.partnerId,
-        partnerNickname: widget.partnerNickname,
-      ),
-      tag: widget.conversationId,
-    );
+    // 🌟 核心保护：如果已有实例直接复用，防止重复覆盖注册
+    if (Get.isRegistered<ImChatController>(tag: widget.conversationId)) {
+      _controller = Get.find<ImChatController>(tag: widget.conversationId);
+    } else {
+      _controller = Get.put(
+        ImChatController(
+          conversationId: widget.conversationId,
+          partnerId: widget.partnerId,
+          partnerNickname: widget.partnerNickname,
+        ),
+        tag: widget.conversationId,
+      );
+    }
     _controller.relationshipStatus.value = widget.initialRelationshipStatus;
 
     // 2. 监听账号状态
@@ -124,21 +130,31 @@ class _ImChatViewState extends State<ImChatView> {
   // }
 
 
-  String _getCloudinaryWaveformUrl(
-      String audioUrl, {
-        bool isMe = false,
-      }) {
+  /// 🌟 修复并标准化 Cloudinary 声波波形 PNG 生成规则
+  String _getCloudinaryWaveformUrl(String audioUrl, {bool isMe = false}) {
     if (!audioUrl.contains('cloudinary.com')) return '';
 
-    final color = isMe ? 'FFFFFF' : '70AD47';
+    // 1. 强制将路径校准为 /video/upload/ 确保 Cloudinary 启用音频分析器
+    String normalizedUrl = audioUrl;
+    if (normalizedUrl.contains('/image/upload/')) {
+      normalizedUrl = normalizedUrl.replaceFirst('/image/upload/', '/video/upload/');
+    } else if (normalizedUrl.contains('/raw/upload/')) {
+      normalizedUrl = normalizedUrl.replaceFirst('/raw/upload/', '/video/upload/');
+    }
 
-    return audioUrl
+    // 2. 设定声波颜色：己方为纯白，对方为青橙品牌绿 (#2C7B6D)
+    final colorHex = isMe ? 'ffffff' : '2c7b6d';
+
+    // 3. 注入标准 Cloudinary 波形切片参数
+    final waveformParams = 'fl_waveform,co_rgb:$colorHex,b_transparent,w_240,h_48,c_fit';
+
+    return normalizedUrl
         .replaceFirst(
       '/upload/',
-      '/upload/fl_waveform,co_rgb:$color,b_transparent,w_160,h_36/',
+      '/upload/$waveformParams/',
     )
         .replaceAll(
-      RegExp(r'\.(m4a|mp3|aac|wav|ogg)$', caseSensitive: false),
+      RegExp(r'\.(m4a|mp3|aac|wav|ogg|flac)$', caseSensitive: false),
       '.png',
     );
   }
@@ -159,46 +175,70 @@ class _ImChatViewState extends State<ImChatView> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Color(0xFF1E293B)),
           onPressed: () => Get.back(),
         ),
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                widget.partnerAvatar,
-                width: 34,
-                height: 34,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 34,
-                  height: 34,
-                  color: const Color(0xFFE2E8F0),
-                  child: const Icon(Icons.person, size: 18, color: Color(0xFF94A3B8)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        // 🌟 核心升级：顶部头像与昵称防溢出 + 点击直接跳转至该用户/创作者主页
+        title: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            // 无论对方是创作者还是普通用户，点击均直接进入主页
+            Get.to(
+                  () => ProfileView(profileId: widget.partnerId),
+              transition: Transition.cupertino,
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  widget.partnerNickname,
-                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.w700),
-                ),
-                Obx(() => Text(
-                  _controller.relationshipStatus.value == 'stranger_pending'
-                      ? '陌生人消息请求'
-                      : (_controller.relationshipStatus.value == 'blocked' ? '已拉黑' : '在线'),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _controller.relationshipStatus.value == 'stranger_pending'
-                        ? _goldAccent
-                        : (_controller.relationshipStatus.value == 'blocked' ? const Color(0xFFEF4444) : _primaryTeal),
-                    fontWeight: FontWeight.w600,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    widget.partnerAvatar,
+                    width: 34,
+                    height: 34,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 34,
+                      height: 34,
+                      color: const Color(0xFFE2E8F0),
+                      child: const Icon(Icons.person, size: 18, color: Color(0xFF94A3B8)),
+                    ),
                   ),
-                )),
+                ),
+                const SizedBox(width: 10),
+                // 🌟 使用 Flexible + maxLines: 1 + ellipsis 彻底杜绝超长昵称溢出报错
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.partnerNickname,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis, // 🌟 标题防溢出截断
+                        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+                      Obx(() => Text(
+                        _controller.relationshipStatus.value == 'stranger_pending'
+                            ? '陌生人消息请求'
+                            : (_controller.relationshipStatus.value == 'blocked' ? '已拉黑' : '在线'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _controller.relationshipStatus.value == 'stranger_pending'
+                              ? _goldAccent
+                              : (_controller.relationshipStatus.value == 'blocked' ? const Color(0xFFEF4444) : _primaryTeal),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ],
+          ),
         ),
         actions: [
           IconButton(
@@ -473,66 +513,78 @@ class _ImChatViewState extends State<ImChatView> {
       );
     }
 
-    // 3. 🌟 语音消息气泡 (真实播放 + Cloudinary 自动声波 PNG 渲染)
+    // 3. 🌟 语音消息气泡 (真实播放 + 动态律动声波 + Cloudinary 波形图渲染)
     else if (msg.msgType == 'voice') {
       final String audioUrl = msg.payload['url']?.toString() ?? '';
       final int duration = int.tryParse(msg.payload['duration_sec']?.toString() ?? '0') ?? 0;
       final bool isCurrentActive = _currentlyPlayingUrl == audioUrl && _isPlayingAudio;
       final String waveformPngUrl = _getCloudinaryWaveformUrl(audioUrl, isMe: isMe);
 
-      return InkWell(
-        onTap: () => _togglePlayAudio(audioUrl),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2.0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 播放/暂停图标
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: isMe ? Colors.white.withOpacity(0.2) : _primaryTeal.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isCurrentActive ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: textColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // 🌟 声波展示区：优先加载 Cloudinary 云端计算出的真实声波 PNG
-              if (waveformPngUrl.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.network(
-                    waveformPngUrl,
-                    width: 110,
-                    height: 24,
-                    fit: BoxFit.fill,
-                    errorBuilder: (_, __, ___) => _buildFallbackWaveform(textColor),
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _togglePlayAudio(audioUrl),
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 播放/暂停圆形按钮 (带微触感与背景)
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: isMe ? Colors.white.withOpacity(0.22) : _primaryTeal.withOpacity(0.12),
+                    shape: BoxShape.circle,
                   ),
-                )
-              else
-                _buildFallbackWaveform(textColor),
+                  child: Icon(
+                    isCurrentActive ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: textColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 10),
 
-              const SizedBox(width: 10),
-              Text(
-                '$duration"',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: textColor),
-              ),
-            ],
+                // 🌟 声波展示区：双重渲染（网络声波 PNG 优先，本地跳动动画兜底）
+                SizedBox(
+                  width: 120,
+                  height: 28,
+                  child: waveformPngUrl.isNotEmpty
+                      ? Image.network(
+                    waveformPngUrl,
+                    fit: BoxFit.fill,
+                    loadingBuilder: (c, child, progress) =>
+                    progress == null ? child : _buildDynamicWaveform(textColor, isCurrentActive),
+                    errorBuilder: (_, __, ___) => _buildDynamicWaveform(textColor, isCurrentActive),
+                  )
+                      : _buildDynamicWaveform(textColor, isCurrentActive),
+                ),
+
+                const SizedBox(width: 10),
+
+                // 时长显示
+                Text(
+                  '$duration"',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
-    // 4. 青橙币直接转账
+    // 3. 🌟 青橙币直接转账 (修复长文本自动换行扩展，杜绝溢出)
     else if (msg.msgType == 'token_transfer') {
       final double tokens = double.tryParse(msg.payload['tokens']?.toString() ?? '0') ?? 0.0;
       final String remark = msg.payload['remark']?.toString() ?? '青橙币转账';
+
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -542,97 +594,320 @@ class _ImChatViewState extends State<ImChatView> {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // 左侧转账币图标
             Container(
               padding: const EdgeInsets.all(8),
               decoration: const BoxDecoration(color: Color(0xFFF59E0B), shape: BoxShape.circle),
               child: const Icon(Icons.monetization_on_rounded, color: Colors.white, size: 22),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('¥ ${tokens.toStringAsFixed(1)} 青橙币', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: isMe ? Colors.white : const Color(0xFFB45309))),
-                const SizedBox(height: 2),
-                Text(remark, style: TextStyle(fontSize: 12, color: isMe ? Colors.white70 : const Color(0xFF92400E))),
-              ],
+
+            // 🌟 核心修复：使用 Expanded 限制右侧区域宽度，使多行备注自适应平滑换行
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '¥ ${tokens.toStringAsFixed(1)} 青橙币',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: isMe ? Colors.white : const Color(0xFFB45309),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    remark,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4, // 增加舒适阅读行高
+                      color: isMe ? Colors.white.withOpacity(0.85) : const Color(0xFF92400E),
+                    ),
+                    softWrap: true, // 允许自由自动换行
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       );
     }
 
-    // 5. 青橙币请款收款单
+    // 4. 🌟 青橙币请款收款单 (增强防溢出排版与高质感账单卡片设计)
     else if (msg.msgType == 'token_request') {
       final double tokens = double.tryParse(msg.payload['tokens']?.toString() ?? '0') ?? 0.0;
-      final String remark = msg.payload['remark']?.toString() ?? '请款单';
+      final String remark = msg.payload['remark']?.toString() ?? '款项结算';
       final String status = msg.payload['status']?.toString() ?? 'pending';
+      final bool isPending = status == 'pending';
+      final bool isPaid = status == 'paid';
 
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isMe ? Colors.white.withOpacity(0.15) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
+          color: isMe ? Colors.white.withOpacity(0.15) : const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isMe
+                ? Colors.white.withOpacity(0.2)
+                : const Color(0xFFFDE68A).withOpacity(0.8),
+            width: 1,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            // 1. 头部标题栏与状态徽标
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(Icons.receipt_long_rounded, color: isMe ? Colors.white70 : _primaryTeal, size: 18),
-                const SizedBox(width: 6),
-                Text('青橙币收款单', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isMe ? Colors.white70 : _primaryTeal)),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.receipt_long_rounded,
+                      color: isMe ? Colors.white : const Color(0xFFD97706),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '青橙币收款单',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: isMe ? Colors.white : const Color(0xFFB45309),
+                      ),
+                    ),
+                  ],
+                ),
+                // 右上角状态小胶囊
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isPaid
+                        ? const Color(0xFF10B981).withOpacity(0.15)
+                        : (isPending
+                        ? const Color(0xFFF59E0B).withOpacity(0.15)
+                        : Colors.grey.shade200),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isPaid ? '已支付' : (isPending ? '待付款' : '已拒绝'),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isPaid
+                          ? (isMe ? Colors.white : const Color(0xFF059669))
+                          : (isPending
+                          ? (isMe ? Colors.white : const Color(0xFFD97706))
+                          : Colors.grey.shade600),
+                    ),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text('$remark：需支付 ${tokens.toStringAsFixed(1)} 币', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textColor)),
             const SizedBox(height: 10),
-            if (!isMe && status == 'pending')
-              ElevatedButton(
-                onPressed: () => _controller.payTokenRequest(msg.messageId),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF59E0B),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+
+            // 2. 大字号请款金额
+            Text(
+              '¥ ${tokens.toStringAsFixed(1)} 青橙币',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: isMe ? Colors.white : const Color(0xFF92400E),
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // 3. 请款事由说明框 (长文本自动自适应换行，彻底杜绝溢出)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isMe ? Colors.black.withOpacity(0.08) : Colors.white.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '事由: $remark',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: isMe ? Colors.white.withOpacity(0.9) : const Color(0xFF78350F),
+                  fontWeight: FontWeight.w500,
                 ),
-                child: const Text('立即支付', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                softWrap: true, // 🌟 允许自适应折行
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 4. 底部操作按钮与状态描述
+            if (!isMe && isPending)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    _controller.payTokenRequest(msg.messageId);
+                  },
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                  label: const Text('立即支付此请款', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF59E0B),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
               )
             else
-              Text(
-                status == 'paid' ? '✓ 已完成支付' : (status == 'rejected' ? '✕ 已拒绝' : '等待对方支付'),
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: status == 'paid' ? const Color(0xFF10B981) : Colors.grey),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  isPaid
+                      ? '✓ 交易已完成，青橙币已到账'
+                      : (status == 'rejected' ? '✕ 付款人已拒绝此收款' : '⏳ 等待对方确认并支付'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isPaid
+                        ? (isMe ? Colors.white70 : const Color(0xFF059669))
+                        : (isMe ? Colors.white60 : Colors.grey.shade600),
+                  ),
+                ),
               ),
           ],
         ),
       );
     }
 
-    // 6. 文章推荐卡片
+    // 6. 🌟 全新设计：杂志级高质感文章推荐气泡卡片
     else if (msg.msgType == 'post_card') {
       final title = msg.payload['title']?.toString() ?? '文章推荐';
       final postId = msg.payload['post_id']?.toString() ?? '';
+      final thumbnail = msg.payload['thumbnail']?.toString() ?? '';
+      final category = (msg.payload['category']?.toString() ?? '专栏').toUpperCase();
+
       return InkWell(
-        onTap: () => Get.to(() => PostDetailView(postId: postId)),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          Get.to(() => PostDetailView(postId: postId));
+        },
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.all(10),
+          width: 230,
+          padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
-            color: isMe ? Colors.white.withOpacity(0.15) : const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(12),
+            color: isMe ? Colors.white.withOpacity(0.14) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isMe ? Colors.white.withOpacity(0.25) : const Color(0xFFE2E8F0),
+              width: 0.8,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
+              // 1. 顶部：分类标签与推荐角标
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.article_rounded, size: 16, color: isMe ? Colors.white70 : _primaryTeal),
-                  const SizedBox(width: 6),
-                  Text('文章推荐', style: TextStyle(fontSize: 11, color: isMe ? Colors.white70 : _primaryTeal, fontWeight: FontWeight.w700)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.white.withOpacity(0.2) : _primaryTeal.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      category,
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: isMe ? Colors.white : _primaryTeal,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.auto_stories_rounded,
+                    size: 14,
+                    color: isMe ? Colors.white60 : Colors.grey.shade400,
+                  ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: textColor)),
+              const SizedBox(height: 8),
+
+              // 2. 中间：标题 + 封面图左右排版
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 文章标题 (最多 2 行截断)
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.35,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+
+                  // 封面缩略小图
+                  if (thumbnail.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        thumbnail,
+                        width: 46,
+                        height: 46,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // 3. 底部：阅读全文引导条
+              Container(
+                padding: const EdgeInsets.only(top: 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: isMe ? Colors.white.withOpacity(0.12) : const Color(0xFFE2E8F0),
+                      width: 0.8,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '阅读全文',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isMe ? Colors.white70 : const Color(0xFF64748B),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 10,
+                      color: isMe ? Colors.white70 : const Color(0xFF64748B),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -642,24 +917,27 @@ class _ImChatViewState extends State<ImChatView> {
     return Text(msg.payload['text']?.toString() ?? '[消息]', style: TextStyle(color: textColor));
   }
 
-  Widget _buildFallbackWaveform(Color color) {
+
+
+  /// 🌟 动态律动声波条组件（未播放时静态优雅，播放时模拟声波跳跃）
+  Widget _buildDynamicWaveform(Color color, bool isPlaying) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(
-        10,
-            (i) => Container(
-          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: List.generate(14, (i) {
+        final double staticHeight = (8 + (i % 5) * 4).toDouble();
+        return AnimatedContainer(
+          duration: Duration(milliseconds: isPlaying ? (200 + (i % 4) * 80) : 300),
           width: 2.5,
-          height: (8 + (i % 4) * 4).toDouble(),
+          height: isPlaying ? (6 + (i * 3) % 18).toDouble() : staticHeight,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.6),
+            color: color.withOpacity(isPlaying ? 0.9 : 0.65),
             borderRadius: BorderRadius.circular(2),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
-
   /// 🌟 极简高颜值长按消息上下文操作面板
   void _showMessageContextMenu(BuildContext context, ImMessageModel msg, bool isMe) {
     HapticFeedback.mediumImpact();
@@ -980,6 +1258,30 @@ class _ImChatViewState extends State<ImChatView> {
             onTap: () {
               _controller.isAttachmentOpen.value = false;
               _showBackgroundPickerSheet(context);
+            },
+          ),
+
+          // 🌟 推荐文章按钮
+          _buildActionItem(
+            icon: HugeIcons.strokeRoundedNote01,
+            label: '推荐文章',
+            color: const Color(0xFF06B6D4),
+            onTap: () {
+              _controller.isAttachmentOpen.value = false;
+              Get.bottomSheet(
+                ImPostPickerBottomSheet(
+                  onPostSelected: (post) {
+                    _controller.sendPostCard(
+                      postId: post['id'].toString(),
+                      title: post['title']?.toString() ?? '文章推荐',
+                      thumbnail: post['thumbnail']?.toString() ?? '',
+                      category: post['category']?.toString() ?? 'general',
+                    );
+                  },
+                ),
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+              );
             },
           ),
         ],

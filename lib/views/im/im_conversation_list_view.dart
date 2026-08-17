@@ -113,6 +113,7 @@ class ImConversationListView extends StatelessWidget {
               partnerAvatar: avatar,
               initialRelationshipStatus: conv.relationshipStatus,
             ),
+            routeName: '/im_chat_${conv.conversationId}', // 🌟 加上这一行
             transition: Transition.cupertino,
           );
         },
