@@ -78,9 +78,13 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      # 9. 分包打包 APK
+      # 9. 构建正式版分包 APK (开启混淆与符号表剥离)
       - name: Build Split APKs
-        run: flutter build apk --release --split-per-abi
+        run: |
+          flutter build apk --release \
+            --split-per-abi \
+            --obfuscate \
+            --split-debug-info=build/app/outputs/symbols
 
       # 10. 准备与重命名产物
       - name: Prepare APKs
@@ -138,20 +142,18 @@ jobs:
           SAFE_BRANCH="${{ steps.meta.outputs.safe_branch }}"
           APK_URL="https://github.com/ynadtiy19/qorange/releases/download/release-${SAFE_BRANCH}/qorange-${SAFE_BRANCH}-arm64-v8a.apk"
           
-          # 🌟 1. 自动从 pubspec.yaml 提取版本名称 (1.9.0) 与构建号 (2)
+          # 🌟 自动提取版本名 (1.9.0) 与构建号 (2)
           APP_VERSION=$(grep 'version:' pubspec.yaml | head -n1 | cut -d ' ' -f2 | cut -d '+' -f1)
           BUILD_NUMBER=$(grep 'version:' pubspec.yaml | head -n1 | cut -d '+' -f2)
           if [ -z "$BUILD_NUMBER" ]; then
             BUILD_NUMBER="${{ github.run_number }}"
           fi
 
-          # 🌟 2. 自动提取本地最后一次提交的 commit 说明
           COMMIT_MSG=$(git log -1 --pretty=%B | tr '\n' ' ' | sed 's/"/\\"/g')
           if [ -z "$COMMIT_MSG" ]; then
             COMMIT_MSG="升级至 v${APP_VERSION}，优化系统稳定性"
           fi
           
-          # 🌟 3. 将包含 version 和 build_number 的完整数据同步至后端
           curl -s -X POST "https://googlechat.zeabur.app/api/publish-release" \
             -H "Content-Type: application/json" \
             -d "{

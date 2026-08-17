@@ -94,29 +94,26 @@ class NotificationHandlerService extends GetxService {
     await androidImplementation?.createNotificationChannel(updateChannel);
   }
 
-  /// 🌟 启动时自动检查更新：精准上报本地编译包信息
+  /// 🌟 启动时自动检查更新：精准上报本地编译包信息 + 剥离 ABI 偏移与双重防线比对
   Future<void> checkForUpdate({bool isManualCheck = false}) async {
     if (_isChecking) return;
-
     _isChecking = true;
 
     try {
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String lastIgnoredTag = prefs.getString('ignored_update_tag') ?? '';
 
-      final SharedPreferences prefs =
-      await SharedPreferences.getInstance();
+      // 🌟 1. 核心修复：剥离 --split-per-abi 带来的高位偏移 (例如 2002 还原为 2)
+      final int rawBuildNumber = int.tryParse(packageInfo.buildNumber) ?? 1;
+      final int normalizedBuild = rawBuildNumber > 1000 ? (rawBuildNumber % 1000) : rawBuildNumber;
 
-      final String lastIgnoredTag =
-          prefs.getString('ignored_update_tag') ?? '';
-
-      final response =
-      await HttpClient.instance.post<Map<String, dynamic>>(
+      final response = await HttpClient.instance.post<Map<String, dynamic>>(
         '/api/check-update',
         data: {
           'branch': appBranch,
           'version': packageInfo.version,
-          'build_number':
-          int.tryParse(packageInfo.buildNumber) ?? 1,
+          'build_number': normalizedBuild, // 上报真实的 1, 2, 3
           'arch': 'arm64-v8a',
         },
         receiveTimeout: const Duration(seconds: 6),
@@ -124,98 +121,84 @@ class NotificationHandlerService extends GetxService {
 
       final Map<String, dynamic>? datas = response.datas;
 
-      if (datas != null && datas['has_update'] == true) {
-        final String tag =
-            datas['tag_name']?.toString() ?? 'New Version';
+      if (datas != null) {
+        final String latestVersion = datas['version']?.toString() ?? '';
+        final int latestBuild = int.tryParse(datas['build_number']?.toString() ?? '0') ?? 0;
+        final String tag = datas['tag_name']?.toString() ?? 'New Version';
 
-        if (!isManualCheck && lastIgnoredTag == tag) {
-          _isChecking = false;
-          return;
+        // 🌟 2. 核心双保险：只要线上构建号更大，或者版本名称不一致，客户端强制判定需要更新！
+        bool needUpdate = datas['has_update'] == true;
+        if (!needUpdate) {
+          if (latestBuild > normalizedBuild) {
+            needUpdate = true;
+          } else if (latestVersion.isNotEmpty && latestVersion != packageInfo.version) {
+            needUpdate = true;
+          }
         }
 
-        final String wssUrl =
-            datas['wss_download_url']?.toString() ?? '';
+        if (needUpdate) {
+          if (!isManualCheck && lastIgnoredTag == tag) {
+            _isChecking = false;
+            return;
+          }
 
-        final String fallbackUrl =
-            datas['download_url']?.toString() ?? '';
+          final String wssUrl = datas['wss_download_url']?.toString() ?? '';
+          final String fallbackUrl = datas['download_url']?.toString() ?? '';
+          final String rawChangelog = datas['changelog']?.toString() ?? '优化系统流畅度与稳定性';
+          final String cleanChangelog = _cleanMarkdownText(rawChangelog);
 
-        final String rawChangelog =
-            datas['changelog']?.toString() ??
-                '优化系统流畅度与稳定性';
-
-        final String cleanChangelog =
-        _cleanMarkdownText(rawChangelog);
-
-        // 🌟 1. 弹出牢牢固定、只能手动点击关闭的居中弹窗
-        _showRefinedUpdateDialog(
-          tag: tag,
-          changelog: cleanChangelog,
-          onIgnore: () async {
-            Get.back();
-
-            await prefs.setString(
-              'ignored_update_tag',
-              tag,
-            );
-          },
-          onConfirm: () async {
-            Get.back();
-
-            await prefs.remove(
-              'ignored_update_tag',
-            );
-
-            if (wssUrl.isNotEmpty) {
-              _startAppUpdateDownloadWss(
-                wssUrl,
-                fallbackUrl,
-              );
-            } else if (fallbackUrl.isNotEmpty) {
-              _startAppUpdateDownload(
-                fallbackUrl,
-              );
-            }
-          },
-        );
-
-        // 🌟 2. 同时向通知栏发送常驻通知卡片
-        await _showUpdateAvailableNotification(
-          tag: tag,
-          notes: cleanChangelog,
-          downloadUrl: fallbackUrl,
-          wssUrl: wssUrl,
-        );
-      } else {
-        if (isManualCheck) {
-          Fluttertoast.showToast(
-            msg:
-            '当前已是最新版本 (${packageInfo.version}+${packageInfo.buildNumber})',
+          // 🌟 弹出牢牢固定、只能手动点击关闭的居中弹窗
+          _showRefinedUpdateDialog(
+            tag: tag,
+            changelog: cleanChangelog,
+            onIgnore: () async {
+              Get.back();
+              await prefs.setString('ignored_update_tag', tag);
+            },
+            onConfirm: () async {
+              Get.back();
+              await prefs.remove('ignored_update_tag');
+              if (wssUrl.isNotEmpty) {
+                _startAppUpdateDownloadWss(wssUrl, fallbackUrl);
+              } else if (fallbackUrl.isNotEmpty) {
+                _startAppUpdateDownload(fallbackUrl);
+              }
+            },
           );
+
+          // 🌟 同时向通知栏发送常驻通知卡片
+          await _showUpdateAvailableNotification(
+            tag: tag,
+            notes: cleanChangelog,
+            downloadUrl: fallbackUrl,
+            wssUrl: wssUrl,
+          );
+        } else {
+          if (isManualCheck) {
+            Fluttertoast.showToast(
+              msg: '当前已是最新版本 (${packageInfo.version}+$normalizedBuild)',
+            );
+          }
         }
       }
     } catch (e, stackTrace) {
-      debugPrint(
-        '❌ [AppUpdate] 自动检查更新异常: $e',
-      );
-
-      debugPrint(
-        '❌ [AppUpdate] StackTrace: $stackTrace',
-      );
-
+      debugPrint('❌ [AppUpdate] 自动检查更新异常: $e');
+      debugPrint('❌ [AppUpdate] StackTrace: $stackTrace');
       if (isManualCheck) {
-        Fluttertoast.showToast(
-          msg: '检查更新失败，请稍后重试',
-        );
+        Fluttertoast.showToast(msg: '检查更新失败，请稍后重试');
       }
     } finally {
       _isChecking = false;
     }
   }
+
+  /// 🌟 修复正则替换（杜绝出现 "$1" 或语法异常）
   String _cleanMarkdownText(String raw) {
     return raw
         .replaceAll(RegExp(r'#{1,6}\s*'), '')
-        .replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1')
-        .replaceAll(RegExp(r'__([^_]+)__'), r'$1')
+        .replaceAllMapped(RegExp(r'\*\*([^*]+)\*\*'), (m) => m[1] ?? '')
+        .replaceAllMapped(RegExp(r'\*([^*]+)\*'), (m) => m[1] ?? '')
+        .replaceAllMapped(RegExp(r'__([^_]+)__'), (m) => m[1] ?? '')
         .replaceAll(RegExp(r'[-*]\s+'), '• ')
         .trim();
   }
