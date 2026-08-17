@@ -110,17 +110,37 @@ class _ImChatViewState extends State<ImChatView> {
     }
   }
 
-  /// 🌟 生成 Cloudinary 专属声波波形 PNG 直链
-  String _getCloudinaryWaveformUrl(String audioUrl, {bool isMe = false}) {
+  // /// 🌟 生成 Cloudinary 专属声波波形 PNG 直链
+  // String _getCloudinaryWaveformUrl(String audioUrl, {bool isMe = false}) {
+  //   if (!audioUrl.contains('cloudinary.com')) return '';
+  //   // 将 .m4a / .mp3 / .aac 替换为 .png
+  //   final pngUrl = audioUrl.replaceAll(RegExp(r'\.(m4a|mp3|aac|wav|ogg)$', caseSensitive: false), '.png');
+  //   // 根据己方/对方自动设定声波柱颜色：己方白声波，对方青橙绿声波
+  //   final colorParam = isMe ? 'co_rgb:ffffff' : 'co_rgb:2C7B6D';
+  //   if (pngUrl.contains('/upload/')) {
+  //     return pngUrl.replaceFirst('/upload/', '/upload/w_140,h_28,c_fill,b_transparent,$colorParam/');
+  //   }
+  //   return pngUrl;
+  // }
+
+
+  String _getCloudinaryWaveformUrl(
+      String audioUrl, {
+        bool isMe = false,
+      }) {
     if (!audioUrl.contains('cloudinary.com')) return '';
-    // 将 .m4a / .mp3 / .aac 替换为 .png
-    final pngUrl = audioUrl.replaceAll(RegExp(r'\.(m4a|mp3|aac|wav|ogg)$', caseSensitive: false), '.png');
-    // 根据己方/对方自动设定声波柱颜色：己方白声波，对方青橙绿声波
-    final colorParam = isMe ? 'co_rgb:ffffff' : 'co_rgb:2C7B6D';
-    if (pngUrl.contains('/upload/')) {
-      return pngUrl.replaceFirst('/upload/', '/upload/w_140,h_28,c_fill,b_transparent,$colorParam/');
-    }
-    return pngUrl;
+
+    final color = isMe ? 'FFFFFF' : '70AD47';
+
+    return audioUrl
+        .replaceFirst(
+      '/upload/',
+      '/upload/fl_waveform,co_rgb:$color,b_transparent,w_160,h_36/',
+    )
+        .replaceAll(
+      RegExp(r'\.(m4a|mp3|aac|wav|ogg)$', caseSensitive: false),
+      '.png',
+    );
   }
 
   @override
