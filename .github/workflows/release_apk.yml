@@ -147,26 +147,39 @@ jobs:
               --target "${{ github.sha }}" \
               --prerelease
           fi
-      # 13. 打包发布成功后，自动从 pubspec.yaml 提取版本号写入 MongoDB
+      # 13. 打包发布成功后，精准提取 pubspec.yaml 版本号写入 MongoDB
       - name: Sync Release to MongoDB
         run: |
           SAFE_BRANCH="${{ steps.meta.outputs.safe_branch }}"
           APK_URL="https://github.com/ynadtiy19/qorange/releases/download/release-${SAFE_BRANCH}/qorange-${SAFE_BRANCH}-arm64-v8a.apk"
           
-          # 自动从 pubspec.yaml 提取版本名称 (如 1.9.0) 与构建号 (如 2)
-          APP_VERSION=$(grep 'version:' pubspec.yaml | head -n1 | cut -d ' ' -f2 | cut -d '+' -f1)
-          BUILD_NUMBER=$(grep 'version:' pubspec.yaml | head -n1 | cut -d '+' -f2)
+          # 🌟 核心修复：精准正则提取，100% 免疫缩进空格与换行符干扰
+          RAW_VERSION=$(grep -E '^\s*version:' pubspec.yaml | head -n1 | sed -E 's/^\s*version:\s*//' | tr -d '\r' | tr -d ' ')
+          
+          # 提取纯版本号 (如 1.9.0)
+          APP_VERSION=$(echo "$RAW_VERSION" | cut -d '+' -f1)
+          
+          # 提取构建号 (如 2)
+          BUILD_NUMBER=$(echo "$RAW_VERSION" | cut -s -d '+' -f2)
+          
+          # 兜底：如果没写加号构建号，自动使用流水线号
           if [ -z "$BUILD_NUMBER" ]; then
             BUILD_NUMBER="${{ github.run_number }}"
           fi
 
-          # 自动提取最后一次提交的 commit 说明
+          # 提取最后一次提交说明
           COMMIT_MSG=$(git log -1 --pretty=%B | tr '\n' ' ' | sed 's/"/\\"/g')
           if [ -z "$COMMIT_MSG" ]; then
             COMMIT_MSG="升级至 v${APP_VERSION}，优化系统稳定性"
           fi
           
-          # 将包含 version 与 build_number 的完整数据同步至后端
+          echo "=== 解析版本信息 ==="
+          echo "APP_VERSION: $APP_VERSION"
+          echo "BUILD_NUMBER: $BUILD_NUMBER"
+          echo "TAG_NAME: v$APP_VERSION"
+          echo "==================="
+          
+          # 同步至后端 MongoDB
           curl -s -X POST "https://googlechat.zeabur.app/api/publish-release" \
             -H "Content-Type: application/json" \
             -d "{
