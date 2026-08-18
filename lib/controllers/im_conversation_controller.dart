@@ -118,20 +118,23 @@ class ImConversationController extends GetxController {
   }
 
 
-  /// 🌟 收到撤回事件（自己撤回或对方撤回）时：实时将消息列表卡片的最后一条预览修改为【此消息已被撤回】
-  void onMessageRevokedInConversation(String conversationId) {
+  /// 🌟 修复问题 ②：收到撤回事件时，精确判断是否为最新消息才更新列表预览
+  void onMessageRevokedInConversation(String conversationId, String revokedMsgId, {bool isLatestMessage = true}) {
     final index = conversations.indexWhere((c) => c.conversationId == conversationId);
     if (index != -1) {
       final old = conversations[index];
+      // 只有被撤回的是最新一条，预览才变成“此消息已被撤回”；否则保留原最新预览！
+      final String updatedPreview = isLatestMessage ? '此消息已被撤回' : old.lastMsgPreview;
+
       conversations[index] = ImConversationModel(
         conversationId: old.conversationId,
         partnerId: old.partnerId,
         partnerNickname: old.partnerNickname,
         partnerAvatar: old.partnerAvatar,
         partnerUsername: old.partnerUsername,
-        lastMsgPreview: '此消息已被撤回', // 🌟 实时响应式修改卡片预览
-        lastMsgType: 'text',
-        unreadCount: old.unreadCount > 0 ? old.unreadCount - 1 : 0, // 如果对方未读撤回，红点自动减 1
+        lastMsgPreview: updatedPreview,
+        lastMsgType: old.lastMsgType,
+        unreadCount: old.unreadCount > 0 ? old.unreadCount - 1 : 0,
         relationshipStatus: old.relationshipStatus,
         strangerMessageCount: old.strangerMessageCount,
         updatedAt: old.updatedAt,
@@ -140,6 +143,28 @@ class ImConversationController extends GetxController {
     }
   }
 
+  /// 🌟 实现问题 ③：收到对方修改个人资料的 AtSign 信号，毫秒级就地更新头像与昵称（0 接口开销）
+  void onPartnerProfileUpdated(String partnerUserId, String newNickname, String newAvatar) {
+    for (int i = 0; i < conversations.length; i++) {
+      if (conversations[i].partnerId == partnerUserId) {
+        final old = conversations[i];
+        conversations[i] = ImConversationModel(
+          conversationId: old.conversationId,
+          partnerId: old.partnerId,
+          partnerNickname: newNickname.isNotEmpty ? newNickname : old.partnerNickname,
+          partnerAvatar: newAvatar.isNotEmpty ? newAvatar : old.partnerAvatar,
+          partnerUsername: old.partnerUsername,
+          lastMsgPreview: old.lastMsgPreview,
+          lastMsgType: old.lastMsgType,
+          unreadCount: old.unreadCount,
+          relationshipStatus: old.relationshipStatus,
+          strangerMessageCount: old.strangerMessageCount,
+          updatedAt: old.updatedAt,
+        );
+        debugPrint("✨ [Conversation] 实时同步联系人资料成功: $newNickname");
+      }
+    }
+  }
   /// 🌟 进入单聊窗口时：消除该会话的未读数，底部导航栏小红点同步扣减
   void markConversationAsRead(String conversationId) {
     final index = conversations.indexWhere((c) => c.conversationId == conversationId);

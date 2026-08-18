@@ -238,7 +238,7 @@ class FrontendChatService extends GetxService {
     }
   }
 
-  /// 🌟 修复后的标准状态信号处理：解开死锁嵌套 + 完整支持撤回与青橙币收款单同步
+  /// 🌟 修复后的状态信号处理 (支持非最新消息撤回判定 + 联系人头像昵称实时热更新)
   void _onImStatusReceived(AtNotification notification) async {
     final String? jsonVal = notification.value;
     if (jsonVal == null || jsonVal.isEmpty) return;
@@ -248,21 +248,16 @@ class FrontendChatService extends GetxService {
       final signalType = data['signal_type']?.toString();
       final conversationId = data['conversation_id']?.toString();
 
-      if (conversationId == null) return;
-
       // =========================================================
-      // 🌟 1. 聊天窗口内的气泡实时状态响应 (仅在聊天窗口打开时触发)
+      // 1. 聊天窗口内的实时响应
       // =========================================================
-      if (Get.isRegistered<ImChatController>(tag: conversationId)) {
+      if (conversationId != null && Get.isRegistered<ImChatController>(tag: conversationId)) {
         final chatCtrl = Get.find<ImChatController>(tag: conversationId);
 
-        // a. 处理消息撤回
         if (signalType == 'revoke') {
           final String msgId = data['extra']?['message_id']?.toString() ?? '';
           chatCtrl.onMessageRevoked(msgId);
-        }
-        // b. 🌟 补齐：处理青橙币收款单支付成功实时变状态！
-        else if (signalType == 'token_request_status_change') {
+        } else if (signalType == 'token_request_status_change') {
           final String msgId = data['extra']?['message_id']?.toString() ?? '';
           final String status = data['extra']?['status']?.toString() ?? 'paid';
           chatCtrl.onTokenRequestStatusChanged(msgId, status);
@@ -270,11 +265,29 @@ class FrontendChatService extends GetxService {
       }
 
       // =========================================================
-      // 🌟 2. 消息大厅列表卡片实时响应 (独立于聊天窗口，无论在不在都要更新！)
+      // 2. 会话列表大厅的实时响应
       // =========================================================
-      if (signalType == 'revoke' && Get.isRegistered<ImConversationController>()) {
-        // 解开死锁：只要收到撤回信号，会话大厅卡片必定被实时更新为【此消息已被撤回】
-        ImConversationController.to.onMessageRevokedInConversation(conversationId);
+      if (Get.isRegistered<ImConversationController>()) {
+        // a. 处理撤回 (带 is_latest_message 状态判定)
+        if (signalType == 'revoke' && conversationId != null) {
+          final String msgId = data['extra']?['message_id']?.toString() ?? '';
+          final bool isLatest = data['extra']?['is_latest_message'] == true;
+          ImConversationController.to.onMessageRevokedInConversation(
+            conversationId,
+            msgId,
+            isLatestMessage: isLatest,
+          );
+        }
+
+        // b. 🌟 处理联系人修改头像与昵称的即时同步信号！
+        else if (signalType == 'profile_updated') {
+          final String targetUserId = data['extra']?['user_id']?.toString() ?? '';
+          final String newNick = data['extra']?['nickname']?.toString() ?? '';
+          final String newAvatar = data['extra']?['avatar']?.toString() ?? '';
+          if (targetUserId.isNotEmpty) {
+            ImConversationController.to.onPartnerProfileUpdated(targetUserId, newNick, newAvatar);
+          }
+        }
       }
     } catch (e) {
       debugPrint("🔴 [Frontend] 状态信号解析异常: $e");

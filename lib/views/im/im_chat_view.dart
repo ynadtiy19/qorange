@@ -67,6 +67,7 @@ class _ImChatViewState extends State<ImChatView> {
           conversationId: widget.conversationId,
           partnerId: widget.partnerId,
           partnerNickname: widget.partnerNickname,
+          partnerAvatar: widget.partnerAvatar,
         ),
         tag: widget.conversationId,
       );

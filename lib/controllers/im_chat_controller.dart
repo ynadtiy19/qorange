@@ -22,11 +22,13 @@ class ImChatController extends GetxController {
   final String conversationId;
   final String partnerId;
   final String partnerNickname;
+  final String partnerAvatar;
 
   ImChatController({
     required this.conversationId,
     required this.partnerId,
     required this.partnerNickname,
+    this.partnerAvatar = '',
   });
 
   // 🌟 reverse: true 架构下，index 0 为最新消息（位于最底部）
@@ -234,6 +236,17 @@ class ImChatController extends GetxController {
         messages.insert(0, sentMsg);
         scrollToBottom();
 
+
+        // 🌟 核心修复 1：发信成功瞬间，同步将消息大厅该会话的最后一条预览更新为自己刚发的内容！
+        if (Get.isRegistered<ImConversationController>()) {
+          final myUser = UserController.to.user.value;
+          ImConversationController.to.onNewMessageReceived(
+            sentMsg,
+            partnerNickname, // 保持对方的昵称
+            partnerAvatar,   // 保持对方的头像
+          );
+        }
+
         if (msgType == 'text') textEditingController.clear();
 
         if (relationshipStatus.value == 'stranger_pending') {
@@ -271,9 +284,15 @@ class ImChatController extends GetxController {
 
       if (res.respCode == 0) {
         onMessageRevoked(messageId);
-        // 🌟 核心联动：自己撤回最新消息时，立刻将消息列表大厅的卡片预览也更新为【此消息已被撤回】
+
+        // 🌟 核心修复 2：只有当撤回的消息确实是最新一条 (index 0) 时，才把列表卡片改成【此消息已被撤回】！
+        final bool isLatest = messages.isNotEmpty && messages.first.messageId == messageId;
         if (Get.isRegistered<ImConversationController>()) {
-          ImConversationController.to.onMessageRevokedInConversation(conversationId);
+          ImConversationController.to.onMessageRevokedInConversation(
+            conversationId,
+            messageId,
+            isLatestMessage: isLatest,
+          );
         }
         Fluttertoast.showToast(msg: '消息已撤回');
       } else {
