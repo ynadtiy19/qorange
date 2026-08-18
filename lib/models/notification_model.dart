@@ -6,7 +6,7 @@ class NotificationItemModel {
   final String tabCategory;
   final String actionType;
   final int actorCount;
-  final List<Map<String, dynamic>> latestActors; // 🌟 核心修复：完整保留包含 user_id, nickname, avatar 的结构
+  final List<Map<String, dynamic>> latestActors; // 完整保留包含 user_id, nickname, avatar 的结构
   final List<String> actorNames;
   final List<String> actorAvatars;
   final String displayTitle;
@@ -48,7 +48,7 @@ class NotificationItemModel {
     }
 
     return NotificationItemModel(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       recipientId: json['recipient_id']?.toString() ?? '',
       groupKey: json['group_key']?.toString() ?? '',
       tabCategory: json['tab_category']?.toString() ?? 'system',
@@ -65,6 +65,25 @@ class NotificationItemModel {
           ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'recipient_id': recipientId,
+      'group_key': groupKey,
+      'tab_category': tabCategory,
+      'action_type': actionType,
+      'actor_count': actorCount,
+      'latest_actors': latestActors,
+      'actor_names': actorNames,
+      'actor_avatars': actorAvatars,
+      'display_title': displayTitle,
+      'target': target,
+      'context_data': contextData,
+      'is_read': isRead,
+      'updated_at': updatedAt.toIso8601String(),
+    };
   }
 }
 
@@ -91,5 +110,15 @@ class NotificationSummaryModel {
       like: int.tryParse(json['like']?.toString() ?? '0') ?? 0,
       system: int.tryParse(json['system']?.toString() ?? '0') ?? 0,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'all': all,
+      'comment': comment,
+      'follow': follow,
+      'like': like,
+      'system': system,
+    };
   }
 }

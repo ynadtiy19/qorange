@@ -29,6 +29,7 @@ class ImConversationController extends GetxController {
       }
     } catch (_) {}
   }
+
   @override
   void onInit() {
     super.onInit();
@@ -45,6 +46,16 @@ class ImConversationController extends GetxController {
     if (UserController.to.isLoggedIn) {
       fetchConversations(refresh: true);
     }
+  }
+
+  /// 🌟 兼容别名方法：供外部通用调用
+  Future<void> loadConversations({bool isRefresh = false}) async {
+    await fetchConversations(refresh: isRefresh);
+  }
+
+  /// 🌟 兼容别名方法：供外部通用清空调用
+  void clearConversations() {
+    clearLocalState();
   }
 
   /// 🌟 拉取会话列表并计算总未读小红点
@@ -131,8 +142,7 @@ class ImConversationController extends GetxController {
     _recalculateTotalUnread();
   }
 
-
-  /// 🌟 修复问题 ②：收到撤回事件时，精确判断是否为最新消息才更新列表预览
+  /// 🌟 收到撤回事件时：精确判断是否为最新消息才更新列表预览
   void onMessageRevokedInConversation(String conversationId, String revokedMsgId, {bool isLatestMessage = true}) {
     final index = conversations.indexWhere((c) => c.conversationId == conversationId);
     if (index != -1) {
@@ -157,7 +167,7 @@ class ImConversationController extends GetxController {
     }
   }
 
-  /// 🌟 实现问题 ③：收到对方修改个人资料的 AtSign 信号，毫秒级就地更新头像与昵称（0 接口开销）
+  /// 🌟 收到对方修改个人资料的 AtSign 信号：就地更新头像与昵称
   void onPartnerProfileUpdated(String partnerUserId, String newNickname, String newAvatar) {
     for (int i = 0; i < conversations.length; i++) {
       if (conversations[i].partnerId == partnerUserId) {
@@ -179,6 +189,7 @@ class ImConversationController extends GetxController {
       }
     }
   }
+
   /// 🌟 进入单聊窗口时：消除该会话的未读数，底部导航栏小红点同步扣减
   void markConversationAsRead(String conversationId) {
     final index = conversations.indexWhere((c) => c.conversationId == conversationId);
@@ -192,7 +203,7 @@ class ImConversationController extends GetxController {
         partnerUsername: old.partnerUsername,
         lastMsgPreview: old.lastMsgPreview,
         lastMsgType: old.lastMsgType,
-        unreadCount: 0, // 消除未读
+        unreadCount: 0,
         relationshipStatus: old.relationshipStatus,
         strangerMessageCount: old.strangerMessageCount,
         updatedAt: old.updatedAt,

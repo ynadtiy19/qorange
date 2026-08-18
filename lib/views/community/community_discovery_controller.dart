@@ -1,47 +1,54 @@
-import 'package:get/get.dart';
-import 'package:flutter/material.dart';
+// lib/views/community/community_discovery_controller.dart
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:get/get.dart';
 import '../../network/http_client.dart';
+import '../../user_controller.dart';
 import 'community_model.dart';
 
 class CommunityDiscoveryController extends GetxController {
-  final ScrollController scrollController = ScrollController();
+  static CommunityDiscoveryController get to => Get.find<CommunityDiscoveryController>();
 
-  // 状态变量
   final RxList<CommunityModel> communities = <CommunityModel>[].obs;
   final RxBool isLoading = true.obs;
   final RxBool isLoadingMore = false.obs;
   final RxBool hasMore = true.obs;
 
-  // 过滤指标
-  final RxString selectedCategory = 'trending'.obs; // 对应顶部药丸分类
-  final RxString selectedPrice = 'all'.obs;        // all, free, paid
-  final RxString selectedType = 'all'.obs;         // all, public, private
-  final RxString selectedSort = 'trending'.obs;     // trending, top
+  final RxString selectedCategory = 'trending'.obs;
+  final RxString selectedPrice = 'all'.obs;
+  final RxString selectedType = 'all'.obs;
+  final RxString selectedSort = 'trending'.obs;
 
   int _page = 1;
   final int _limit = 10;
+  bool _isFetching = false;
+
+  Worker? _userStateWorker;
+  Worker? _globalSyncWorker;
 
   @override
   void onInit() {
     super.onInit();
-    scrollController.addListener(_onScroll);
+
+    // 🌟 1. 监听用户状态变动（切号后强制重刷第 1 个 Tab 发现流）
+    _userStateWorker = ever(UserController.to.user, (_) {
+      fetchDiscoveryList(isRefresh: true);
+    });
+
+    // 🌟 2. 监听跨页全局同步信号（购买、加群、审批通过后即时全量同步）
+    _globalSyncWorker = ever(globalDataSyncSignal, (_) {
+      fetchDiscoveryList(isRefresh: true);
+    });
+
     fetchDiscoveryList(isRefresh: true);
   }
 
   @override
   void onClose() {
-    scrollController.dispose();
+    _userStateWorker?.dispose();
+    _globalSyncWorker?.dispose();
     super.onClose();
   }
 
-  void _onScroll() {
-    if (scrollController.position.pixels >= scrollController.position.maxScrollExtent - 200) {
-      fetchMoreDiscoveryList();
-    }
-  }
-
-  // 切换过滤器
   void updateFilters({String? price, String? type, String? sort}) {
     if (price != null) selectedPrice.value = price;
     if (type != null) selectedType.value = type;
@@ -49,19 +56,19 @@ class CommunityDiscoveryController extends GetxController {
     fetchDiscoveryList(isRefresh: true);
   }
 
-  // 切换分类药丸
   void updateCategory(String category) {
     selectedCategory.value = category;
     fetchDiscoveryList(isRefresh: true);
   }
 
-  /// 🌟 统一分页异步网络拉取
   Future<void> fetchDiscoveryList({bool isRefresh = false}) async {
     if (isRefresh) {
       _page = 1;
       hasMore.value = true;
       isLoading.value = true;
     }
+
+    _isFetching = true;
 
     try {
       final Map<String, dynamic> queryParams = {
@@ -93,6 +100,9 @@ class CommunityDiscoveryController extends GetxController {
           communities.addAll(parsed);
         }
 
+        // 🌟 核心强制重绘：通知所有卡片即时刷新 isJoined 与群成员状态
+        communities.refresh();
+
         isLoading.value = false;
         isLoadingMore.value = false;
         if (parsed.length < _limit) {
@@ -102,17 +112,18 @@ class CommunityDiscoveryController extends GetxController {
     } catch (_) {
       isLoading.value = false;
       isLoadingMore.value = false;
+    } finally {
+      _isFetching = false;
     }
   }
 
   Future<void> fetchMoreDiscoveryList() async {
-    if (isLoadingMore.value || !hasMore.value || isLoading.value) return;
+    if (isLoadingMore.value || !hasMore.value || isLoading.value || _isFetching) return;
     isLoadingMore.value = true;
     _page++;
     await fetchDiscoveryList(isRefresh: false);
   }
 
-  /// 🌟 新增：向后端提交新建社群数据，并在成功时自动回显
   Future<bool> createCommunity(Map<String, dynamic> data) async {
     try {
       final res = await HttpClient.instance.post<Map<String, dynamic>>(
@@ -121,8 +132,8 @@ class CommunityDiscoveryController extends GetxController {
       );
       if (res.respCode == 0) {
         Fluttertoast.showToast(msg: 'community_created'.tr);
-        // 🌟 强力重洗列表，让最新创建的社群瞬间呈现在最顶部，完美回显！
         fetchDiscoveryList(isRefresh: true);
+        triggerGlobalDataSync(); // 🌟 广播同步商店与首页
         return true;
       } else {
         Fluttertoast.showToast(msg: res.respMsg);

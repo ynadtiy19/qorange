@@ -1,3 +1,4 @@
+// lib/views/shop/shop_controller.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -11,6 +12,8 @@ import '../../services/epay_client_service.dart';
 import '../../user_controller.dart';
 
 class ShopController extends GetxController with WidgetsBindingObserver {
+  static ShopController get to => Get.find<ShopController>();
+
   final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
 
   // 商品数据载荷
@@ -36,27 +39,42 @@ class ShopController extends GetxController with WidgetsBindingObserver {
   final RxBool isLoadingMorePost = false.obs;
   final RxBool isLoadingMoreGroup = false.obs;
 
-  // 轮询与返回唤醒校验变量
   String? currentOutTradeNo;
   Timer? _pollingTimer;
   int _pollingSecondsElapsed = 0;
-  final int maxPollingDurationSeconds = 30; // 30秒轮询超时时间
+  final int maxPollingDurationSeconds = 30;
   bool isPolling = false;
+
+  Worker? _userStateWorker;
+  Worker? _globalSyncWorker;
 
   @override
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
+
+    // 🌟 1. 监听用户状态变动（切号后第一个 Tab 强制清空并全量重拉）
+    _userStateWorker = ever(UserController.to.user, (_) {
+      loadAllShopData();
+    });
+
+    // 🌟 2. 监听全局同步信号（在任何页面购买、加群、发帖后，所有 Tab 物理同步已购状态）
+    _globalSyncWorker = ever(globalDataSyncSignal, (_) {
+      loadAllShopData();
+    });
+
+    loadAllShopData();
   }
 
   @override
   void onClose() {
+    _userStateWorker?.dispose();
+    _globalSyncWorker?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _pollingTimer?.cancel();
     super.onClose();
   }
 
-  /// 监听应用生命周期，当用户从外部浏览器支付返回 App 时，触发自动轮询校验
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -66,7 +84,6 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  /// 根据索引获取分类标识
   String getCategoryByIndex(int index) {
     switch (index) {
       case 0:
@@ -80,24 +97,15 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  /// 按需加载指定分类的数据（支持静默刷新）
   Future<void> loadCategoryData(String category) async {
-    bool isSilent = false;
-
-    if (category == 'all' && allGoods.isNotEmpty) isSilent = true;
-    if (category == 'post' && postGoods.isNotEmpty) isSilent = true;
-    if (category == 'group' && groupGoods.isNotEmpty) isSilent = true;
-
-    if (!isSilent) {
-      if (category == 'all') isLoadingAll.value = true;
-      if (category == 'post') isLoadingPost.value = true;
-      if (category == 'group') isLoadingGroup.value = true;
-    }
+    if (category == 'all') isLoadingAll.value = true;
+    if (category == 'post') isLoadingPost.value = true;
+    if (category == 'group') isLoadingGroup.value = true;
 
     await fetchGoods(category: category, isRefresh: true);
   }
 
-  /// 一键加载/刷新全部商店数据
+  /// 一键刷新所有 Tab，确保第 1 个 Tab 与其他页面 100% 同步
   Future<void> loadAllShopData() async {
     isLoadingAll.value = true;
     isLoadingPost.value = true;
@@ -110,7 +118,6 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     ]);
   }
 
-  /// 统一分页异步网络拉取
   Future<void> fetchGoods({required String category, bool isRefresh = false}) async {
     int targetPage = 1;
     if (!isRefresh) {
@@ -138,17 +145,32 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         final List<ShopGoods> parsedGoods = rawGoodsList.map((e) => ShopGoods.fromJson(e)).toList();
 
         if (category == 'all') {
-          if (isRefresh) allGoods.assignAll(parsedGoods); else allGoods.addAll(parsedGoods);
+          if (isRefresh) {
+            allGoods.assignAll(parsedGoods);
+          } else {
+            allGoods.addAll(parsedGoods);
+          }
+          allGoods.refresh();
           isLoadingAll.value = false;
           isLoadingMoreAll.value = false;
           hasMoreAll.value = parsedGoods.length >= pageSize;
         } else if (category == 'post') {
-          if (isRefresh) postGoods.assignAll(parsedGoods); else postGoods.addAll(parsedGoods);
+          if (isRefresh) {
+            postGoods.assignAll(parsedGoods);
+          } else {
+            postGoods.addAll(parsedGoods);
+          }
+          postGoods.refresh();
           isLoadingPost.value = false;
           isLoadingMorePost.value = false;
           hasMorePost.value = parsedGoods.length >= pageSize;
         } else if (category == 'group') {
-          if (isRefresh) groupGoods.assignAll(parsedGoods); else groupGoods.addAll(parsedGoods);
+          if (isRefresh) {
+            groupGoods.assignAll(parsedGoods);
+          } else {
+            groupGoods.addAll(parsedGoods);
+          }
+          groupGoods.refresh();
           isLoadingGroup.value = false;
           isLoadingMoreGroup.value = false;
           hasMoreGroup.value = parsedGoods.length >= pageSize;
@@ -176,7 +198,6 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     await fetchGoods(category: category, isRefresh: false);
   }
 
-  /// 安全外部支付跳转逻辑
   Future<void> launchExternalBrowser(String urlString) async {
     final url = Uri.parse(urlString);
     if (await canLaunchUrl(url)) {
@@ -186,18 +207,6 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  /// 专门对齐易支付网关 RFC 3986 的编码拼接器，强制将 '+' 转换为 '%20'
-  String buildEpayQueryString(Map<String, dynamic> params) {
-    final List<String> parts = [];
-    params.forEach((key, value) {
-      final encodedKey = Uri.encodeQueryComponent(key);
-      final encodedValue = Uri.encodeQueryComponent(value.toString()).replaceAll('+', '%20');
-      parts.add('$encodedKey=$encodedValue');
-    });
-    return parts.join('&');
-  }
-
-  /// 极速付款流程全闭环执行
   Future<void> executePaymentWorkflow(ShopGoods item, String selectedPayType) async {
     if (!UserController.to.isLoggedIn) {
       Fluttertoast.showToast(msg: 'login_to_purchase'.tr);
@@ -247,17 +256,13 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         'money': amount,
       });
 
-      Get.back(); // 关闭等待弹窗
+      Get.back();
 
       if (epayCreateRes['code'] == 0) {
         final payUrl = epayCreateRes['pay_info'] ?? epayCreateRes['pay_url'];
         if (payUrl != null && payUrl.toString().isNotEmpty) {
-          // 记录订单号，以便返回 App 后能够进行自动异步轮询
           currentOutTradeNo = outTradeNo;
-
           await launchExternalBrowser(payUrl.toString());
-
-          // 开启备用手动确认弹窗
           showPaymentCheckDialog(outTradeNo);
         } else {
           Fluttertoast.showToast(msg: 'gateway_parse_error'.tr);
@@ -275,7 +280,6 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  /// 弹出手动确认支付框
   void showPaymentCheckDialog(String outTradeNo) {
     final BuildContext context = Get.context!;
     showDialog<void>(
@@ -314,13 +318,11 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     );
   }
 
-  /// 开启定时器轮询拉取支付结果
   void startPollingVerification(String outTradeNo) {
     _pollingTimer?.cancel();
     _pollingSecondsElapsed = 0;
     isPolling = true;
 
-    // 唤起时立刻执行一次静默校验
     verifyPaymentOnBackend(outTradeNo, isSilent: true);
 
     _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
@@ -336,7 +338,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     });
   }
 
-  /// 向服务器发起原装签名账本解密并验证接口
+  /// 🌟 核心修复：精准判定支付成功，并彻底打通全局广播同步
   Future<void> verifyPaymentOnBackend(String outTradeNo, {required bool isSilent}) async {
     if (!isSilent) {
       Get.dialog(
@@ -357,32 +359,31 @@ class ShopController extends GetxController with WidgetsBindingObserver {
       );
 
       if (!isSilent) {
-        Get.back(); // 关闭手动确认弹窗产生的 loading 圈
+        Get.back();
       }
 
       final Map<String, dynamic>? datas = verifyRes.datas;
 
-      // 🌟 安全判断逻辑，只有返回数据包中包含 goodsName 且 userId 都不为空时才视为支付成功
-      final bool isSuccess = verifyRes.respCode == 0 &&
-          datas != null &&
-          datas['goodsName'] != null &&
-          datas['userId'] != null;
+      // 🌟 核心修正：只要接口返回 0 并且包含 datas，即确认支付发货成功
+      final bool isSuccess = verifyRes.respCode == 0 && datas != null;
 
       if (isSuccess) {
-        // 验证通过，终止一切轮询，清除等待状态
         _pollingTimer?.cancel();
         isPolling = false;
         currentOutTradeNo = null;
 
-        // 如果存在底层弹出的校验对话框，则主动关闭
         _closePaymentDialogs();
 
-        // 触发极速路由到动画交易成功详情页
+        // 🌟 1. 广播全 App 页面同步（首页、社群与商店全部生效已拥有）
+        triggerGlobalDataSync();
+
+        // 🌟 2. 立即主动刷新商店自身全部 Tab
+        await loadAllShopData();
+
         Get.to(() => ShopPaymentSuccessPage(
           orderDetails: Map<String, dynamic>.from(datas),
           primaryColor: primaryColor,
           onDone: () {
-            // 回退静默刷新页面列表信息
             loadAllShopData();
           },
         ));
@@ -403,7 +404,6 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  /// 封装退出多余对话框的安全函数，避免路由上下文发生冲突
   void _closePaymentDialogs() {
     try {
       if (Get.isDialogOpen == true) {

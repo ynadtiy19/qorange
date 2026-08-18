@@ -1,32 +1,77 @@
-// lib/controllers/notification_center_controller.dart (热重绘 + 零漂移红点完全体)
-import 'package:flutter/foundation.dart';
+// lib/controllers/notification_center_controller.dart (独立多Tab分页流 + 滚动记忆 + 热重绘完全体)
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../models/notification_model.dart';
 import '../../network/http_client.dart';
 import '../../user_controller.dart';
-import 'im_conversation_controller.dart';
 
-class NotificationCenterController extends GetxController {
+/// 🌟 独立 Tab 状态容器：维护各自的滚动位置、独立分页计数与数据流
+class TabNotificationState {
+  final String tabKey;
+  final RxList<NotificationItemModel> list = <NotificationItemModel>[].obs;
+  final RxBool isLoading = true.obs;
+  final RxBool isLoadingMore = false.obs;
+  final RxBool hasMore = true.obs;
+  int page = 1;
+  final int limit = 20;
+  final ScrollController scrollController = ScrollController();
+
+  TabNotificationState({required this.tabKey});
+
+  void dispose() {
+    scrollController.dispose();
+  }
+
+  void reset() {
+    page = 1;
+    hasMore.value = true;
+    isLoading.value = true;
+    isLoadingMore.value = false;
+  }
+}
+
+class NotificationCenterController extends GetxController with GetSingleTickerProviderStateMixin {
   static NotificationCenterController get to => Get.find<NotificationCenterController>();
 
-  final RxList<NotificationItemModel> notifications = <NotificationItemModel>[].obs;
+  // 5 大 Tab 定义
+  final List<Map<String, String>> tabDefs = [
+    {'key': 'all', 'label': '全部'},
+    {'key': 'like', 'label': '赞与收藏'},
+    {'key': 'comment', 'label': '评论回复'},
+    {'key': 'follow', 'label': '新增关注'},
+    {'key': 'system', 'label': '系统通知'},
+  ];
+
+  late final Map<String, TabNotificationState> tabStates;
   final Rx<NotificationSummaryModel> unreadSummary = NotificationSummaryModel().obs;
   final RxInt totalUnreadBadge = 0.obs;
-
   final RxString activeTab = 'all'.obs;
-  final RxBool isLoading = false.obs;
-  final RxBool isLoadingMore = false.obs;
-  bool _hasMore = true;
-  int _currentPage = 1;
 
   Worker? _userLoginWorker;
 
   @override
   void onInit() {
     super.onInit();
+
+    // 1. 初始化 5 大 Tab 独立状态容器与滚动监听
+    tabStates = {
+      for (final def in tabDefs) def['key']!: TabNotificationState(tabKey: def['key']!),
+    };
+
+    for (final state in tabStates.values) {
+      state.scrollController.addListener(() {
+        if (state.scrollController.position.pixels >=
+            state.scrollController.position.maxScrollExtent - 200) {
+          fetchMore(state.tabKey);
+        }
+      });
+    }
+
+    // 2. 监听用户状态
     _userLoginWorker = ever(UserController.to.user, (user) {
       if (UserController.to.isLoggedIn) {
         fetchUnreadBadgeOnly();
+        fetchTabNotifications(activeTab.value, isRefresh: true);
       } else {
         clearState();
       }
@@ -34,16 +79,17 @@ class NotificationCenterController extends GetxController {
 
     if (UserController.to.isLoggedIn) {
       fetchUnreadBadgeOnly();
+      fetchTabNotifications('all', isRefresh: true);
     }
   }
 
-  /// 🌟 核心修复：纯事件驱动局部增删改，并强刷 UI
+  /// 🌟 核心：AtSign 实时事件驱动，穿透多 Tab 精准热重绘
   void onAtSignEventReceived(Map<String, dynamic> eventPayload) {
     final String eventType = eventPayload['event_type']?.toString() ?? 'upsert_notif';
     final dynamic data = eventPayload['data'];
     final dynamic summaryData = eventPayload['unread_summary'];
 
-    // 1. 🌟 严格对齐后端权威未读细分字典，彻底杜绝小红点数字漂移！
+    // 1. 严格对齐未读细分字典，彻底杜绝小红点数字漂移
     if (summaryData is Map<String, dynamic>) {
       unreadSummary.value = NotificationSummaryModel.fromJson(summaryData);
       totalUnreadBadge.value = unreadSummary.value.all;
@@ -56,58 +102,58 @@ class NotificationCenterController extends GetxController {
     final mapData = Map<String, dynamic>.from(data);
 
     // =========================================================
-    // 场景 A: 对方修改头像昵称 ➔ 根据 user_id 0ms 精准热更新！
+    // 场景 A: 对方修改头像昵称 ➔ 0ms 穿透全 Tab 局部热替换！
     // =========================================================
     if (eventType == 'profile_updated_in_notif') {
       final String targetUserId = mapData['user_id']?.toString() ?? '';
       final String newNick = mapData['nickname']?.toString() ?? '';
       final String newAvatar = mapData['avatar']?.toString() ?? '';
 
-      bool anyUpdated = false;
+      for (final state in tabStates.values) {
+        bool tabChanged = false;
+        for (int i = 0; i < state.list.length; i++) {
+          final item = state.list[i];
+          bool itemChanged = false;
 
-      for (int i = 0; i < notifications.length; i++) {
-        final item = notifications[i];
-        bool itemChanged = false;
+          final updatedActors = <Map<String, dynamic>>[];
+          final updatedNames = <String>[];
+          final updatedAvatars = <String>[];
 
-        final updatedActors = <Map<String, dynamic>>[];
-        final updatedNames = <String>[];
-        final updatedAvatars = <String>[];
-
-        for (final actor in item.latestActors) {
-          final actorCopy = Map<String, dynamic>.from(actor);
-          if (actorCopy['user_id'] == targetUserId) {
-            if (newNick.isNotEmpty) actorCopy['nickname'] = newNick;
-            if (newAvatar.isNotEmpty) actorCopy['avatar'] = newAvatar;
-            itemChanged = true;
+          for (final actor in item.latestActors) {
+            final actorCopy = Map<String, dynamic>.from(actor);
+            if (actorCopy['user_id'] == targetUserId) {
+              if (newNick.isNotEmpty) actorCopy['nickname'] = newNick;
+              if (newAvatar.isNotEmpty) actorCopy['avatar'] = newAvatar;
+              itemChanged = true;
+            }
+            updatedActors.add(actorCopy);
+            updatedNames.add(actorCopy['nickname']?.toString() ?? '用户');
+            updatedAvatars.add(actorCopy['avatar']?.toString() ?? '');
           }
-          updatedActors.add(actorCopy);
-          updatedNames.add(actorCopy['nickname']?.toString() ?? '用户');
-          updatedAvatars.add(actorCopy['avatar']?.toString() ?? '');
-        }
 
-        if (itemChanged) {
-          notifications[i] = NotificationItemModel(
-            id: item.id,
-            recipientId: item.recipientId,
-            groupKey: item.groupKey,
-            tabCategory: item.tabCategory,
-            actionType: item.actionType,
-            actorCount: item.actorCount,
-            latestActors: updatedActors,
-            actorNames: updatedNames,
-            actorAvatars: updatedAvatars,
-            displayTitle: _regenerateDisplayTitle(item.actionType, item.actorCount, updatedNames, item.target['title']?.toString() ?? ''),
-            target: item.target,
-            contextData: item.contextData,
-            isRead: item.isRead,
-            updatedAt: item.updatedAt,
-          );
-          anyUpdated = true;
+          if (itemChanged) {
+            state.list[i] = NotificationItemModel(
+              id: item.id,
+              recipientId: item.recipientId,
+              groupKey: item.groupKey,
+              tabCategory: item.tabCategory,
+              actionType: item.actionType,
+              actorCount: item.actorCount,
+              latestActors: updatedActors,
+              actorNames: updatedNames,
+              actorAvatars: updatedAvatars,
+              displayTitle: _regenerateDisplayTitle(item.actionType, item.actorCount, updatedNames, item.target['title']?.toString() ?? ''),
+              target: item.target,
+              contextData: item.contextData,
+              isRead: item.isRead,
+              updatedAt: item.updatedAt,
+            );
+            tabChanged = true;
+          }
         }
-      }
-
-      if (anyUpdated) {
-        notifications.refresh(); // 🌟 强制 GetX 响应式重绘！
+        if (tabChanged) {
+          state.list.refresh();
+        }
       }
       return;
     }
@@ -119,8 +165,10 @@ class NotificationCenterController extends GetxController {
       final String groupKey = mapData['group_key']?.toString() ?? '';
       final String notifId = mapData['id']?.toString() ?? '';
 
-      notifications.removeWhere((item) => item.groupKey == groupKey || item.id == notifId);
-      notifications.refresh();
+      for (final state in tabStates.values) {
+        state.list.removeWhere((item) => item.groupKey == groupKey || item.id == notifId);
+        state.list.refresh();
+      }
       return;
     }
 
@@ -129,16 +177,22 @@ class NotificationCenterController extends GetxController {
     // =========================================================
     if (eventType == 'upsert_notif') {
       final notifItem = NotificationItemModel.fromJson(mapData);
-      final index = notifications.indexWhere((item) => item.groupKey == notifItem.groupKey || item.id == notifItem.id);
 
-      if (index != -1) {
-        notifications[index] = notifItem;
-      } else {
-        if (activeTab.value == 'all' || activeTab.value == notifItem.tabCategory) {
-          notifications.insert(0, notifItem);
+      // 同步插入/更新到全部页 (all) 以及其归属的独立分类页
+      final targetTabs = {'all', notifItem.tabCategory};
+
+      for (final tab in targetTabs) {
+        final state = tabStates[tab];
+        if (state != null) {
+          final index = state.list.indexWhere((item) => item.groupKey == notifItem.groupKey || item.id == notifItem.id);
+          if (index != -1) {
+            state.list[index] = notifItem;
+          } else {
+            state.list.insert(0, notifItem);
+          }
+          state.list.refresh();
         }
       }
-      notifications.refresh();
     }
   }
 
@@ -155,6 +209,7 @@ class NotificationCenterController extends GetxController {
     return targetTitle;
   }
 
+  /// 纯拉取未读小红点
   Future<void> fetchUnreadBadgeOnly() async {
     if (!UserController.to.isLoggedIn) return;
     try {
@@ -163,34 +218,31 @@ class NotificationCenterController extends GetxController {
         final summaryMap = res.datas!['unread_summary'] as Map<String, dynamic>? ?? {};
         unreadSummary.value = NotificationSummaryModel.fromJson(summaryMap);
         totalUnreadBadge.value = unreadSummary.value.all;
-
-        // 同步大厅铃铛红点
-        if (Get.isRegistered<ImConversationController>()) {
-          ImConversationController.to.unreadNotifCount.value = totalUnreadBadge.value;
-        }
       }
     } catch (_) {}
   }
 
-  Future<void> fetchNotifications({bool isRefresh = false}) async {
+  /// 🌟 独立 Tab 分页拉取数据
+  Future<void> fetchTabNotifications(String tabKey, {bool isRefresh = false}) async {
     if (!UserController.to.isLoggedIn) return;
 
+    final state = tabStates[tabKey];
+    if (state == null) return;
+
     if (isRefresh) {
-      _currentPage = 1;
-      _hasMore = true;
-      isLoading.value = true;
+      state.reset();
     } else {
-      if (!_hasMore || isLoadingMore.value) return;
-      isLoadingMore.value = true;
+      if (!state.hasMore.value || state.isLoadingMore.value) return;
+      state.isLoadingMore.value = true;
     }
 
     try {
       final res = await HttpClient.instance.get<Map<String, dynamic>>(
         '/api-notifications',
         queryParameters: {
-          'tab': activeTab.value,
-          'page': _currentPage.toString(),
-          'limit': '20',
+          'tab': tabKey,
+          'page': state.page.toString(),
+          'limit': state.limit.toString(),
         },
       );
 
@@ -199,40 +251,49 @@ class NotificationCenterController extends GetxController {
         final rawList = datas['notifications'] as List? ?? [];
         final summaryMap = datas['unread_summary'] as Map<String, dynamic>? ?? {};
 
-        final List<NotificationItemModel> list = rawList
+        final List<NotificationItemModel> fetched = rawList
             .map((item) => NotificationItemModel.fromJson(item as Map<String, dynamic>))
             .toList();
 
+        // 同步全局未读统计
         unreadSummary.value = NotificationSummaryModel.fromJson(summaryMap);
         totalUnreadBadge.value = unreadSummary.value.all;
 
-        if (Get.isRegistered<ImConversationController>()) {
-          ImConversationController.to.unreadNotifCount.value = totalUnreadBadge.value;
-        }
-
         if (isRefresh) {
-          notifications.assignAll(list);
+          state.list.assignAll(fetched);
         } else {
-          notifications.addAll(list);
+          state.list.addAll(fetched);
         }
 
-        if (list.length < 20) _hasMore = false;
-        _currentPage++;
+        final bool hasMoreFromServer = datas['has_more'] as bool? ?? (fetched.length >= state.limit);
+        state.hasMore.value = hasMoreFromServer;
+        state.page++;
       }
     } catch (e) {
-      debugPrint("🔴 [NotificationCenter] 拉取通知异常: $e");
+      debugPrint("🔴 [NotificationCenter] 拉取 Tab [$tabKey] 通知异常: $e");
     } finally {
-      isLoading.value = false;
-      isLoadingMore.value = false;
+      state.isLoading.value = false;
+      state.isLoadingMore.value = false;
     }
   }
 
-  void switchTab(String tab) {
-    if (activeTab.value == tab) return;
-    activeTab.value = tab;
-    _zeroOutLocalTabBadge(tab);
-    fetchNotifications(isRefresh: true);
-    markTabAsRead(tab);
+  /// 上拉加载更多
+  Future<void> fetchMore(String tabKey) async {
+    await fetchTabNotifications(tabKey, isRefresh: false);
+  }
+
+  /// 🌟 切换 Tab 并保留原位置、记忆分页状态
+  void switchTab(String tabKey) {
+    if (activeTab.value == tabKey) return;
+    activeTab.value = tabKey;
+
+    final state = tabStates[tabKey];
+    if (state != null && state.list.isEmpty) {
+      fetchTabNotifications(tabKey, isRefresh: true);
+    }
+
+    _zeroOutLocalTabBadge(tabKey);
+    markTabAsRead(tabKey);
   }
 
   void _zeroOutLocalTabBadge(String tab) {
@@ -271,10 +332,6 @@ class NotificationCenterController extends GetxController {
       system: newSystem,
     );
     totalUnreadBadge.value = newAll;
-
-    if (Get.isRegistered<ImConversationController>()) {
-      ImConversationController.to.unreadNotifCount.value = newAll;
-    }
   }
 
   Future<void> markTabAsRead(String tab) async {
@@ -285,7 +342,10 @@ class NotificationCenterController extends GetxController {
   }
 
   void clearState() {
-    notifications.clear();
+    for (final state in tabStates.values) {
+      state.list.clear();
+      state.reset();
+    }
     unreadSummary.value = NotificationSummaryModel();
     totalUnreadBadge.value = 0;
   }
@@ -294,6 +354,9 @@ class NotificationCenterController extends GetxController {
   void onClose() {
     markTabAsRead(activeTab.value);
     _userLoginWorker?.dispose();
+    for (final state in tabStates.values) {
+      state.dispose();
+    }
     super.onClose();
   }
 }

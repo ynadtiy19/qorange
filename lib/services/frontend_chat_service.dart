@@ -17,7 +17,7 @@ import 'package:version/version.dart';
 
 import '../../controllers/im_chat_controller.dart';
 import '../../controllers/im_conversation_controller.dart';
-import '../../controllers/notification_center_controller.dart'; // 🌟 引入通知中心控制器
+import '../../controllers/notification_center_controller.dart';
 import '../../user_controller.dart';
 import 'notification_handler_service.dart';
 
@@ -32,7 +32,6 @@ class FrontendChatService extends GetxService {
   final RxBool isOnboarded = false.obs;
   AtClient? _atClient;
 
-  // 使用 List 持有多重订阅，便于在登出或切换账号时安全、干净地一次性销毁
   final List<StreamSubscription<dynamic>> _monitorSubscriptions = [];
   Worker? _loginStateWorker;
 
@@ -41,13 +40,22 @@ class FrontendChatService extends GetxService {
     super.onInit();
     _loginStateWorker = ever(UserController.to.user, (user) {
       if (UserController.to.isLoggedIn) {
-        if (isOnboarded.value) {
-          _startFrontendMonitor(_atClient!);
+        if (isOnboarded.value && _atClient != null) {
+          Future.microtask(() => _startFrontendMonitor(_atClient!));
         } else {
           authenticate();
         }
+
+        // 🌟 账号切换时重载会话列表
+        if (Get.isRegistered<ImConversationController>()) {
+          ImConversationController.to.fetchConversations(refresh: true);
+        }
       } else {
         disconnect();
+        // 🌟 账号登出时清空会话数据
+        if (Get.isRegistered<ImConversationController>()) {
+          ImConversationController.to.clearLocalState();
+        }
       }
     });
 
@@ -118,21 +126,20 @@ class FrontendChatService extends GetxService {
     }
 
     final myRealIdStr = UserController.to.user.value?.id ?? 'none';
+    if (myRealIdStr == 'none' || myRealIdStr.isEmpty) return;
 
-    // 1. 离线缓存拉取 (增加 notif_msg_ 离线通知同步)
-    if (myRealIdStr != 'none') {
-      await _pullKeysByRegex(atClient, 'push_message_$myRealIdStr');
-      await _pullKeysByRegex(atClient, 'push_message_all');
-      await _pullKeysByRegex(atClient, 'im_msg_$myRealIdStr');
-      await _pullKeysByRegex(atClient, 'notif_msg_$myRealIdStr'); // 🌟 离线同步通知中心未读
-    }
+    // 1. 离线缓存拉取 (包含 notif_msg_ 与 im_msg_)
+    await _pullKeysByRegex(atClient, 'push_message_$myRealIdStr');
+    await _pullKeysByRegex(atClient, 'push_message_all');
+    await _pullKeysByRegex(atClient, 'im_msg_$myRealIdStr');
+    await _pullKeysByRegex(atClient, 'notif_msg_$myRealIdStr');
 
     // 2. 注册多路复用正则监听通道
     final String broadcastRegex = 'push_message_all.*\\.$nameSpace@';
     final String personalRegex = 'push_message_$myRealIdStr.*\\.$nameSpace@';
     final String imMessageRegex = 'im_msg_$myRealIdStr.*\\.$nameSpace@';
     final String imStatusRegex = 'im_status_$myRealIdStr.*\\.$nameSpace@';
-    final String notifCenterRegex = 'notif_msg_$myRealIdStr.*\\.$nameSpace@'; // 🌟 专属通知中心通道
+    final String notifCenterRegex = 'notif_msg_$myRealIdStr.*\\.$nameSpace@';
 
     debugPrint("🎧 [Frontend] 开启监听 - 广播通道: $broadcastRegex");
     debugPrint("🎧 [Frontend] 开启监听 - 社交通道: $personalRegex");
@@ -148,17 +155,14 @@ class FrontendChatService extends GetxService {
           .subscribe(regex: personalRegex, shouldDecrypt: true)
           .listen(_onNotificationReceived, onError: (e) => debugPrint("🔴 个人通道监听错误: $e"));
 
-      // 3. 专属 IM 私聊消息监听
       final imSub = atClient.notificationService
           .subscribe(regex: imMessageRegex, shouldDecrypt: true)
           .listen(_onImMessageReceived, onError: (e) => debugPrint("🔴 IM通道监听错误: $e"));
 
-      // 4. 专属 IM 状态回执监听
       final statusSub = atClient.notificationService
           .subscribe(regex: imStatusRegex, shouldDecrypt: true)
           .listen(_onImStatusReceived, onError: (e) => debugPrint("🔴 状态通道监听错误: $e"));
 
-      // 🌟 5. 专属通知中心 (点赞聚合/评论回复/关注/收益) 实时监听
       final notifSub = atClient.notificationService
           .subscribe(regex: notifCenterRegex, shouldDecrypt: true)
           .listen(_onNotifCenterMessageReceived, onError: (e) => debugPrint("🔴 通知中心监听错误: $e"));
@@ -169,7 +173,6 @@ class FrontendChatService extends GetxService {
     }
   }
 
-  /// 🌟 纯事件驱动响应：收到通知中心 AtSign 信号 (状态栏精准唤醒)
   void _onNotifCenterMessageReceived(AtNotification notification) async {
     final String? jsonVal = notification.value;
     if (jsonVal == null || jsonVal.isEmpty) return;
@@ -189,13 +192,12 @@ class FrontendChatService extends GetxService {
         ImConversationController.to.unreadNotifCount.value = unreadTotal;
       }
 
-      // 🌟 2. 核心修复：精准组装数据并向手机系统状态栏发送通知卡片
+      // 2. 状态栏通知唤醒
       if (eventType == 'upsert_notif' && rawData is Map) {
         final Map<String, dynamic> payload = Map<String, dynamic>.from(rawData);
         final String notifId = payload['id']?.toString() ?? payload['_id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
         if (_deduplicator.isDuplicate(notifId)) return;
 
-        // 🌟 提取后端计算好的 display_title
         final String displayTitle = payload['display_title']?.toString() ?? '新社交动态';
         final String category = payload['tab_category']?.toString() ?? 'social';
         final String actionType = payload['action_type']?.toString() ?? 'like';
@@ -225,13 +227,12 @@ class FrontendChatService extends GetxService {
             'type': target['target_type'] ?? 'post',
           },
           'custom_data': {
-            'title': displayTitle,     // 🌟 确保状态栏标题为 "明珠 赞了你的文章"
-            'content': contentSnippet, // 🌟 确保内容为具体的评论或文章标题
+            'title': displayTitle,
+            'content': contentSnippet,
           },
           'timestamp': DateTime.now().toIso8601String(),
         });
 
-        // 🌟 唤醒系统状态栏通知
         _notificationHandler.handleIncomingNotification(note);
       }
     } catch (e) {
@@ -239,7 +240,6 @@ class FrontendChatService extends GetxService {
     }
   }
 
-  /// 处理 IM 即时通讯私聊流
   void _onImMessageReceived(AtNotification notification) async {
     final String? jsonVal = notification.value;
     if (jsonVal == null || jsonVal.isEmpty) return;
@@ -253,7 +253,6 @@ class FrontendChatService extends GetxService {
       final String senderName = payload['sender_nickname']?.toString() ?? '用户';
       final String senderAvatar = payload['sender_avatar']?.toString() ?? '';
 
-      // 1. 带 Tag 检查是否有正在该会话窗口中活跃的控制器
       if (Get.isRegistered<ImChatController>(tag: imMsg.conversationId)) {
         final chatCtrl = Get.find<ImChatController>(tag: imMsg.conversationId);
         chatCtrl.onIncomingMessage(imMsg);
@@ -261,10 +260,9 @@ class FrontendChatService extends GetxService {
         if (Get.isRegistered<ImConversationController>()) {
           ImConversationController.to.onNewMessageReceived(imMsg, senderName, senderAvatar);
         }
-        return; // 用户正在聊天中，不弹系统通知栏打扰
+        return;
       }
 
-      // 2. 如果用户在 App 其他页面：更新会话列表未读数并弹出系统状态栏通知
       if (Get.isRegistered<ImConversationController>()) {
         ImConversationController.to.onNewMessageReceived(imMsg, senderName, senderAvatar);
       }
@@ -313,7 +311,6 @@ class FrontendChatService extends GetxService {
     }
   }
 
-  /// 🌟 状态信号处理 (撤回 / 收款状态变更 / 对方修改资料实时热更新)
   void _onImStatusReceived(AtNotification notification) async {
     final String? jsonVal = notification.value;
     if (jsonVal == null || jsonVal.isEmpty) return;
@@ -325,39 +322,27 @@ class FrontendChatService extends GetxService {
 
       if (conversationId == null) return;
 
-      // 提取变更的资料数据
       final String targetUserId = data['extra']?['user_id']?.toString() ?? '';
       final String newNick = data['extra']?['nickname']?.toString() ?? '';
       final String newAvatar = data['extra']?['avatar']?.toString() ?? '';
 
-      // =========================================================
-      // 🌟 1. 聊天窗口内的实时响应 (正在聊天时，顶部 AppBar 头像昵称秒级变动)
-      // =========================================================
       if (Get.isRegistered<ImChatController>(tag: conversationId)) {
         final chatCtrl = Get.find<ImChatController>(tag: conversationId);
 
-        // a. 处理撤回
         if (signalType == 'revoke') {
           final String msgId = data['extra']?['message_id']?.toString() ?? '';
           chatCtrl.onMessageRevoked(msgId);
-        }
-        // b. 处理收款单状态变动
-        else if (signalType == 'token_request_status_change') {
+        } else if (signalType == 'token_request_status_change') {
           final String msgId = data['extra']?['message_id']?.toString() ?? '';
           final String status = data['extra']?['status']?.toString() ?? 'paid';
           chatCtrl.onTokenRequestStatusChanged(msgId, status);
-        }
-        // 🌟 c. 核心补齐：对方修改昵称/头像时，聊天窗口顶部 AppBar 0 毫秒即时刷新！
-        else if (signalType == 'profile_updated') {
+        } else if (signalType == 'profile_updated') {
           if (chatCtrl.partnerId == targetUserId || targetUserId.isEmpty) {
             chatCtrl.onPartnerProfileUpdated(newNick, newAvatar);
           }
         }
       }
 
-      // =========================================================
-      // 🌟 2. 会话列表大厅的实时响应 (无论在不在聊天窗口，大厅卡片都同步变动)
-      // =========================================================
       if (Get.isRegistered<ImConversationController>()) {
         if (signalType == 'revoke') {
           final String msgId = data['extra']?['message_id']?.toString() ?? '';
@@ -377,7 +362,7 @@ class FrontendChatService extends GetxService {
       debugPrint("🔴 [Frontend] 状态信号解析异常: $e");
     }
   }
-  /// 离线消息拉取
+
   Future<void> _pullKeysByRegex(AtClient atClient, String regexPattern) async {
     try {
       final List<String> matchingKeys = await atClient.getKeys(
@@ -400,7 +385,6 @@ class FrontendChatService extends GetxService {
                 _onImMessageReceived(AtNotification.empty()..value = jsonVal);
               }
             } else if (rawKeyStr.contains('notif_msg_')) {
-              // 🌟 离线拉取通知中心消息
               _onNotifCenterMessageReceived(AtNotification.empty()..value = jsonVal);
             } else {
               final pushModel = PushNotificationModel.fromJson(payload);
@@ -420,7 +404,6 @@ class FrontendChatService extends GetxService {
     }
   }
 
-  /// 统一处理普通社交通知
   void _onNotificationReceived(AtNotification notification) async {
     String? jsonVal = notification.value;
     if (jsonVal == null) return;

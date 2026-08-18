@@ -35,26 +35,26 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
       'color': const Color(0xFF2C7B6D),
     },
     {
+      'key': 'like',
+      'label': '赞与收藏',
+      'icon': HugeIcons.strokeRoundedFavourite,
+      'color': const Color(0xFFEF4444),
+    },
+    {
       'key': 'comment',
-      'label': '评论',
+      'label': '评论回复',
       'icon': HugeIcons.strokeRoundedComment01,
       'color': const Color(0xFF3B82F6),
     },
     {
       'key': 'follow',
-      'label': '关注者',
+      'label': '新增关注',
       'icon': HugeIcons.strokeRoundedUserAdd01,
       'color': const Color(0xFF10B981),
     },
     {
-      'key': 'like',
-      'label': '赞',
-      'icon': HugeIcons.strokeRoundedFavourite,
-      'color': const Color(0xFFEF4444),
-    },
-    {
       'key': 'system',
-      'label': '系统',
+      'label': '系统通知',
       'icon': HugeIcons.strokeRoundedNotification03,
       'color': const Color(0xFFF59E0B),
     },
@@ -68,18 +68,17 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
 
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        _controller.switchTab(_tabsConfig[_tabController.index]['key']);
+        final currentKey = _tabsConfig[_tabController.index]['key'];
+        _controller.switchTab(currentKey);
       }
     });
 
-    _controller.fetchNotifications(isRefresh: true);
     _controller.markTabAsRead('all');
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    // 🌟 退出页面时彻底销毁控制器，天然触发 controller.onClose()！
     Get.delete<NotificationCenterController>();
     super.dispose();
   }
@@ -124,7 +123,9 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
             onPressed: () {
               HapticFeedback.mediumImpact();
               _controller.markTabAsRead('all');
-              _controller.fetchNotifications(isRefresh: true);
+              for (final def in _tabsConfig) {
+                _controller.fetchTabNotifications(def['key'], isRefresh: true);
+              }
               Fluttertoast.showToast(msg: '已全部标为已读');
             },
           ),
@@ -154,37 +155,13 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
           ),
         ),
       ),
-      body: Obx(() {
-        if (_controller.isLoading.value) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: _primaryTeal,
-              strokeWidth: 2.5,
-            ),
-          );
-        }
-
-        if (_controller.notifications.isEmpty) {
-          return _buildEmptyState();
-        }
-
-        return RefreshIndicator(
-          color: _primaryTeal,
-          onRefresh: () => _controller.fetchNotifications(isRefresh: true),
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            itemCount: _controller.notifications.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final item = _controller.notifications[index];
-              return _NotificationCardItem(
-                notif: item,
-                primaryTeal: _primaryTeal,
-              );
-            },
-          ),
-        );
-      }),
+      body: TabBarView(
+        controller: _tabController,
+        children: _tabsConfig.map((def) {
+          final String tabKey = def['key'];
+          return _buildTabListView(tabKey);
+        }).toList(),
+      ),
     );
   }
 
@@ -198,9 +175,9 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
       final summary = _controller.unreadSummary.value;
       int unread = 0;
       if (key == 'all') unread = summary.all;
+      if (key == 'like') unread = summary.like;
       if (key == 'comment') unread = summary.comment;
       if (key == 'follow') unread = summary.follow;
-      if (key == 'like') unread = summary.like;
       if (key == 'system') unread = summary.system;
 
       return Tab(
@@ -239,6 +216,76 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
     });
   }
 
+  /// 🌟 独立 Tab 列表：绑定独立物理 ScrollController，完美记忆各页面滚动位与分页数
+  Widget _buildTabListView(String tabKey) {
+    final state = _controller.tabStates[tabKey]!;
+
+    return Obx(() {
+      if (state.isLoading.value) {
+        return const Center(
+          child: CircularProgressIndicator(
+            color: _primaryTeal,
+            strokeWidth: 2.5,
+          ),
+        );
+      }
+
+      if (state.list.isEmpty) {
+        return _buildEmptyState();
+      }
+
+      return RefreshIndicator(
+        color: _primaryTeal,
+        backgroundColor: Colors.white,
+        onRefresh: () => _controller.fetchTabNotifications(tabKey, isRefresh: true),
+        child: ListView.separated(
+          key: PageStorageKey<String>('notif_tab_$tabKey'), // 物理保持视图状态
+          controller: state.scrollController,
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          itemCount: state.list.length + 1,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            if (index == state.list.length) {
+              return Obx(() {
+                if (state.isLoadingMore.value) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2),
+                      ),
+                    ),
+                  );
+                }
+                if (!state.hasMore.value && state.list.length >= 10) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: Text(
+                        '已加载全部通知',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              });
+            }
+
+            final item = state.list[index];
+            return _NotificationCardItem(
+              notif: item,
+              primaryTeal: _primaryTeal,
+            );
+          },
+        ),
+      );
+    });
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -267,7 +314,7 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
           ),
           const SizedBox(height: 6),
           const Text(
-            '当有人点赞、评论或关注你时，会在此处即时提醒',
+            '当有互动动态时，会在此处即时提醒',
             style: TextStyle(
               fontSize: 13,
               color: Color(0xFF94A3B8),
@@ -323,7 +370,6 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
         borderRadius: BorderRadius.circular(20),
         onTap: () {
           HapticFeedback.lightImpact();
-          // 如果被评论已被删除，点击进入文章
           if (targetType == 'post' && targetId.isNotEmpty) {
             Get.to(() => PostDetailView(postId: targetId));
           } else if (targetType == 'user' && targetId.isNotEmpty) {
@@ -346,11 +392,10 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. 顶部：发送者头像 + 动作标题 + 时间
+              // 1. 发送者头像 + 动作标题 + 时间
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // 头像与角标
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -395,8 +440,6 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                     ],
                   ),
                   const SizedBox(width: 12),
-
-                  // 动作标题文案
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,11 +468,10 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                 ],
               ),
 
-              // 2. 🌟 评论/回复内容展示区 (带原评论引用与删除氛围感状态)
+              // 2. 评论与回复展示
               if (isComment || isReply) ...[
                 const SizedBox(height: 12),
                 if (isDeleted)
-                // 评论已删除氛围感占位
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -449,7 +491,6 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                     ),
                   )
                 else ...[
-                  // 对方回复的新评论
                   Text(
                     commentText,
                     maxLines: _isExpanded ? 10 : 3,
@@ -477,7 +518,6 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                     ),
                 ],
 
-                // 🌟 如果是二级回复：展示被回复的「我的原评论」引用气泡框
                 if (isReply && myOriginalComment.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -498,7 +538,7 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                 ],
               ],
 
-              // 3. 🌟 富参数文章卡片 (点赞/评论/收藏时直观展示被互动的文章全景)
+              // 3. 富参数文章卡片
               if (targetType == 'post' && postTitle.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -510,7 +550,6 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                   ),
                   child: Row(
                     children: [
-                      // 封面缩略图
                       if (thumbnail.isNotEmpty)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -538,8 +577,6 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                           child: const Icon(Icons.article_rounded, color: Color(0xFF2C7B6D), size: 20),
                         ),
                       const SizedBox(width: 10),
-
-                      // 文章分类与标题
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

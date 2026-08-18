@@ -22,30 +22,41 @@ class MainNavView extends StatefulWidget {
 
 class _MainNavViewState extends State<MainNavView> {
   int _currentIndex = 0;
+  Worker? _navUserWorker;
 
-  // 🌟 初始化 5 大核心主页（包含 IM 消息大厅）
   final List<Widget> _pages = [
-    const HomeView(),                  // 0. 首页观点/saysay大厅
-    const CommunityDiscoveryView(),    // 1. 社群发现大厅
-    const ImConversationListView(),    // 2. 🌟 即时通讯消息列表
-    const ShopView(),                  // 3. 商店
-    const ProfileView(),               // 4. 个人主页
+    const HomeView(),
+    const CommunityDiscoveryView(),
+    const ImConversationListView(),
+    const ShopView(),
+    const ProfileView(),
   ];
 
   @override
   void initState() {
     super.initState();
-    // 注入会话未读数全局控制器
     Get.put(ImConversationController());
 
-    // 页面完全呈现后触发版本检测
+    // 🌟 用户状态变动时安全重置导航栏索引到首页或个人中心
+    _navUserWorker = ever(UserController.to.user, (user) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Get.find<NotificationHandlerService>().checkForUpdate();
     });
   }
 
+  @override
+  void dispose() {
+    _navUserWorker?.dispose();
+    super.dispose();
+  }
+
   void _onTap(int index) async {
-    // 🌟 对【消息（索引 2）】与【我的（索引 4）】进行登录拦截保护
+    // 对【消息（索引 2）】与【我的（索引 4）】进行登录拦截保护
     if (index == 2 || index == 4) {
       if (!UserController.to.isLoggedIn) {
         final bool? loggedIn = await Get.to<bool>(
@@ -53,7 +64,7 @@ class _MainNavViewState extends State<MainNavView> {
           transition: Transition.rightToLeftWithFade,
         );
 
-        if (loggedIn == true) {
+        if (loggedIn == true && mounted) {
           setState(() {
             _currentIndex = index;
           });
@@ -61,9 +72,11 @@ class _MainNavViewState extends State<MainNavView> {
         return;
       }
     }
-    setState(() {
-      _currentIndex = index;
-    });
+    if (mounted) {
+      setState(() {
+        _currentIndex = index;
+      });
+    }
   }
 
   @override
@@ -101,7 +114,6 @@ class _MainNavViewState extends State<MainNavView> {
           elevation: 0,
           type: BottomNavigationBarType.fixed,
           items: [
-            // 0. 首页
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedHome01,
@@ -113,8 +125,6 @@ class _MainNavViewState extends State<MainNavView> {
               ),
               label: 'nav_home'.tr,
             ),
-
-            // 1. 社群
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedUserGroup,
@@ -126,8 +136,6 @@ class _MainNavViewState extends State<MainNavView> {
               ),
               label: 'nav_community'.tr,
             ),
-
-            // 2. 🌟 即时通讯消息（带动态小红点徽标）
             BottomNavigationBarItem(
               icon: Obx(() => _buildBadgeIcon(
                 icon: HugeIcons.strokeRoundedBubbleChat,
@@ -141,8 +149,6 @@ class _MainNavViewState extends State<MainNavView> {
               )),
               label: '消息',
             ),
-
-            // 3. 商店
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedShoppingBag01,
@@ -154,8 +160,6 @@ class _MainNavViewState extends State<MainNavView> {
               ),
               label: 'nav_shop'.tr,
             ),
-
-            // 4. 我的
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedUser,
@@ -173,7 +177,6 @@ class _MainNavViewState extends State<MainNavView> {
     );
   }
 
-  /// 🌟 优雅的自适应小红点徽标组件
   Widget _buildBadgeIcon({
     required dynamic icon,
     required Color color,

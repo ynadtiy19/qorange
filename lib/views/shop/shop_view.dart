@@ -1,3 +1,4 @@
+// lib/views/shop/shop_view.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -15,10 +16,8 @@ class ShopView extends StatefulWidget {
 
 class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ShopController controller = Get.put(ShopController());
+  late final ShopController controller;
 
-  // 🌟 核心改进：在 Widget 状态类中本地化声明与管理 ScrollController 实例，
-  // 保证它们随 Widget 的销毁而精准同步销毁，彻底解决 "ScrollController was used after being disposed" 崩溃
   late ScrollController _allScrollController;
   late ScrollController _postScrollController;
   late ScrollController _groupScrollController;
@@ -26,6 +25,10 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    controller = Get.isRegistered<ShopController>()
+        ? Get.find<ShopController>()
+        : Get.put(ShopController());
+
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_handleTabSelection);
 
@@ -36,9 +39,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     _allScrollController.addListener(() => _onScrollListener(_allScrollController, 'all'));
     _postScrollController.addListener(() => _onScrollListener(_postScrollController, 'post'));
     _groupScrollController.addListener(() => _onScrollListener(_groupScrollController, 'group'));
-
-    // 默认初始加载当前选中的页面数据
-    controller.loadCategoryData(controller.getCategoryByIndex(_tabController.index));
   }
 
   @override
@@ -159,7 +159,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                             size: 24,
                           ),
                           const SizedBox(width: 12),
-                          Expanded(child: Text('alipay'.tr, style: TextStyle(fontWeight: FontWeight.w600))),
+                          Expanded(child: Text('alipay'.tr, style: const TextStyle(fontWeight: FontWeight.w600))),
                           if (selectedPayType == 'alipay')
                             Icon(Icons.check_circle, color: controller.primaryColor, size: 20)
                         ],
@@ -188,7 +188,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                             size: 24,
                           ),
                           const SizedBox(width: 12),
-                          Expanded(child: Text('wechat_pay'.tr, style: TextStyle(fontWeight: FontWeight.w600))),
+                          Expanded(child: Text('wechat_pay'.tr, style: const TextStyle(fontWeight: FontWeight.w600))),
                           if (selectedPayType == 'wxpay')
                             Icon(Icons.check_circle, color: controller.primaryColor, size: 20)
                         ],
@@ -239,7 +239,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     );
   }
 
-  // 🌟 按照用户要求，返回类型依然保持为原版 List<List<dynamic>> 签名结构
   List<List<dynamic>> _getCategoryIconData(String? category) {
     if (category == 'post') {
       return HugeIcons.strokeRoundedBookOpen02;
@@ -526,7 +525,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
   }
 }
 
-/// 🌟 好看配色的交易成功动画页面
 class ShopPaymentSuccessPage extends StatefulWidget {
   final Map<String, dynamic> orderDetails;
   final Color primaryColor;
@@ -593,7 +591,6 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
           child: Column(
             children: [
               const SizedBox(height: 30),
-              // 顶部成功的动画绿圆标
               ScaleTransition(
                 scale: _scaleAnimation,
                 child: Container(
@@ -636,7 +633,6 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
                 ),
               ),
               const SizedBox(height: 32),
-              // 订单信息纸质凭证风格卡片
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: Container(
@@ -696,20 +692,18 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
                 ),
               ),
               const SizedBox(height: 40),
-              // 底部的交互操作响应区
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: Column(
                   children: [
-                    // 第一动作按钮：若具备快捷入口直接提供路由体验
                     if (targetId.isNotEmpty && (targetType == 'group' || targetType == 'post')) ...[
                       SizedBox(
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
                           onPressed: () {
-                            widget.onDone(); // 触发静默刷新
-                            Get.back(); // 关闭成功页
+                            widget.onDone();
+                            Get.back();
                             if (targetType == 'group') {
                               Get.to(() => CommunitySpaceView(communityId: targetId));
                             } else if (targetType == 'post') {
@@ -735,14 +729,13 @@ class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with Si
                       ),
                       const SizedBox(height: 12),
                     ],
-                    // 第二动作按钮：回退至商店列表
                     SizedBox(
                       width: double.infinity,
                       height: 52,
                       child: TextButton(
                         onPressed: () {
-                          widget.onDone(); // 触发列表刷新
-                          Get.back(); // 退出页面
+                          widget.onDone();
+                          Get.back();
                         },
                         style: TextButton.styleFrom(
                           backgroundColor: Colors.grey.shade100,

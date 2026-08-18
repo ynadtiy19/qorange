@@ -1,9 +1,10 @@
+// lib/views/community/community_discovery_view.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../../services/api_service.dart';
 import '../../user_controller.dart';
 import 'community_discovery_controller.dart';
@@ -15,10 +16,12 @@ class CommunityDiscoveryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(CommunityDiscoveryController());
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final controller = Get.isRegistered<CommunityDiscoveryController>()
+        ? Get.find<CommunityDiscoveryController>()
+        : Get.put(CommunityDiscoveryController());
 
-    // 目标领域映射中文
+    const themeColor = Color.fromRGBO(44, 123, 109, 1.0);
+
     final List<Map<String, String>> categories = [
       {'key': 'trending', 'name': '🔥 Trending', 'emoji': '🔥'},
       {'key': 'music', 'name': '🎸 Music', 'emoji': '🎸'},
@@ -32,14 +35,16 @@ class CommunityDiscoveryView extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: Text('discover_communities'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+        title: Text(
+          'discover_communities'.tr,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+        ),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
-        // 🌟 新增：左侧AppBar新建社群入口
         leading: IconButton(
           onPressed: () => _showCreateCommunitySheet(context, controller, themeColor, categories),
-          icon: HugeIcon(
+          icon: const HugeIcon(
             icon: HugeIcons.strokeRoundedPlusSignSquare,
             color: themeColor,
             size: 22.0,
@@ -48,7 +53,7 @@ class CommunityDiscoveryView extends StatelessWidget {
         actions: [
           IconButton(
             onPressed: () => _showFilterBottomSheet(context, controller, themeColor),
-            icon: HugeIcon(
+            icon: const HugeIcon(
               icon: HugeIcons.strokeRoundedFilter,
               color: themeColor,
               size: 22.0,
@@ -100,7 +105,7 @@ class CommunityDiscoveryView extends StatelessWidget {
           Expanded(
             child: Obx(() {
               if (controller.isLoading.value) {
-                return Center(child: CircularProgressIndicator(color: themeColor, strokeWidth: 2));
+                return const Center(child: CircularProgressIndicator(color: themeColor, strokeWidth: 2));
               }
               if (controller.communities.isEmpty) {
                 return Center(
@@ -118,21 +123,34 @@ class CommunityDiscoveryView extends StatelessWidget {
               return RefreshIndicator(
                 onRefresh: () => controller.fetchDiscoveryList(isRefresh: true),
                 color: themeColor,
-                child: ListView.builder(
-                  controller: controller.scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  itemCount: controller.communities.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == controller.communities.length) {
-                      return Obx(() => controller.isLoadingMore.value
-                          ? Center(child: Padding(padding: const EdgeInsets.all(16), child: CircularProgressIndicator(color: themeColor, strokeWidth: 2)))
-                          : const SizedBox.shrink());
+                // 🌟 使用 NotificationListener 监听触底分页，完美避开 ScrollController 生命周期冲突
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (ScrollNotification scrollInfo) {
+                    if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
+                      controller.fetchMoreDiscoveryList();
                     }
-
-                    final item = controller.communities[index];
-                    return _buildCommunityCard(context, item, themeColor);
+                    return false;
                   },
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: controller.communities.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == controller.communities.length) {
+                        return Obx(() => controller.isLoadingMore.value
+                            ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: CircularProgressIndicator(color: themeColor, strokeWidth: 2),
+                          ),
+                        )
+                            : const SizedBox.shrink());
+                      }
+
+                      final item = controller.communities[index];
+                      return _buildCommunityCard(context, controller, item, themeColor);
+                    },
+                  ),
                 ),
               );
             }),
@@ -142,9 +160,17 @@ class CommunityDiscoveryView extends StatelessWidget {
     );
   }
 
-  Widget _buildCommunityCard(BuildContext context, CommunityModel item, Color themeColor) {
+  Widget _buildCommunityCard(
+      BuildContext context,
+      CommunityDiscoveryController controller,
+      CommunityModel item,
+      Color themeColor,
+      ) {
     return GestureDetector(
-      onTap: () => Get.to(() => CommunitySpaceView(communityId: item.id)),
+      // 🌟 从社群空间返回大厅时自动重载最新状态
+      onTap: () => Get.to(() => CommunitySpaceView(communityId: item.id))?.then((_) {
+        controller.fetchDiscoveryList(isRefresh: true);
+      }),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
@@ -162,7 +188,6 @@ class CommunityDiscoveryView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🌟 修复：直接使用标准 ClipRRect 替换 SRect 依赖，防止报错
             ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
@@ -191,7 +216,15 @@ class CommunityDiscoveryView extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
@@ -199,7 +232,9 @@ class CommunityDiscoveryView extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          item.price > 0.0 ? '¥${item.price.toStringAsFixed(2)} / ${item.billingCycle == 'month' ? 'monthly'.tr : 'yearly'.tr}' : 'free_join'.tr,
+                          item.price > 0.0
+                              ? '¥${item.price.toStringAsFixed(2)} / ${item.billingCycle == 'month' ? 'monthly'.tr : 'yearly'.tr}'
+                              : 'free_join'.tr,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -242,7 +277,7 @@ class CommunityDiscoveryView extends StatelessWidget {
   }
 
   void _showFilterBottomSheet(BuildContext context, CommunityDiscoveryController controller, Color themeColor) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
@@ -258,7 +293,6 @@ class CommunityDiscoveryView extends StatelessWidget {
             children: [
               Text('advanced_filter'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 20),
-              // 价格大项过滤
               Text('price_type'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
               const SizedBox(height: 10),
               Obx(() => Row(
@@ -286,7 +320,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                 ],
               )),
               const SizedBox(height: 20),
-              // 社群属性过滤
               Text('community_attr'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
               const SizedBox(height: 10),
               Obx(() => Row(
@@ -314,7 +347,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                 ],
               )),
               const SizedBox(height: 20),
-              // 排序方式过滤
               Text('sort_rule'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
               const SizedBox(height: 10),
               Obx(() => Row(
@@ -355,7 +387,12 @@ class CommunityDiscoveryView extends StatelessWidget {
     );
   }
 
-  Widget _buildChoiceChip({required String text, required bool isSelected, required VoidCallback onTap, required Color themeColor}) {
+  Widget _buildChoiceChip({
+    required String text,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color themeColor,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -365,12 +402,18 @@ class CommunityDiscoveryView extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: isSelected ? themeColor : Colors.transparent, width: 1),
         ),
-        child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87)),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
       ),
     );
   }
 
-  /// 🌟 新增：模态滑出新建高颜值社群面板（包含封面异步上传与回显）
   void _showCreateCommunitySheet(
       BuildContext context,
       CommunityDiscoveryController controller,
@@ -386,22 +429,20 @@ class CommunityDiscoveryView extends StatelessWidget {
     final TextEditingController priceC = TextEditingController();
 
     String selectedCategory = 'music';
-    String selectedType = 'public'; // public, private
-    String billingCycle = 'month';  // month, year
+    String selectedType = 'public';
+    String billingCycle = 'month';
     String bannerUrl = '';
     bool isUploading = false;
 
-    // 排除 trending 大项，仅保留真实业务分类
     final realCategories = categoriesList.where((e) => e['key'] != 'trending').toList();
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            // 🌟 核心：客户端调用相册并直连上传
             Future<void> pickBannerImage() async {
               final picker = ImagePicker();
               final xFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
@@ -436,7 +477,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                 top: 20,
                 left: 24,
                 right: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 30, // 键盘避让
+                bottom: MediaQuery.of(context).viewInsets.bottom + 30,
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -453,8 +494,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                     const SizedBox(height: 20),
                     Text('create_my_community'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 20),
-
-                    // 封面上传交互卡片
                     GestureDetector(
                       onTap: isUploading ? null : pickBannerImage,
                       child: Container(
@@ -485,8 +524,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // 社群名称
                     TextField(
                       controller: nameC,
                       style: const TextStyle(fontSize: 14),
@@ -498,8 +535,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-
-                    // 简短描述
                     TextField(
                       controller: descC,
                       style: const TextStyle(fontSize: 14),
@@ -512,8 +547,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // 类别选择大片
                     Text('select_interest_field'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
                     const SizedBox(height: 10),
                     Wrap(
@@ -538,8 +571,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                       }).toList(),
                     ),
                     const SizedBox(height: 20),
-
-                    // 社群属性
                     Row(
                       children: [
                         Text('public_attribute'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
@@ -560,8 +591,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 20),
-
-                    // 价格设置
                     Row(
                       children: [
                         Expanded(
@@ -594,8 +623,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 30),
-
-                    // 立即创建
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -610,7 +637,6 @@ class CommunityDiscoveryView extends StatelessWidget {
                             return;
                           }
 
-                          // 组合参数提交
                           final success = await controller.createCommunity({
                             'name': name,
                             'desc_short': desc,
@@ -622,7 +648,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                           });
 
                           if (success) {
-                            Navigator.pop(context); // 关闭面板
+                            Navigator.pop(context);
                           }
                         },
                         style: ElevatedButton.styleFrom(
@@ -630,7 +656,10 @@ class CommunityDiscoveryView extends StatelessWidget {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
-                        child: Text('create_community_now'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                        child: Text(
+                          'create_community_now'.tr,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
                       ),
                     ),
                   ],

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -40,6 +41,14 @@ class NotificationHandlerService extends GetxService {
       final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
       _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       await androidImplementation?.requestNotificationsPermission();
+    } else if (Platform.isIOS) {
+      final IOSFlutterLocalNotificationsPlugin? iosImplementation =
+      _notificationsPlugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+      await iosImplementation?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
     }
   }
 
@@ -113,7 +122,7 @@ class NotificationHandlerService extends GetxService {
         data: {
           'branch': appBranch,
           'version': packageInfo.version,
-          'build_number': normalizedBuild, // 上报真实的 1, 2, 3
+          'build_number': normalizedBuild,
           'arch': 'arm64-v8a',
         },
         receiveTimeout: const Duration(seconds: 6),
@@ -147,7 +156,6 @@ class NotificationHandlerService extends GetxService {
           final String rawChangelog = datas['changelog']?.toString() ?? '优化系统流畅度与稳定性';
           final String cleanChangelog = _cleanMarkdownText(rawChangelog);
 
-          // 🌟 弹出牢牢固定、只能手动点击关闭的居中弹窗
           _showRefinedUpdateDialog(
             tag: tag,
             changelog: cleanChangelog,
@@ -166,7 +174,6 @@ class NotificationHandlerService extends GetxService {
             },
           );
 
-          // 🌟 同时向通知栏发送常驻通知卡片
           await _showUpdateAvailableNotification(
             tag: tag,
             notes: cleanChangelog,
@@ -192,7 +199,6 @@ class NotificationHandlerService extends GetxService {
     }
   }
 
-  /// 🌟 修复正则替换（杜绝出现 "$1" 或语法异常）
   String _cleanMarkdownText(String raw) {
     return raw
         .replaceAll(RegExp(r'#{1,6}\s*'), '')
@@ -203,7 +209,6 @@ class NotificationHandlerService extends GetxService {
         .trim();
   }
 
-  /// 🌟 极简高颜值弹窗（barrierDismissible: false 必须手动点击）
   void _showRefinedUpdateDialog({
     required String tag,
     required String changelog,
@@ -212,7 +217,7 @@ class NotificationHandlerService extends GetxService {
   }) {
     Get.dialog(
       PopScope(
-        canPop: false, // 拦截物理返回键，强制用户做选择
+        canPop: false,
         child: Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           elevation: 0,
@@ -324,11 +329,10 @@ class NotificationHandlerService extends GetxService {
           ),
         ),
       ),
-      barrierDismissible: false, // 🌟 必须手动点击按钮关闭，点击弹窗外空白处不消失
+      barrierDismissible: false,
     );
   }
 
-  /// 🌟 向系统通知栏发送版本更新通知卡片
   Future<void> _showUpdateAvailableNotification({
     required String tag,
     required String notes,
@@ -494,7 +498,6 @@ class NotificationHandlerService extends GetxService {
       await _notificationsPlugin.cancel(updateNotificationId);
       await _installApk(filePath);
       await _showDownloadCompleteNotification(filePath);
-
     } catch (e) {
       debugPrint("⚠️ [WSS Update] WebSocket 下载异常，降级切换到 HTTP: $e");
       await fileSink?.close();
@@ -551,7 +554,6 @@ class NotificationHandlerService extends GetxService {
       await _notificationsPlugin.cancel(updateNotificationId);
       await _installApk(filePath);
       await _showDownloadCompleteNotification(filePath);
-
     } catch (e) {
       debugPrint("❌ [AppUpdate] 后台下载失败: $e");
       await _showDownloadFailedNotification(updateNotificationId);
@@ -634,121 +636,181 @@ class NotificationHandlerService extends GetxService {
     );
   }
 
+  /// 🌟 修复核心：增加 SVG 格式拦截、HTTP 200 校验、字节体量校验与落盘检验
   Future<String?> _downloadAndSaveFile(String? url, String fileName) async {
-    if (url == null || url.isEmpty) return null;
+    if (url == null || url.trim().isEmpty) return null;
+    final cleanUrl = url.trim();
+
+    // 1. iOS UNNotificationAttachment 不支持 SVG 矢量格式，直接跳过
+    if (cleanUrl.toLowerCase().endsWith('.svg') || cleanUrl.contains('.svg')) {
+      return null;
+    }
+
     try {
-      final Directory directory = await getTemporaryDirectory();
-      final String filePath = '${directory.path}/$fileName';
-      final http.Response response = await http.get(Uri.parse(url));
-      final File file = File(filePath);
-      await file.writeAsBytes(response.bodyBytes);
-      return filePath;
-    } catch (e) {
+      final uri = Uri.tryParse(cleanUrl);
+      if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+        return null;
+      }
+
+      final http.Response response = await http.get(uri).timeout(const Duration(seconds: 3));
+      // 2. 状态码必须为 200 且字节大小有效，避免将错误页 HTML 写入导致 iOS 解析异常
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty && response.bodyBytes.length > 50) {
+        final Directory directory = await getTemporaryDirectory();
+        final sanitizedFileName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9_\.-]'), '_');
+        final String filePath = '${directory.path}/$sanitizedFileName';
+        final File file = File(filePath);
+
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        if (await file.exists() && await file.length() > 50) {
+          return filePath;
+        }
+      }
+      return null;
+    } catch (_) {
       return null;
     }
   }
 
-  /// 社交通知/业务推送处理（100% 保留原有业务逻辑）
+  /// 🌟 修复核心：挂载前物理校验文件，并在外部加入双重降级捕获，彻底杜绝 PlatformException 100
   Future<void> handleIncomingNotification(PushNotificationModel note) async {
-    String title = 'notif_default_title'.tr;
-    String body = '';
+    try {
+      String title = 'notif_default_title'.tr;
+      String body = '';
 
-    final nickname = note.sender.nickname;
-    final targetTitle = note.target.title;
+      final nickname = note.sender.nickname;
+      final targetTitle = note.target.title;
 
-    if (note.customData.containsKey('title') && note.customData['title'].toString().isNotEmpty) {
-      title = note.customData['title'].toString();
-    }
-    if (note.customData.containsKey('content') && note.customData['content'].toString().isNotEmpty) {
-      body = note.customData['content'].toString();
-    }
+      if (note.customData.containsKey('title') && note.customData['title'].toString().isNotEmpty) {
+        title = note.customData['title'].toString();
+      }
+      if (note.customData.containsKey('content') && note.customData['content'].toString().isNotEmpty) {
+        body = note.customData['content'].toString();
+      }
 
-    if (body.isEmpty) {
-      if (note.category == 'social') {
-        switch (note.type) {
-          case 'like':
-            title = 'notif_like_title'.tr;
-            body = 'notif_like_body'.trParams({'nickname': nickname, 'title': targetTitle});
-            break;
-          case 'collect':
-            title = 'notif_collect_title'.tr;
-            body = 'notif_collect_body'.trParams({'nickname': nickname, 'title': targetTitle});
-            break;
-          case 'comment':
-            title = 'notif_comment_title'.tr;
-            body = 'notif_comment_body'.trParams({'nickname': nickname, 'title': targetTitle});
-            break;
-          case 'repost':
-            title = 'notif_repost_title'.tr;
-            body = 'notif_repost_body'.trParams({'nickname': nickname, 'title': targetTitle});
-            break;
-          case 'follow':
-            title = 'notif_follow_title'.tr;
-            body = 'notif_follow_body'.trParams({'nickname': nickname});
-            break;
-        }
-      } else if (note.category == 'recommendation') {
-        if (note.type == 'recommendPost') {
-          title = 'notif_rec_post_title'.tr;
-          body = 'notif_rec_post_body'.trParams({'title': targetTitle});
-        } else if (note.type == 'recommendUser') {
-          title = 'notif_rec_user_title'.tr;
-          body = 'notif_rec_user_body'.trParams({'nickname': nickname});
-        }
-      } else if (note.category == 'landingPage') {
-        title = 'notif_landing_title'.tr;
-        body = targetTitle.isNotEmpty ? targetTitle : 'notif_landing_body'.tr;
-      } else if (note.category == 'system') {
-        if (note.type == 'appUpdate') {
-          title = 'notif_new_version_title'.tr;
-          body = targetTitle.isNotEmpty ? targetTitle : 'notif_new_version_body'.tr;
-        } else {
-          title = 'notif_broadcast_title'.tr;
-          body = targetTitle;
+      if (body.isEmpty) {
+        if (note.category == 'social') {
+          switch (note.type) {
+            case 'like':
+              title = 'notif_like_title'.tr;
+              body = 'notif_like_body'.trParams({'nickname': nickname, 'title': targetTitle});
+              break;
+            case 'collect':
+              title = 'notif_collect_title'.tr;
+              body = 'notif_collect_body'.trParams({'nickname': nickname, 'title': targetTitle});
+              break;
+            case 'comment':
+              title = 'notif_comment_title'.tr;
+              body = 'notif_comment_body'.trParams({'nickname': nickname, 'title': targetTitle});
+              break;
+            case 'repost':
+              title = 'notif_repost_title'.tr;
+              body = 'notif_repost_body'.trParams({'nickname': nickname, 'title': targetTitle});
+              break;
+            case 'follow':
+              title = 'notif_follow_title'.tr;
+              body = 'notif_follow_body'.trParams({'nickname': nickname});
+              break;
+          }
+        } else if (note.category == 'recommendation') {
+          if (note.type == 'recommendPost') {
+            title = 'notif_rec_post_title'.tr;
+            body = 'notif_rec_post_body'.trParams({'title': targetTitle});
+          } else if (note.type == 'recommendUser') {
+            title = 'notif_rec_user_title'.tr;
+            body = 'notif_rec_user_body'.trParams({'nickname': nickname});
+          }
+        } else if (note.category == 'landingPage') {
+          title = 'notif_landing_title'.tr;
+          body = targetTitle.isNotEmpty ? targetTitle : 'notif_landing_body'.tr;
+        } else if (note.category == 'system') {
+          if (note.type == 'appUpdate') {
+            title = 'notif_new_version_title'.tr;
+            body = targetTitle.isNotEmpty ? targetTitle : 'notif_new_version_body'.tr;
+          } else {
+            title = 'notif_broadcast_title'.tr;
+            body = targetTitle;
+          }
         }
       }
-    }
 
-    final String? avatarPath = await _downloadAndSaveFile(
-      note.sender.avatar,
-      'avatar_${note.sender.id}.png',
-    );
+      final String? avatarPath = await _downloadAndSaveFile(
+        note.sender.avatar,
+        'avatar_${note.sender.id.isNotEmpty ? note.sender.id : DateTime.now().millisecondsSinceEpoch}.png',
+      );
 
-    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'googlechat_alerts',
-      'notif_channel_social'.tr,
-      channelDescription: 'notif_channel_social_desc2'.tr,
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: true,
-      color: const Color(0xFF2C7B6D),
-      largeIcon: avatarPath != null ? FilePathAndroidBitmap(avatarPath) : null,
-      styleInformation: BigTextStyleInformation(
-        body,
-        contentTitle: title,
-        summaryText: 'notif_summary'.tr,
-      ),
-    );
+      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'googlechat_alerts',
+        'notif_channel_social'.tr,
+        channelDescription: 'notif_channel_social_desc2'.tr,
+        importance: Importance.max,
+        priority: Priority.high,
+        showWhen: true,
+        color: const Color(0xFF2C7B6D),
+        largeIcon: avatarPath != null ? FilePathAndroidBitmap(avatarPath) : null,
+        styleInformation: BigTextStyleInformation(
+          body,
+          contentTitle: title,
+          summaryText: 'notif_summary'.tr,
+        ),
+      );
 
-    final DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-      attachments: avatarPath != null ? [DarwinNotificationAttachment(avatarPath)] : null,
-    );
+      final DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        // 🌟 严格把关：只有确认为 iOS 平台且物理文件真实有效存在时才挂载 Attachment
+        attachments: (avatarPath != null && Platform.isIOS && File(avatarPath).existsSync())
+            ? [DarwinNotificationAttachment(avatarPath)]
+            : null,
+      );
 
-    await _notificationsPlugin.show(
-      note.hashCode,
-      title,
-      body,
-      NotificationDetails(android: androidDetails, iOS: iosDetails),
-      payload: jsonEncode({
+      final notifId = (note.notificationId.isNotEmpty
+          ? note.notificationId.hashCode
+          : DateTime.now().millisecondsSinceEpoch)
+          .abs() %
+          100000;
+
+      final payloadStr = jsonEncode({
         'type': note.type,
         'target_id': note.target.id,
         'target_type': note.target.type,
         'custom_url': note.customData['url'] ?? '',
         'wss_url': note.customData['wss_url'] ?? '',
-      }),
-    );
+      });
+
+      // 🌟 核心保护：若附件导致 iOS/Android 弹出异常，自动降级为无附件纯文本展示，绝不崩溃
+      try {
+        await _notificationsPlugin.show(
+          notifId,
+          title,
+          body,
+          NotificationDetails(android: androidDetails, iOS: iosDetails),
+          payload: payloadStr,
+        );
+      } catch (innerError) {
+        debugPrint("⚠️ [NotificationHandler] 带附件通知弹出失败，已自动平滑降级为纯文本通知: $innerError");
+        final fallbackAndroid = AndroidNotificationDetails(
+          'googlechat_alerts',
+          'notif_channel_social'.tr,
+          importance: Importance.max,
+          priority: Priority.high,
+        );
+        const fallbackIos = DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        );
+        await _notificationsPlugin.show(
+          notifId,
+          title,
+          body,
+          NotificationDetails(android: fallbackAndroid, iOS: fallbackIos),
+          payload: payloadStr,
+        );
+      }
+    } catch (e) {
+      debugPrint("🔴 [NotificationHandler] 弹出通知全局捕获异常: $e");
+    }
   }
 }

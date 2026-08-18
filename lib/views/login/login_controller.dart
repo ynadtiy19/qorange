@@ -12,7 +12,7 @@ import '../../network/secure_storage_manager.dart';
 class LoginController extends GetxController {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController nicknameController = TextEditingController(); // 注册时使用
+  final TextEditingController nicknameController = TextEditingController();
 
   final FocusNode usernameFocusNode = FocusNode();
   final FocusNode passwordFocusNode = FocusNode();
@@ -22,23 +22,19 @@ class LoginController extends GetxController {
   final RxBool isPasswordValid = false.obs;
   final RxBool isNicknameValid = false.obs;
 
-  final RxBool isRegisterMode = false.obs; // 是否为注册模式
+  final RxBool isRegisterMode = false.obs;
   final RxBool isLoading = false.obs;
 
-  // 🌟 新增：本地已加密保存的账户列表观察者
   final RxList<Map<String, String>> savedCredentials = <Map<String, String>>[].obs;
-
   final Color themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
 
   @override
   void onInit() {
     super.onInit();
-    // 显式添加事件监听，避免匿名闭包垃圾回收失效
     usernameController.addListener(_validateUsername);
     passwordController.addListener(_validatePassword);
     nicknameController.addListener(_validateNickname);
 
-    // 🌟 新增：页面初始化时自动读取本地保存的账号
     _loadSavedCredentials();
   }
 
@@ -54,13 +50,11 @@ class LoginController extends GetxController {
     isNicknameValid.value = nicknameController.text.trim().isNotEmpty;
   }
 
-  /// 🌟 新增：载入本地已加密保存的账户列表
   Future<void> _loadSavedCredentials() async {
     final list = await SecureStorageManager.instance.getSavedCredentials();
     savedCredentials.assignAll(list);
   }
 
-  /// 动态切换登录和注册模式，并安全清空已输入的内容防止脏状态残留
   void toggleRegisterMode() {
     isRegisterMode.value = !isRegisterMode.value;
     passwordController.clear();
@@ -69,7 +63,6 @@ class LoginController extends GetxController {
     nicknameFocusNode.unfocus();
   }
 
-  /// 登录或注册提交逻辑
   Future<void> submit() async {
     if (isRegisterMode.value) {
       await _register();
@@ -78,7 +71,7 @@ class LoginController extends GetxController {
     }
   }
 
-  /// 账号密码登录
+  /// 账号密码登录（严格按时钟序落地并广播全局通知）
   Future<void> _login() async {
     if (!isUsernameValid.value || !isPasswordValid.value) {
       Fluttertoast.showToast(msg: 'account_password_too_short'.tr);
@@ -101,14 +94,14 @@ class LoginController extends GetxController {
 
       final datas = response.datas;
       if (datas != null) {
-        final token = datas['token'];
-        final refreshToken = datas['refresh_token'];
+        final token = datas['token']?.toString() ?? '';
+        final refreshToken = datas['refresh_token']?.toString() ?? '';
 
-        // 1. 保存 Token 至安全存储
+        // 1. 先落地 AccessToken 和 RefreshToken 到安全存储
         await SecureStorageManager.instance.saveAccessToken(token);
         await SecureStorageManager.instance.saveRefreshToken(refreshToken);
 
-        // 2. 保存非涉密信息到 UserController 缓存
+        // 2. 写入全局 UserController，触发全 App 各页面的 ever 监听
         await UserController.to.saveUserInfo(datas);
 
         // 3. 更新全局 Auth 状态
@@ -116,7 +109,6 @@ class LoginController extends GetxController {
 
         Fluttertoast.showToast(msg: 'login_success'.tr);
 
-        // 🌟 核心改进：检查当前输入的密码是否已经被保存在本地安全存储中
         final isAlreadySaved = savedCredentials.any(
               (item) => item['username'] == inputUsername && item['password'] == inputPassword,
         );
@@ -124,10 +116,8 @@ class LoginController extends GetxController {
         isLoading.value = false;
 
         if (!isAlreadySaved) {
-          // 如果未保存，则唤起精美的“保存密码”询问弹窗
           _showSavePasswordBottomSheet(inputUsername, inputPassword);
         } else {
-          // 已保存则直接返回上层路由
           Get.back(result: true);
         }
       }
@@ -140,7 +130,6 @@ class LoginController extends GetxController {
     }
   }
 
-  /// 🌟 新增：唤起 Edge / Keychain 风格的“保存密码”底部确认弹窗
   void _showSavePasswordBottomSheet(String username, String password) {
     Get.bottomSheet(
       Container(
@@ -154,7 +143,6 @@ class LoginController extends GetxController {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 居中指示条
               Center(
                 child: Container(
                   width: 38,
@@ -197,7 +185,6 @@ class LoginController extends GetxController {
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.4),
               ),
               const SizedBox(height: 20),
-              // 模拟账号信息展示卡片
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -229,14 +216,13 @@ class LoginController extends GetxController {
                 ),
               ),
               const SizedBox(height: 24),
-              // 按钮区域
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () {
-                        Get.back(); // 关闭弹窗
-                        Get.back(result: true); // 返回上层
+                        Get.back();
+                        Get.back(result: true);
                       },
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: Colors.grey.shade300),
@@ -251,10 +237,10 @@ class LoginController extends GetxController {
                     child: ElevatedButton(
                       onPressed: () async {
                         await SecureStorageManager.instance.saveCredential(username, password);
-                        await _loadSavedCredentials(); // 刷新本地列表
+                        await _loadSavedCredentials();
                         Fluttertoast.showToast(msg: 'password_saved'.tr);
-                        Get.back(); // 关闭弹窗
-                        Get.back(result: true); // 返回上层
+                        Get.back();
+                        Get.back(result: true);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: themeColor,
@@ -271,11 +257,10 @@ class LoginController extends GetxController {
           ),
         ),
       ),
-      isDismissible: false, // 强制用户选择，保证业务闭环
+      isDismissible: false,
     );
   }
 
-  /// 🌟 新增：唤起 Edge / 1Password 风格的“选择已保存账户一键填充”面板
   void showSavedAccountsBottomSheet() {
     if (savedCredentials.isEmpty) return;
 
@@ -326,7 +311,6 @@ class LoginController extends GetxController {
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 16),
-              // 已存凭据列表
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 250),
                 child: Obx(
@@ -354,24 +338,22 @@ class LoginController extends GetxController {
                           icon: Icon(Icons.delete_outline, color: Colors.red.shade300, size: 20),
                           onPressed: () async {
                             await SecureStorageManager.instance.deleteCredential(name);
-                            await _loadSavedCredentials(); // 刷新
+                            await _loadSavedCredentials();
                             if (savedCredentials.isEmpty) {
-                              Get.back(); // 如果删空了则直接关闭面板
+                              Get.back();
                             }
                           },
                         ),
                         onTap: () {
-                          // 一键自动填充并强制触发校验器逻辑更新状态
                           usernameController.text = name;
                           passwordController.text = pwd;
                           _validateUsername();
                           _validatePassword();
 
-                          // 收起焦点，避免软键盘顶起
                           usernameFocusNode.unfocus();
                           passwordFocusNode.unfocus();
 
-                          Get.back(); // 关闭填充面板
+                          Get.back();
                           Fluttertoast.showToast(msg: 'credentials_autofilled'.tr);
                         },
                       );
@@ -387,7 +369,6 @@ class LoginController extends GetxController {
     );
   }
 
-  /// 账号密码注册
   Future<void> _register() async {
     if (!isUsernameValid.value || !isPasswordValid.value || !isNicknameValid.value) {
       Fluttertoast.showToast(msg: 'complete_registration_info'.tr);
@@ -403,13 +384,12 @@ class LoginController extends GetxController {
           'username': usernameController.text.trim(),
           'password': passwordController.text.trim(),
           'nickname': nicknameController.text.trim(),
-          'avatar': "https://api.multiavatar.com/${usernameController.text.trim()}.png", // 生成默认头像
+          'avatar': "https://api.multiavatar.com/${usernameController.text.trim()}.png",
         },
       );
 
       if (response.respCode == 0) {
         Fluttertoast.showToast(msg: 'register_success_login'.tr);
-        // 注册成功自动切回登录状态
         isRegisterMode.value = false;
         passwordController.clear();
       }
@@ -424,12 +404,10 @@ class LoginController extends GetxController {
 
   @override
   void onClose() {
-    // 销毁监听器
     usernameController.removeListener(_validateUsername);
     passwordController.removeListener(_validatePassword);
     nicknameController.removeListener(_validateNickname);
 
-    // 释放资源，断开软键盘事件和节点内存泄漏
     usernameController.dispose();
     passwordController.dispose();
     nicknameController.dispose();
