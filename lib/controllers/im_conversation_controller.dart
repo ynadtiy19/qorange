@@ -16,6 +16,19 @@ class ImConversationController extends GetxController {
 
   Worker? _userSwitchWorker;
 
+  // 🌟 统一管理：顶部铃铛通知未读红点
+  final RxInt unreadNotifCount = 0.obs;
+
+  /// 🌟 轻量拉取铃铛未读数
+  Future<void> fetchNotificationBadge() async {
+    if (!UserController.to.isLoggedIn) return;
+    try {
+      final res = await HttpClient.instance.get<Map<String, dynamic>>('/api-notifications/badge');
+      if (res.datas != null) {
+        unreadNotifCount.value = int.tryParse(res.datas!['unread_total']?.toString() ?? '0') ?? 0;
+      }
+    } catch (_) {}
+  }
   @override
   void onInit() {
     super.onInit();
@@ -23,6 +36,7 @@ class ImConversationController extends GetxController {
     _userSwitchWorker = ever(UserController.to.user, (user) {
       if (UserController.to.isLoggedIn) {
         fetchConversations(refresh: true);
+        fetchNotificationBadge(); // 登录时顺便拉取铃铛红点
       } else {
         clearLocalState();
       }
@@ -198,6 +212,7 @@ class ImConversationController extends GetxController {
   void clearLocalState() {
     conversations.clear();
     totalUnreadCount.value = 0;
+    unreadNotifCount.value = 0;
   }
 
   @override

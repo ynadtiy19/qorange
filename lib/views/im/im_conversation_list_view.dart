@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../controllers/im_conversation_controller.dart';
+import '../../controllers/notification_center_controller.dart';
 import '../../models/im_message_model.dart';
+import '../notification/notification_center_view.dart';
 import 'im_chat_view.dart';
 
 class ImConversationListView extends StatelessWidget {
@@ -53,11 +55,63 @@ class ImConversationListView extends StatelessWidget {
           ],
         ),
         actions: [
+          // 🌟 核心修复：直接使用当前大厅控制器的 unreadNotifCount，干干净净，杜绝重复注入！
+          Obx(() {
+            final unreadCount = controller.unreadNotifCount.value;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedNotification03,
+                    color: Color(0xFF1E293B),
+                    size: 22,
+                  ),
+                  tooltip: '通知中心',
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Get.to(
+                          () => const NotificationCenterView(),
+                      transition: Transition.cupertino,
+                    );
+                  },
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Center(
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          }),
+
           IconButton(
             icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: Color(0xFF64748B), size: 20),
             onPressed: () {
               HapticFeedback.lightImpact();
               controller.fetchConversations(refresh: true);
+              controller.fetchNotificationBadge(); // 刷新时同步刷新铃铛
             },
           ),
           const SizedBox(width: 4),

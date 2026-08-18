@@ -176,12 +176,11 @@ class _ImChatViewState extends State<ImChatView> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Color(0xFF1E293B)),
           onPressed: () => Get.back(),
         ),
-        // 🌟 核心升级：顶部头像与昵称防溢出 + 点击直接跳转至该用户/创作者主页
+        // 🌟 顶部头像与昵称全面接入响应式监听（对方改资料时 0 毫秒实时响应）
         title: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () {
             HapticFeedback.lightImpact();
-            // 无论对方是创作者还是普通用户，点击均直接进入主页
             Get.to(
                   () => ProfileView(profileId: widget.partnerId),
               transition: Transition.cupertino,
@@ -194,8 +193,10 @@ class _ImChatViewState extends State<ImChatView> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    widget.partnerAvatar,
+                  child: Obx(() => Image.network(
+                    _controller.rxPartnerAvatar.value.isNotEmpty
+                        ? _controller.rxPartnerAvatar.value
+                        : 'https://api.dicebear.com/7.x/micah/png?seed=${widget.partnerId.hashCode}',
                     width: 34,
                     height: 34,
                     fit: BoxFit.cover,
@@ -205,21 +206,21 @@ class _ImChatViewState extends State<ImChatView> {
                       color: const Color(0xFFE2E8F0),
                       child: const Icon(Icons.person, size: 18, color: Color(0xFF94A3B8)),
                     ),
-                  ),
+                  )),
                 ),
                 const SizedBox(width: 10),
-                // 🌟 使用 Flexible + maxLines: 1 + ellipsis 彻底杜绝超长昵称溢出报错
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        widget.partnerNickname,
+                      // 🌟 实时响应昵称变更
+                      Obx(() => Text(
+                        _controller.rxPartnerNickname.value,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis, // 🌟 标题防溢出截断
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.w700),
-                      ),
+                      )),
                       Obx(() => Text(
                         _controller.relationshipStatus.value == 'stranger_pending'
                             ? '陌生人消息请求'

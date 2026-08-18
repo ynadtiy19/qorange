@@ -31,6 +31,18 @@ class ImChatController extends GetxController {
     this.partnerAvatar = '',
   });
 
+
+  // 🌟 核心新增：响应式对方昵称与头像（支持实时热更新）
+  late final RxString rxPartnerNickname = partnerNickname.obs;
+  late final RxString rxPartnerAvatar = partnerAvatar.obs;
+
+  /// 🌟 收到对方修改资料的信号时，实时更新聊天页顶部 AppBar
+  void onPartnerProfileUpdated(String newNickname, String newAvatar) {
+    if (newNickname.isNotEmpty) rxPartnerNickname.value = newNickname;
+    if (newAvatar.isNotEmpty) rxPartnerAvatar.value = newAvatar;
+    debugPrint("✨ [ChatView] 顶部联系人资料实时刷新成功: $newNickname");
+  }
+
   // 🌟 reverse: true 架构下，index 0 为最新消息（位于最底部）
   final RxList<ImMessageModel> messages = <ImMessageModel>[].obs;
   final RxBool isLoadingHistory = false.obs;
