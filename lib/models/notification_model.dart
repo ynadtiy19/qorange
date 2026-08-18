@@ -6,7 +6,7 @@ class NotificationItemModel {
   final String tabCategory;
   final String actionType;
   final int actorCount;
-  final List<Map<String, dynamic>> latestActors; // 完整保留包含 user_id, nickname, avatar 的结构
+  final List<Map<String, dynamic>> latestActors; // 完整包含 user_id, nickname, avatar
   final List<String> actorNames;
   final List<String> actorAvatars;
   final String displayTitle;
@@ -14,6 +14,7 @@ class NotificationItemModel {
   final Map<String, dynamic> contextData;
   final bool isRead;
   final DateTime updatedAt;
+  final DateTime createdAt;
 
   NotificationItemModel({
     required this.id,
@@ -30,6 +31,7 @@ class NotificationItemModel {
     required this.contextData,
     required this.isRead,
     required this.updatedAt,
+    required this.createdAt,
   });
 
   factory NotificationItemModel.fromJson(Map<String, dynamic> json) {
@@ -64,6 +66,9 @@ class NotificationItemModel {
       updatedAt: json['updated_at'] != null
           ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 
@@ -83,6 +88,7 @@ class NotificationItemModel {
       'context_data': contextData,
       'is_read': isRead,
       'updated_at': updatedAt.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
     };
   }
 }

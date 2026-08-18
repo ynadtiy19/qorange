@@ -36,7 +36,7 @@ class CommunityApprovalController extends GetxController {
     }
   }
 
-  /// 🌟 批准通过学者申请加入
+  /// 🌟 批准通过申请加入
   Future<void> approveApplicant(String applicantUserId) async {
     Get.dialog(
       const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
