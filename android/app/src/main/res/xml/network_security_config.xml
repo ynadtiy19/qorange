@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- 🌟 针对小米/华为等严格机型：基础配置允许明文传输 -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- 🌟 针对 reels_video_player 本地 127.0.0.1 代理白名单 -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">127.0.0.1</domain>
         <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">googlechat.zeabur.app</domain>
     </domain-config>
 </network-security-config>
