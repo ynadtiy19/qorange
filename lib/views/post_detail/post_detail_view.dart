@@ -16,6 +16,7 @@ import '../../user_controller.dart';
 import '../../widgets/post_share_to_chat_sheet.dart';
 import '../../widgets/quill_custom_divider.dart';
 import '../../services/quill_translation_service.dart';
+import '../../widgets/quill_custom_video.dart';
 import '../profile/profile_view.dart';
 
 class PostDetailView extends StatefulWidget {
@@ -1047,6 +1048,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     final viewsCount = _post!['views_count'] ?? 0;
     final morePosts = _post!['more_posts'] as List? ?? [];
     final isMe = author['is_me'] ?? false;
+    // 🌟 提取当前文章的真实作者字典
+    final Map<String, dynamic> currentPostAuthor =
+    _post?['author'] is Map ? Map<String, dynamic>.from(_post!['author']) : {};
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -1212,6 +1216,28 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                             ),
                             embedBuilders: [
                               DividerEmbedBuilder(),
+                              VideoEmbedBuilder(
+                                author: currentPostAuthor, // 🌟 关键：将文章的真实作者昵称、头像和 ID 传递给视频组件！
+                                onExtractAllVideosInPost: () {
+                                  final List<Map<String, dynamic>> videoList = [];
+                                  if (_quillController != null) {
+                                    for (var op in _quillController!.document.toDelta().toList()) {
+                                      if (op.isInsert && op.data is Map) {
+                                        final map = op.data as Map;
+                                        if (map.containsKey('custom_video')) {
+                                          final vMap = VideoBlockEmbed.parseData(map['custom_video']);
+                                          // 绑定文章作者属性
+                                          vMap['author_id'] = currentPostAuthor['id'] ?? '';
+                                          vMap['author_nickname'] = currentPostAuthor['nickname'] ?? '学者';
+                                          vMap['author_avatar'] = currentPostAuthor['avatar'] ?? '';
+                                          videoList.add(vMap);
+                                        }
+                                      }
+                                    }
+                                  }
+                                  return videoList;
+                                },
+                              ),
                               ...FlutterQuillEmbeds.editorBuilders(),
                             ],
                           ),

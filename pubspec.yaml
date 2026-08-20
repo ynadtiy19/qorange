@@ -23,7 +23,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 #version: 2.7.3+24
 #version: 2.7.4+25
 #version: 2.7.5+26
-version: 2.7.6+27
+#version: 2.7.6+27
+version: 2.7.7+28
 
 environment:
   sdk: ^3.11.4
@@ -66,6 +67,7 @@ dependencies:
   package_info_plus: ^9.0.1
   record: ^7.1.1
   audioplayers: ^6.8.1
+  reels_video_player: ^1.0.0
 
   flutter_local_notifications: ^19.5.0
   at_client: ^3.9.2

@@ -14,8 +14,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../services/api_service.dart';
+import '../../user_controller.dart';
 import '../../widgets/modern_emoji_picker.dart';
 import '../../widgets/quill_custom_divider.dart';
+import '../../widgets/quill_custom_video.dart';
 
 class PublishView extends StatefulWidget {
   const PublishView({super.key});
@@ -30,7 +32,12 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
   // 键盘与表情面板无缝协同
   bool _isEmojiPanelVisible = false;
-  double _cachedKeyboardHeight = 290.0;
+  // 🌟 1. 设定健康的默认高度（至少 320），防止首次打开或被挤压时高度不够
+  double _cachedKeyboardHeight = 320.0;
+
+  // 🌟 新增：视频上传与进度状态
+  bool _isUploadingVideo = false;
+  double _videoUploadProgress = 0.0;
 
   // Quill 深度文章表单
   final TextEditingController _quillTitleController = TextEditingController();
@@ -133,6 +140,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     super.dispose();
   }
 
+  // 🌟 3. 优化切换逻辑：先收起软键盘，再平滑展示 Emoji 面板
   void _toggleEmojiPanel() {
     HapticFeedback.lightImpact();
     if (_isEmojiPanelVisible) {
@@ -140,7 +148,12 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
       _requestActiveFocus();
     } else {
       FocusScope.of(context).unfocus();
-      setState(() => _isEmojiPanelVisible = true);
+      // 给软键盘 50ms 收起缓冲，避免两个动画同时挤压
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) {
+          setState(() => _isEmojiPanelVisible = true);
+        }
+      });
     }
   }
 
@@ -620,6 +633,132 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     }
   }
 
+
+  /// 🌟 拦截退出确认弹窗（防误触与防止中断上传）
+  Future<bool> _showExitConfirmDialog() async {
+    final bool hasContent = _quillTitleController.text.isNotEmpty ||
+        _quillController.document.length > 1 ||
+        _shortContentController.text.isNotEmpty ||
+        _shortImages.isNotEmpty ||
+        _pollQuestionController.text.isNotEmpty;
+
+    if (!_isUploadingVideo && !hasContent && !_isPublishing) {
+      return true;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            _isUploadingVideo ? '视频正在上传' : '放弃本次编辑？',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+          ),
+          content: Text(
+            _isUploadingVideo
+                ? '视频正在压缩上传中，此时退出将中断上传任务，确定要退出吗？'
+                : '当前内容尚未发布，退出后未保存的内容将会丢失。',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('继续编辑', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('确认退出', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  /// 🌟 拾取视频并流式上传，带进度状态与取消防范
+  Future<void> _pickAndUploadVideo() async {
+    final picker = ImagePicker();
+    final xFile = await picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(minutes: 10),
+    );
+    if (xFile == null) return;
+
+    setState(() {
+      _isUploadingVideo = true;
+      _videoUploadProgress = 0.0;
+    });
+
+    try {
+      final fileBytes = await File(xFile.path).readAsBytes();
+
+      final response = await HttpClient.instance.postBinary<Map<String, dynamic>>(
+        '/api-system/upload-image',
+        data: fileBytes,
+        queryParameters: {
+          'ext': 'mp4',
+          'tag': 'quill_article',
+        },
+        sendTimeout: const Duration(minutes: 5),
+        receiveTimeout: const Duration(minutes: 5),
+      );
+
+      final datas = response.datas;
+      if (response.isSuccess && datas != null) {
+        final String videoId = datas['id']?.toString() ?? '';
+        final String videoUrl = datas['url']?.toString() ?? '';
+        final String thumbnailUrl = datas['thumbnail_url']?.toString() ?? '';
+        final user = UserController.to.user.value;
+
+        var index = _quillController.selection.baseOffset;
+        final length = math.max(0, _quillController.selection.extentOffset - index);
+        if (index < 0) index = _quillController.document.length - 1;
+
+        final videoData = {
+          'id': videoId,
+          'video_url': videoUrl,
+          'thumbnail_url': thumbnailUrl,
+          'caption': '',
+          'author_id': user?.id ?? '',
+          'author_nickname': user?.nickname ?? '创作者',
+          'author_avatar': user?.avatar ?? '',
+          'duration_sec': 0,
+        };
+
+        _quillController.replaceText(
+          index,
+          length,
+          quill.BlockEmbed.custom(VideoBlockEmbed(videoData)),
+          null,
+        );
+        _quillController.replaceText(index + 1, 0, '\n', null);
+        _quillController.updateSelection(
+          TextSelection.collapsed(offset: index + 2),
+          quill.ChangeSource.local,
+        );
+
+        Fluttertoast.showToast(msg: "视频上传成功，点击视频边框可删除，点击底部可添加注解！");
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "视频上传故障: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingVideo = false;
+          _videoUploadProgress = 0.0;
+        });
+      }
+    }
+  }
+
   Future<void> _submitQuill() async {
     if (_quillTitleController.text.trim().isEmpty) {
       Fluttertoast.showToast(msg: 'please_enter_title'.tr);
@@ -768,8 +907,9 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    // 🌟 2. 仅当物理键盘真实弹起（高度 > 180）时才更新记忆高度
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    if (keyboardHeight > 100 && keyboardHeight != _cachedKeyboardHeight) {
+    if (keyboardHeight > 180 && keyboardHeight != _cachedKeyboardHeight) {
       _cachedKeyboardHeight = keyboardHeight;
     }
 
@@ -777,142 +917,189 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
         ? _quillStatus
         : (_activeFormIndex == 1 ? _pollStatus : _shortStatus);
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: false,
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldLeave = await _showExitConfirmDialog();
+        if (shouldLeave && context.mounted) {
+          Get.back();
+        }
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          onPressed: () => Get.back(),
-          icon: const HugeIcon(
-            icon: HugeIcons.strokeRoundedCancel01,
-            color: Color(0xFF64748B),
-            size: 22.0,
+        resizeToAvoidBottomInset: false,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            onPressed: () async {
+              final shouldLeave = await _showExitConfirmDialog();
+              if (shouldLeave && context.mounted) {
+                Get.back();
+              }
+            },
+            icon: const HugeIcon(
+              icon: HugeIcons.strokeRoundedCancel01,
+              color: Color(0xFF64748B),
+              size: 22.0,
+            ),
           ),
-        ),
-        title: Row(
-          children: [
-            if (_activeFormIndex == 0)
+          title: Row(
+            children: [
+              if (_activeFormIndex == 0)
+                GestureDetector(
+                  onTap: _showCategorySelector,
+                  child: Container(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _primaryTeal.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _categoryNameKeys[_quillCategory]?.tr ?? 'select_topic'.tr,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _primaryTeal,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedArrowDown01,
+                          color: _primaryTeal,
+                          size: 12.0,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const Spacer(),
               GestureDetector(
-                onTap: _showCategorySelector,
+                onTap: _showStatusSelector,
                 child: Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _primaryTeal.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(14),
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        _categoryNameKeys[_quillCategory]?.tr ?? 'select_topic'.tr,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _primaryTeal,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedView,
+                        color: Color(0xFF64748B),
+                        size: 12.0,
                       ),
                       const SizedBox(width: 4),
-                      HugeIcon(
-                        icon: HugeIcons.strokeRoundedArrowDown01,
-                        color: _primaryTeal,
-                        size: 12.0,
+                      Text(
+                        _statusNameKeys[activeStatusKey]?.tr ?? 'status_published'.tr,
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
                       ),
                     ],
                   ),
                 ),
               ),
-            const Spacer(),
-            GestureDetector(
-              onTap: _showStatusSelector,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+            ],
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 14.0, left: 6),
+              child: ElevatedButton(
+                onPressed: _isPublishing ? null : _handlePublishSubmit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryTeal,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const HugeIcon(
-                      icon: HugeIcons.strokeRoundedView,
-                      color: Color(0xFF64748B),
-                      size: 12.0,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _statusNameKeys[activeStatusKey]?.tr ?? 'status_published'.tr,
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
-                    ),
-                  ],
+                child: _isPublishing
+                    ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2),
+                )
+                    : Text(
+                  'publish'.tr,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 13),
                 ),
               ),
             ),
           ],
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 14.0, left: 6),
-            child: ElevatedButton(
-              onPressed: _isPublishing ? null : _handlePublishSubmit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryTeal,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: _isPublishing
-                  ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                    color: Colors.white, strokeWidth: 2),
-              )
-                  : Text(
-                'publish'.tr,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800, fontSize: 13),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: _isPublishing
-                  ? Center(
-                child: CircularProgressIndicator(
-                  color: _primaryTeal,
-                  strokeWidth: 2.5,
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              // 🌟 视频上传中的绿色微光进度条卡片
+              if (_isUploadingVideo)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _primaryTeal.withOpacity(0.08),
+                    border: Border.all(color: _primaryTeal.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          color: _primaryTeal,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        '视频正在流式上传与智能压制转码中，请勿关闭...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF2C7B6D),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              )
-                  : _buildActiveFormBody(),
-            ),
-            _buildBottomActionToolbar(),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutQuad,
-              height: _isEmojiPanelVisible
-                  ? _cachedKeyboardHeight
-                  : keyboardHeight,
-              child: _isEmojiPanelVisible
-                  ? ModernEmojiPicker(
-                onEmojiSelected: _insertEmoji,
-                onBackspacePressed: _handleBackspace,
-              )
-                  : const SizedBox.shrink(),
-            ),
-          ],
+              Expanded(
+                child: _isPublishing
+                    ? Center(
+                  child: CircularProgressIndicator(
+                    color: _primaryTeal,
+                    strokeWidth: 2.5,
+                  ),
+                )
+                    : _buildActiveFormBody(),
+              ),
+              _buildBottomActionToolbar(),
+              // 🌟 4. 确保高度平滑过渡，杜绝负数或小高度挤压
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutQuad,
+                height: _isEmojiPanelVisible
+                    ? _cachedKeyboardHeight
+                    : (keyboardHeight > 0 ? keyboardHeight : 0),
+                child: _isEmojiPanelVisible
+                    ? ModernEmojiPicker(
+                  onEmojiSelected: _insertEmoji,
+                  onBackspacePressed: _handleBackspace,
+                )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -996,6 +1183,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 ),
                 embedBuilders: [
                   DividerEmbedBuilder(),
+                  VideoEmbedBuilder(), // 🌟 注册自定义视频组件
                   ...FlutterQuillEmbeds.editorBuilders(),
                 ],
               ),
@@ -1417,6 +1605,15 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                             attr: quill.Attribute.centerAlignment,
                           ),
                           _vDivider(),
+                          IconButton(
+                            tooltip: '插入视频',
+                            icon: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedVideo01,
+                              color: Color(0xFF64748B),
+                              size: 19.0,
+                            ),
+                            onPressed: _pickAndUploadVideo, // 🌟 绑定上传与插入事件
+                          ),
                           IconButton(
                             tooltip: '插入图片',
                             icon: const HugeIcon(
