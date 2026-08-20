@@ -9,7 +9,6 @@ import 'package:qorange/services/frontend_chat_service.dart';
 import 'package:qorange/services/language_service.dart';
 import 'package:qorange/theme.dart';
 import 'package:qorange/user_controller.dart';
-import 'package:reels_video_player/reels_video_player.dart';
 
 import 'network/auth_state_manager.dart';
 import 'views/comment/agreement_webview_page.dart';
@@ -18,9 +17,6 @@ import 'views/splash/splash_view.dart';
 void main() async {
   // 确保 Flutter 绑定初始化，这是执行原生相关操作的前提
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 🌟 必须在 runApp 之前初始化本地视频缓存代理引擎
-  await ReelsCacheManager.init();
 
   if (kReleaseMode) {
     // 将 debugPrint 重写为空函数，这样所有的 debugPrint 都会被静音

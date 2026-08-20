@@ -1,4 +1,5 @@
-// lib/widgets/quill_custom_video.dart
+// lib/widgets/quill_custom_video.dart (原生硬件解码直连 + 帖内多视频上下滑切 + 零报错全功能完全体)
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,7 +7,6 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:reels_video_player/reels_video_player.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
@@ -33,7 +33,7 @@ class VideoBlockEmbed extends quill.CustomBlockEmbed {
   }
 }
 
-/// 🌟 2. VideoEmbedBuilder (支持删除回调与作者信息透传)
+/// 🌟 2. VideoEmbedBuilder
 class VideoEmbedBuilder extends quill.EmbedBuilder {
   final Map<String, dynamic>? author;
   final List<Map<String, dynamic>> Function()? onExtractAllVideosInPost;
@@ -77,7 +77,6 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
           );
         },
         onDeleteRequested: () {
-          // 🌟 核心删除：从 Quill 文档中完全物理移除该视频组件
           final offset = embedContext.node.documentOffset;
           embedContext.controller.replaceText(offset, 1, '', null);
         },
@@ -86,7 +85,7 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
   }
 }
 
-/// 🌟 3. 富文本内的视频卡片小部件（支持红边高亮选中与删除交互）
+/// 🌟 3. 富文本内的视频卡片小部件
 class QuillCustomVideoWidget extends StatefulWidget {
   final Map<String, dynamic> videoData;
   final Map<String, dynamic>? author;
@@ -113,7 +112,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   VideoPlayerController? _videoPlayerController;
   bool _isPlayingInline = false;
   bool _isInitialized = false;
-  bool _isSelected = false; // 🌟 控制编辑态下的红边选中高亮状态
+  bool _isSelected = false;
 
   static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
 
@@ -143,7 +142,6 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
     }
   }
 
-  /// 🌟 弹出删除确认底部抽屉弹窗
   void _showDeleteConfirmSheet() {
     HapticFeedback.mediumImpact();
     showModalBottomSheet<void>(
@@ -198,9 +196,10 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
               ),
               const SizedBox(height: 6),
               const Text(
-                '移除后该视频将从文章内容中清除，不会影响云端已上传的原文件。',
+                '移除后该视频将从文章内容中清除。',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+                style: TextStyle(
+                    fontSize: 13, color: Color(0xFF64748B), height: 1.4),
               ),
               const SizedBox(height: 24),
               Row(
@@ -213,10 +212,14 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                       },
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFFE2E8F0)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('取消', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+                      child: const Text('取消',
+                          style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -232,10 +235,14 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.redAccent,
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('确认移除', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: const Text('确认移除',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -381,40 +388,15 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
       allVideoMaps = [widget.videoData];
     }
 
-    final List<ReelsVideoItem> reelsItems = allVideoMaps.map((vMap) {
-      final vUrl = vMap['video_url']?.toString() ?? '';
-      final tUrl = vMap['thumbnail_url']?.toString() ?? '';
-
-      if (widget.author != null) {
-        vMap['author_id'] ??= widget.author!['id'];
-        vMap['author_nickname'] ??= widget.author!['nickname'];
-        vMap['author_avatar'] ??= widget.author!['avatar'];
-      }
-
-      String fallbackId = '';
-      if (vUrl.contains('/files/')) {
-        fallbackId = vUrl.split('/files/').last.replaceAll('.mp4', '');
-      } else {
-        fallbackId = vMap['id']?.toString() ?? '';
-      }
-
-      return ReelsVideoItem(
-        id: (vMap['id'] != null && vMap['id'].toString().isNotEmpty)
-            ? vMap['id'].toString()
-            : fallbackId,
-        videoUrl: vUrl,
-        thumbnailUrl: tUrl.isNotEmpty ? tUrl : null,
-        metadata: vMap,
-      );
-    }).toList();
-
-    int targetIndex = reelsItems.indexWhere((r) => r.videoUrl == videoUrl);
+    int targetIndex = allVideoMaps
+        .indexWhere((m) => m['video_url']?.toString() == videoUrl);
     if (targetIndex < 0) targetIndex = 0;
 
     Get.to(
           () => _FullscreenReelsPlayerScreen(
-        reelsVideos: reelsItems,
+        videoList: allVideoMaps,
         initialIndex: targetIndex,
+        author: widget.author,
       ),
       transition: Transition.fadeIn,
     );
@@ -425,7 +407,6 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
     final thumbnailUrl = widget.videoData['thumbnail_url']?.toString() ?? '';
     final caption = widget.videoData['caption']?.toString() ?? '';
 
-    // 🌟 外层手势监听：点击组件边界时高亮激活红色删除光圈
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -489,7 +470,6 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                         if (!_isPlayingInline)
                           Container(color: Colors.black.withOpacity(0.25)),
 
-                        // 居中播放按钮
                         Center(
                           child: GestureDetector(
                             onTap: () {
@@ -517,7 +497,6 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                           ),
                         ),
 
-                        // 全屏 Reels 按钮
                         Positioned(
                           top: 10,
                           right: 10,
@@ -533,7 +512,8 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                                 color: Colors.black.withOpacity(0.55),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                    color: Colors.white.withOpacity(0.3), width: 1),
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -560,7 +540,6 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                       ],
                     ),
                   ),
-                  // 注解文本条
                   InkWell(
                     onTap: widget.readOnly ? null : _showEditCaptionSheet,
                     child: Container(
@@ -623,8 +602,6 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                   ),
                 ],
               ),
-
-              // 🌟 选中状态下呈现的独立删除按钮
               if (_isSelected && !widget.readOnly)
                 Positioned(
                   top: 10,
@@ -672,14 +649,16 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   }
 }
 
-/// 🌟 4. 全屏沉浸式 Reels 播放器
+/// 🌟 4. 全屏 Reels 播放器（采用纯原生 HTTPS 直连 + PageView，零代理、零报错）
 class _FullscreenReelsPlayerScreen extends StatefulWidget {
-  final List<ReelsVideoItem> reelsVideos;
+  final List<Map<String, dynamic>> videoList;
   final int initialIndex;
+  final Map<String, dynamic>? author;
 
   const _FullscreenReelsPlayerScreen({
-    required this.reelsVideos,
+    required this.videoList,
     required this.initialIndex,
+    this.author,
   });
 
   @override
@@ -689,12 +668,20 @@ class _FullscreenReelsPlayerScreen extends StatefulWidget {
 
 class _FullscreenReelsPlayerScreenState
     extends State<_FullscreenReelsPlayerScreen> {
+  late final PageController _pageController;
   late int _currentIndex;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -703,32 +690,25 @@ class _FullscreenReelsPlayerScreenState
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          ReelsViewer(
-            videos: widget.reelsVideos,
-            preCacheBefore: 1,
-            preCacheAfter: 2,
-            enableSessionRotation: false,
+          PageView.builder(
+            controller: _pageController,
+            scrollDirection: Axis.vertical,
+            itemCount: widget.videoList.length,
             onPageChanged: (idx) {
-              if (mounted) setState(() => _currentIndex = idx);
+              setState(() => _currentIndex = idx);
             },
-            progressBarBuilder: (context, controller) {
-              return ReelsProgressBar(
-                controller: controller,
-                playedColor: const Color(0xFF2C7B6D),
-                bufferedColor: Colors.white30,
-                backgroundColor: Colors.white12,
-                barHeight: 3.5,
-                allowScrubbing: true,
-              );
-            },
-            overlayBuilder: (context, controller, item) {
-              return _ReelsSocialOverlayWidget(
-                videoItem: item,
-                totalVideosInPost: widget.reelsVideos.length,
-                currentIndex: _currentIndex,
+            itemBuilder: (context, index) {
+              final vMap = widget.videoList[index];
+              return _DirectReelsVideoPage(
+                videoMap: vMap,
+                author: widget.author,
+                isActive: index == _currentIndex,
+                totalCount: widget.videoList.length,
+                currentIndex: index,
               );
             },
           ),
+          // 顶部退出按钮
           Positioned(
             top: 0,
             left: 0,
@@ -749,14 +729,226 @@ class _FullscreenReelsPlayerScreenState
   }
 }
 
-/// 🌟 5. 独立的视频社交覆盖层（支持进入时自动初始化点赞、评论与状态）
+/// 🌟 5. 单个直连视频播放页（直接连接 Zeabur 原生 HTTPS，带双击点赞、长按2X倍速）
+class _DirectReelsVideoPage extends StatefulWidget {
+  final Map<String, dynamic> videoMap;
+  final Map<String, dynamic>? author;
+  final bool isActive;
+  final int totalCount;
+  final int currentIndex;
+
+  const _DirectReelsVideoPage({
+    required this.videoMap,
+    this.author,
+    required this.isActive,
+    required this.totalCount,
+    required this.currentIndex,
+  });
+
+  @override
+  State<_DirectReelsVideoPage> createState() => _DirectReelsVideoPageState();
+}
+
+class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
+  bool _showHeartAnim = false;
+  bool _isFastForwarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DirectReelsVideoPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive) {
+      if (widget.isActive) {
+        _controller?.play();
+      } else {
+        _controller?.pause();
+      }
+    }
+  }
+
+  Future<void> _initPlayer() async {
+    final videoUrl = widget.videoMap['video_url']?.toString() ?? '';
+    if (videoUrl.isEmpty) return;
+
+    try {
+      // 🌟 直接连接 Zeabur 原生 HTTPS 流，100% 走 ExoPlayer 原生硬件解码
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(videoUrl),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+
+      await _controller!.initialize();
+      _controller!.setLooping(true);
+
+      if (mounted) {
+        setState(() => _isInitialized = true);
+        if (widget.isActive) {
+          _controller!.play();
+        }
+      }
+    } catch (e) {
+      debugPrint("🔴 直连播放初始化异常: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  void _onDoubleTapLike() {
+    setState(() => _showHeartAnim = true);
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _showHeartAnim = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thumbnailUrl = widget.videoMap['thumbnail_url']?.toString() ?? '';
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 1. 视频底层与手势监听
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (_controller != null && _isInitialized) {
+              if (_controller!.value.isPlaying) {
+                _controller!.pause();
+              } else {
+                _controller!.play();
+              }
+              setState(() {});
+            }
+          },
+          onDoubleTap: _onDoubleTapLike,
+          onLongPressStart: (_) {
+            if (_controller != null && _isInitialized) {
+              _controller!.setPlaybackSpeed(2.0);
+              HapticFeedback.mediumImpact();
+              setState(() => _isFastForwarding = true);
+            }
+          },
+          onLongPressEnd: (_) {
+            if (_controller != null && _isInitialized) {
+              _controller!.setPlaybackSpeed(1.0);
+              setState(() => _isFastForwarding = false);
+            }
+          },
+          child: Center(
+            child: _isInitialized && _controller != null
+                ? AspectRatio(
+              aspectRatio: _controller!.value.aspectRatio,
+              child: VideoPlayer(_controller!),
+            )
+                : (thumbnailUrl.isNotEmpty
+                ? Image.network(thumbnailUrl, fit: BoxFit.cover)
+                : const Center(
+              child: CircularProgressIndicator(
+                color: Color.fromRGBO(44, 123, 109, 1.0),
+                strokeWidth: 2,
+              ),
+            )),
+          ),
+        ),
+
+        // 2. 长按 2X 倍速提示徽章
+        if (_isFastForwarding)
+          Positioned(
+            top: 70,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.65),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedPlayListFavourite01,
+                      color: Colors.amber,
+                      size: 16.0,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      '2.0X 极速播放中',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+        // 3. 双击点赞飘心动画
+        if (_showHeartAnim)
+          Center(
+            child: const HugeIcon(
+              icon: HugeIcons.strokeRoundedFavourite,
+              color: Colors.redAccent,
+              size: 90.0,
+            ),
+          ),
+
+        // 4. 社交互动覆盖层 (点赞、评论、分享、作者资料)
+        _ReelsSocialOverlayWidget(
+          videoMap: widget.videoMap,
+          author: widget.author,
+          totalVideosInPost: widget.totalCount,
+          currentIndex: widget.currentIndex,
+        ),
+
+        // 5. 底部进度条 (Scrubber)
+        if (_controller != null && _isInitialized)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: VideoProgressIndicator(
+              _controller!,
+              allowScrubbing: true,
+              colors: const VideoProgressColors(
+                playedColor: Color.fromRGBO(44, 123, 109, 1.0),
+                bufferedColor: Colors.white24,
+                backgroundColor: Colors.transparent,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 🌟 6. 独立的视频社交互动覆盖层
 class _ReelsSocialOverlayWidget extends StatefulWidget {
-  final ReelsVideoItem videoItem;
+  final Map<String, dynamic> videoMap;
+  final Map<String, dynamic>? author;
   final int totalVideosInPost;
   final int currentIndex;
 
   const _ReelsSocialOverlayWidget({
-    required this.videoItem,
+    required this.videoMap,
+    this.author,
     required this.totalVideosInPost,
     required this.currentIndex,
   });
@@ -774,45 +966,45 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
   @override
   void initState() {
     super.initState();
-    final meta = widget.videoItem.metadata ?? {};
-    _likesCount = int.tryParse(meta['likes_count']?.toString() ?? '0') ?? 0;
+    _likesCount =
+        int.tryParse(widget.videoMap['likes_count']?.toString() ?? '0') ?? 0;
     _commentsCount =
-        int.tryParse(meta['comments_count']?.toString() ?? '0') ?? 0;
-    _isLiked = meta['is_liked'] == true;
+        int.tryParse(widget.videoMap['comments_count']?.toString() ?? '0') ?? 0;
+    _isLiked = widget.videoMap['is_liked'] == true;
 
-    // 🌟 核心：进入时异步初始化获取最新真实视频点赞/评论/状态（支持游客与登录用户）
     _fetchRealtimeVideoDetails();
   }
 
+  String get _resolvedVideoId {
+    final vMap = widget.videoMap;
+    final vUrl = vMap['video_url']?.toString() ?? '';
+    if (vMap['id'] != null && vMap['id'].toString().isNotEmpty) {
+      return vMap['id'].toString();
+    }
+    if (vUrl.contains('/files/')) {
+      return vUrl.split('/files/').last.replaceAll('.mp4', '');
+    }
+    return '';
+  }
+
   Future<void> _fetchRealtimeVideoDetails() async {
+    final videoId = _resolvedVideoId;
+    if (videoId.isEmpty) return;
+
     try {
       final res = await HttpClient.instance.get<Map<String, dynamic>>(
-        '/api-videos/${widget.videoItem.id}',
+        '/api-videos/$videoId',
       );
-
       if (res.respCode == 0 && res.datas != null) {
         final data = res.datas!;
         if (mounted) {
           setState(() {
-            // 1. 点赞、评论数与当前用户红心状态
-            _likesCount = int.tryParse(data['likes_count']?.toString() ?? '0') ?? _likesCount;
-            _commentsCount = int.tryParse(data['comments_count']?.toString() ?? '0') ?? _commentsCount;
             _isLiked = data['is_liked'] == true;
-
-            // 🌟 2. 同步更新创作者资料（如果之前缺失，接口返回后自动补齐）
-            final uploader = data['uploader'] as Map<String, dynamic>?;
-            if (uploader != null) {
-              final meta = widget.videoItem.metadata ?? {};
-              meta['author_id'] = uploader['id'] ?? meta['author_id'];
-              meta['author_nickname'] = uploader['nickname'] ?? meta['author_nickname'];
-              meta['author_avatar'] = uploader['avatar'] ?? meta['author_avatar'];
-            }
-
-            // 🌟 3. 同步更新最新说明注解
-            if (data['caption'] != null && data['caption'].toString().isNotEmpty) {
-              final meta = widget.videoItem.metadata ?? {};
-              meta['caption'] = data['caption'];
-            }
+            _likesCount = int.tryParse(data['likes_count']?.toString() ?? '0') ??
+                _likesCount;
+            _commentsCount =
+                int.tryParse(data['comments_count']?.toString() ?? '0') ??
+                    _commentsCount;
           });
         }
       }
@@ -827,7 +1019,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
     }
 
     HapticFeedback.lightImpact();
-    final String videoId = widget.videoItem.id;
+    final String videoId = _resolvedVideoId;
 
     setState(() {
       _isLiked = !_isLiked;
@@ -855,7 +1047,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _VideoCommentBottomSheet(
-        videoId: widget.videoItem.id,
+        videoId: _resolvedVideoId,
         onCommentCountChanged: (newCount) {
           if (mounted) setState(() => _commentsCount = newCount);
         },
@@ -864,9 +1056,8 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
   }
 
   void _shareVideo() {
-    final meta = widget.videoItem.metadata ?? {};
-    final String caption = meta['caption']?.toString() ?? '';
-    final String videoUrl = widget.videoItem.videoUrl;
+    final String caption = widget.videoMap['caption']?.toString() ?? '';
+    final String videoUrl = widget.videoMap['video_url']?.toString() ?? '';
 
     Share.share(
       '🎬 给你分享一段精彩视频内容：\n$caption\n$videoUrl',
@@ -876,13 +1067,17 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final meta = widget.videoItem.metadata ?? {};
-    final String caption = meta['caption']?.toString() ?? '';
-    final String authorName = meta['author_nickname']?.toString() ??
-        meta['author']?.toString() ??
+    final String caption = widget.videoMap['caption']?.toString() ?? '';
+    final authorMap = widget.author ?? {};
+    final String authorName = authorMap['nickname']?.toString() ??
+        widget.videoMap['author_nickname']?.toString() ??
         '创作者';
-    final String authorAvatar = meta['author_avatar']?.toString() ?? '';
-    final String authorId = meta['author_id']?.toString() ?? '';
+    final String authorAvatar = authorMap['avatar']?.toString() ??
+        widget.videoMap['author_avatar']?.toString() ??
+        '';
+    final String authorId = authorMap['id']?.toString() ??
+        widget.videoMap['author_id']?.toString() ??
+        '';
 
     return Positioned.fill(
       child: SafeArea(
@@ -1037,7 +1232,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
   }
 }
 
-/// 🌟 6. 独立视频评论树二级回复抽屉
+/// 🌟 7. 独立视频评论二级回复抽屉
 class _VideoCommentBottomSheet extends StatefulWidget {
   final String videoId;
   final Function(int count)? onCommentCountChanged;
@@ -1069,6 +1264,10 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
   }
 
   Future<void> _loadVideoComments() async {
+    if (widget.videoId.isEmpty) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     try {
       final res = await HttpClient.instance.get<List<dynamic>>(
         '/api-videos/${widget.videoId}/comments',
@@ -1089,7 +1288,7 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
 
   Future<void> _sendComment() async {
     final text = _inputC.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || widget.videoId.isEmpty) return;
 
     if (!UserController.to.isLoggedIn) {
       Get.to(() => const LoginView());
