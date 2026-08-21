@@ -1,6 +1,7 @@
-// lib/widgets/quill_custom_video.dart (原生硬件解码直连 + 帖内多视频上下滑切 + 零报错全功能完全体)
+// lib/widgets/quill_custom_video.dart (精确定位防误删、防克隆、红框删除与全功能独立视频组件完全体)
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -33,7 +34,7 @@ class VideoBlockEmbed extends quill.CustomBlockEmbed {
   }
 }
 
-/// 🌟 2. VideoEmbedBuilder
+/// 🌟 2. VideoEmbedBuilder (带动态 Delta 反查：彻底解决克隆多发与误删上方文字问题)
 class VideoEmbedBuilder extends quill.EmbedBuilder {
   final Map<String, dynamic>? author;
   final List<Map<String, dynamic>> Function()? onExtractAllVideosInPost;
@@ -67,25 +68,87 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
         author: author,
         readOnly: embedContext.readOnly,
         onExtractAllVideosInPost: onExtractAllVideosInPost,
+        // 🌟 核心防克隆：在文档中精确定位该视频的当前实时物理偏移量并原地替换
         onUpdateData: (updatedMap) {
-          final offset = embedContext.node.documentOffset;
-          embedContext.controller.replaceText(
-            offset,
-            1,
-            quill.BlockEmbed.custom(VideoBlockEmbed(updatedMap)),
-            null,
-          );
+          final doc = embedContext.controller.document;
+          int currentOffset = 0;
+          bool replaced = false;
+
+          for (final op in doc.toDelta().toList()) {
+            if (op.isInsert && op.data is Map) {
+              final map = op.data as Map;
+              if (map.containsKey('custom_video')) {
+                final parsed = VideoBlockEmbed.parseData(map['custom_video']);
+                if (parsed['video_url'] == videoData['video_url'] ||
+                    (parsed['id'] != null && parsed['id'] == videoData['id'])) {
+                  embedContext.controller.replaceText(
+                    currentOffset,
+                    1,
+                    quill.BlockEmbed.custom(VideoBlockEmbed(updatedMap)),
+                    null,
+                  );
+                  replaced = true;
+                  break;
+                }
+              }
+            }
+            currentOffset += op.length!;
+          }
+
+          // 兜底保护
+          if (!replaced && embedContext.node.parent != null) {
+            embedContext.controller.replaceText(
+              embedContext.node.documentOffset,
+              1,
+              quill.BlockEmbed.custom(VideoBlockEmbed(updatedMap)),
+              null,
+            );
+          }
         },
+        // 🌟 核心防误删：精准定位该视频组件节点，绝不删除上方或下方的无关文字
         onDeleteRequested: () {
-          final offset = embedContext.node.documentOffset;
-          embedContext.controller.replaceText(offset, 1, '', null);
+          final doc = embedContext.controller.document;
+          int currentOffset = 0;
+          bool deleted = false;
+
+          for (final op in doc.toDelta().toList()) {
+            if (op.isInsert && op.data is Map) {
+              final map = op.data as Map;
+              if (map.containsKey('custom_video')) {
+                final parsed = VideoBlockEmbed.parseData(map['custom_video']);
+                if (parsed['video_url'] == videoData['video_url'] ||
+                    (parsed['id'] != null && parsed['id'] == videoData['id'])) {
+                  final plainText = doc.toPlainText();
+                  int deleteLen = 1;
+                  // 若紧随一个多余换行则一并清理，保持排版纯净
+                  if (currentOffset + 1 < plainText.length &&
+                      plainText[currentOffset + 1] == '\n') {
+                    deleteLen = 2;
+                  }
+                  embedContext.controller.replaceText(currentOffset, deleteLen, '', null);
+                  deleted = true;
+                  break;
+                }
+              }
+            }
+            currentOffset += op.length!;
+          }
+
+          if (!deleted && embedContext.node.parent != null) {
+            embedContext.controller.replaceText(
+              embedContext.node.documentOffset,
+              1,
+              '',
+              null,
+            );
+          }
         },
       ),
     );
   }
 }
 
-/// 🌟 3. 富文本内的视频卡片小部件
+/// 🌟 3. 富文本内的视频卡片小部件（红框高亮选中、删除弹窗确认）
 class QuillCustomVideoWidget extends StatefulWidget {
   final Map<String, dynamic> videoData;
   final Map<String, dynamic>? author;
@@ -112,7 +175,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   VideoPlayerController? _videoPlayerController;
   bool _isPlayingInline = false;
   bool _isInitialized = false;
-  bool _isSelected = false;
+  bool _isSelected = false; // 控制红色边框高亮与删除按钮显隐
 
   static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
 
@@ -196,7 +259,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
               ),
               const SizedBox(height: 6),
               const Text(
-                '移除后该视频将从文章内容中清除。',
+                '移除后该视频将从文章内容中清除，上方及下方的文本内容不受影响。',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 13, color: Color(0xFF64748B), height: 1.4),
@@ -407,6 +470,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
     final thumbnailUrl = widget.videoData['thumbnail_url']?.toString() ?? '';
     final caption = widget.videoData['caption']?.toString() ?? '';
 
+    // 🌟 点击卡片边缘非播放按键区域切换选中红色高亮状态
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -470,6 +534,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                         if (!_isPlayingInline)
                           Container(color: Colors.black.withOpacity(0.25)),
 
+                        // 居中播放控制按钮
                         Center(
                           child: GestureDetector(
                             onTap: () {
@@ -497,6 +562,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                           ),
                         ),
 
+                        // 全屏 Reels 按钮
                         Positioned(
                           top: 10,
                           right: 10,
@@ -540,6 +606,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                       ],
                     ),
                   ),
+                  // 注解文案条
                   InkWell(
                     onTap: widget.readOnly ? null : _showEditCaptionSheet,
                     child: Container(
@@ -602,6 +669,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                   ),
                 ],
               ),
+              // 选中状态下的独立红色删除按钮
               if (_isSelected && !widget.readOnly)
                 Positioned(
                   top: 10,
@@ -649,7 +717,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   }
 }
 
-/// 🌟 4. 全屏 Reels 播放器（采用纯原生 HTTPS 直连 + PageView，零代理、零报错）
+/// 🌟 4. 全屏 Reels 播放器（直连硬件解码 + 帖内多视频垂直滑切）
 class _FullscreenReelsPlayerScreen extends StatefulWidget {
   final List<Map<String, dynamic>> videoList;
   final int initialIndex;
@@ -708,7 +776,6 @@ class _FullscreenReelsPlayerScreenState
               );
             },
           ),
-          // 顶部退出按钮
           Positioned(
             top: 0,
             left: 0,
@@ -729,7 +796,7 @@ class _FullscreenReelsPlayerScreenState
   }
 }
 
-/// 🌟 5. 单个直连视频播放页（直接连接 Zeabur 原生 HTTPS，带双击点赞、长按2X倍速）
+/// 🌟 5. 单个直连视频播放页
 class _DirectReelsVideoPage extends StatefulWidget {
   final Map<String, dynamic> videoMap;
   final Map<String, dynamic>? author;
@@ -778,7 +845,6 @@ class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
     if (videoUrl.isEmpty) return;
 
     try {
-      // 🌟 直接连接 Zeabur 原生 HTTPS 流，100% 走 ExoPlayer 原生硬件解码
       _controller = VideoPlayerController.networkUrl(
         Uri.parse(videoUrl),
         videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
@@ -818,7 +884,6 @@ class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 1. 视频底层与手势监听
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
@@ -861,8 +926,6 @@ class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
             )),
           ),
         ),
-
-        // 2. 长按 2X 倍速提示徽章
         if (_isFastForwarding)
           Positioned(
             top: 70,
@@ -899,26 +962,20 @@ class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
               ),
             ),
           ),
-
-        // 3. 双击点赞飘心动画
         if (_showHeartAnim)
-          Center(
-            child: const HugeIcon(
+          const Center(
+            child: HugeIcon(
               icon: HugeIcons.strokeRoundedFavourite,
               color: Colors.redAccent,
               size: 90.0,
             ),
           ),
-
-        // 4. 社交互动覆盖层 (点赞、评论、分享、作者资料)
         _ReelsSocialOverlayWidget(
           videoMap: widget.videoMap,
           author: widget.author,
           totalVideosInPost: widget.totalCount,
           currentIndex: widget.currentIndex,
         ),
-
-        // 5. 底部进度条 (Scrubber)
         if (_controller != null && _isInitialized)
           Positioned(
             bottom: 0,
@@ -939,7 +996,7 @@ class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
   }
 }
 
-/// 🌟 6. 独立的视频社交互动覆盖层
+/// 🌟 6. 独立的视频社交互动覆盖层 (进入时自动初始化点赞、评论与状态，支持游客与用户)
 class _ReelsSocialOverlayWidget extends StatefulWidget {
   final Map<String, dynamic> videoMap;
   final Map<String, dynamic>? author;
@@ -1000,8 +1057,9 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
         if (mounted) {
           setState(() {
             _isLiked = data['is_liked'] == true;
-            _likesCount = int.tryParse(data['likes_count']?.toString() ?? '0') ??
-                _likesCount;
+            _likesCount =
+                int.tryParse(data['likes_count']?.toString() ?? '0') ??
+                    _likesCount;
             _commentsCount =
                 int.tryParse(data['comments_count']?.toString() ?? '0') ??
                     _commentsCount;

@@ -1,7 +1,8 @@
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
-import 'package:get/get.dart' hide Response, FormData, MultipartFile;
+// lib/network/http_client.dart
 import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:get/get.dart' hide Response, FormData, MultipartFile;
 
 import 'api_exception.dart';
 import 'api_logger_interceptor.dart';
@@ -19,7 +20,7 @@ class HttpClient {
 
   late Dio _dio;
 
-  // 统一指向您的 Zeabur 线上部署后端服务
+  // 统一指向 Zeabur 线上部署后端服务
   static const String _baseUrl = 'https://googlechat.zeabur.app';
   static const Duration _defaultConnectTimeout = Duration(seconds: 15);
   static const Duration _defaultReceiveTimeout = Duration(seconds: 15);
@@ -32,7 +33,6 @@ class HttpClient {
         connectTimeout: _defaultConnectTimeout,
         receiveTimeout: _defaultReceiveTimeout,
         sendTimeout: _defaultSendTimeout,
-        // validateStatus: (status) => status != null && status < 500,
       ),
     );
 
@@ -46,6 +46,7 @@ class HttpClient {
         Map<String, dynamic>? queryParameters,
         dynamic data,
         Map<String, dynamic>? headers,
+        ProgressCallback? onSendProgress, // 🌟 改动点：支持发送进度监听
         Duration? connectTimeout,
         Duration? receiveTimeout,
         Duration? sendTimeout,
@@ -55,6 +56,7 @@ class HttpClient {
         path,
         data: data,
         queryParameters: queryParameters,
+        onSendProgress: onSendProgress, // 🌟 改动点：透传给 Dio 底层
         options: Options(
           method: method,
           headers: headers,
@@ -108,10 +110,6 @@ class HttpClient {
     );
   }
 
-
-  /// ==============================
-  /// PUT 请求 (新增补全)
-  /// ==============================
   Future<ApiResponse<T>> put<T>(
       String path, {
         dynamic data,
@@ -130,11 +128,6 @@ class HttpClient {
     );
   }
 
-
-
-  /// ==============================
-  /// DELETE 请求 (新增)
-  /// ==============================
   Future<ApiResponse<T>> delete<T>(
       String path, {
         dynamic data,
@@ -152,7 +145,6 @@ class HttpClient {
       receiveTimeout: receiveTimeout,
     );
   }
-
 
   Future<ApiResponse<T>> upload<T>(
       String path, {
@@ -187,24 +179,26 @@ class HttpClient {
     }
   }
 
-  /// 🌟 发送纯二进制字节流 (图片 / 声音文件) —— 复用统一管道，享受自动加签与日志
+  /// 🌟 核心改动：发送纯二进制字节流（加入 onSendProgress 进度监听与大文件超时保障）
   Future<ApiResponse<T>> postBinary<T>(
       String path, {
         required Uint8List data,
         Map<String, dynamic>? queryParameters,
+        ProgressCallback? onSendProgress, // 🌟 改动点：支持上传百分比监听
         Duration? sendTimeout,
         Duration? receiveTimeout,
       }) async {
     return _request<T>(
       path,
       method: 'POST',
-      data: data, // Dio 原生支持直接传入 Uint8List
+      data: data,
       queryParameters: queryParameters,
       headers: {
         'Content-Type': 'application/octet-stream',
       },
-      sendTimeout: sendTimeout,
-      receiveTimeout: receiveTimeout,
+      onSendProgress: onSendProgress, // 🌟 改动点：传入进度监听
+      sendTimeout: sendTimeout ?? const Duration(minutes: 5), // 🌟 改动点：大文件默认5分钟超时
+      receiveTimeout: receiveTimeout ?? const Duration(minutes: 5),
     );
   }
 

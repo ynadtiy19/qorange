@@ -35,6 +35,10 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
   // 🌟 1. 设定健康的默认高度（至少 320），防止首次打开或被挤压时高度不够
   double _cachedKeyboardHeight = 320.0;
 
+
+  // 🌟 1. 预先设置标准移动端键盘高度（默认 320），绝不设为 0
+  double _cachedPanelHeight = 320.0;
+
   // 🌟 新增：视频上传与进度状态
   bool _isUploadingVideo = false;
   double _videoUploadProgress = 0.0;
@@ -140,20 +144,17 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     super.dispose();
   }
 
-  // 🌟 3. 优化切换逻辑：先收起软键盘，再平滑展示 Emoji 面板
+  // 🌟 2. 像微信/Notion 一样无感切换面板：高度恒定，底栏不跳动
   void _toggleEmojiPanel() {
     HapticFeedback.lightImpact();
     if (_isEmojiPanelVisible) {
+      // 关掉 Emoji，无缝聚焦拉起软键盘
       setState(() => _isEmojiPanelVisible = false);
       _requestActiveFocus();
     } else {
+      // 升起 Emoji：先收起软键盘，保持面板高度与键盘完全对齐
       FocusScope.of(context).unfocus();
-      // 给软键盘 50ms 收起缓冲，避免两个动画同时挤压
-      Future.delayed(const Duration(milliseconds: 50), () {
-        if (mounted) {
-          setState(() => _isEmojiPanelVisible = true);
-        }
-      });
+      setState(() => _isEmojiPanelVisible = true);
     }
   }
 
@@ -634,7 +635,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
   }
 
 
-  /// 🌟 拦截退出确认弹窗（防误触与防止中断上传）
   Future<bool> _showExitConfirmDialog() async {
     final bool hasContent = _quillTitleController.text.isNotEmpty ||
         _quillController.document.length > 1 ||
@@ -682,8 +682,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
     return result ?? false;
   }
-
-  /// 🌟 拾取视频并流式上传，带进度状态与取消防范
+  /// 🌟 拾取视频并流式上传（享受秒级起传与真实百分比进度）
   Future<void> _pickAndUploadVideo() async {
     final picker = ImagePicker();
     final xFile = await picker.pickVideo(
@@ -700,12 +699,20 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     try {
       final fileBytes = await File(xFile.path).readAsBytes();
 
+      // 🌟 接入 Dio 实时进度监听，消除卡顿等待焦虑
       final response = await HttpClient.instance.postBinary<Map<String, dynamic>>(
         '/api-system/upload-image',
         data: fileBytes,
         queryParameters: {
           'ext': 'mp4',
           'tag': 'quill_article',
+        },
+        onSendProgress: (int sent, int total) {
+          if (total > 0 && mounted) {
+            setState(() {
+              _videoUploadProgress = sent / total;
+            });
+          }
         },
         sendTimeout: const Duration(minutes: 5),
         receiveTimeout: const Duration(minutes: 5),
@@ -907,15 +914,21 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    // 🌟 2. 仅当物理键盘真实弹起（高度 > 180）时才更新记忆高度
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    if (keyboardHeight > 180 && keyboardHeight != _cachedKeyboardHeight) {
-      _cachedKeyboardHeight = keyboardHeight;
-    }
-
+    // 🌟 1. 动态判断当前模式下的状态发布标识 (公开/私密/草稿)
     final activeStatusKey = _activeFormIndex == 0
         ? _quillStatus
         : (_activeFormIndex == 1 ? _pollStatus : _shortStatus);
+
+    // 🌟 2. 实时捕获并更新键盘物理高度（仅在键盘真实弹起 > 150 时记录，绝不在键盘关闭时置零）
+    final currentKeyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    if (currentKeyboardHeight > 150 && currentKeyboardHeight != _cachedPanelHeight) {
+      _cachedPanelHeight = currentKeyboardHeight;
+    }
+
+    // 🌟 3. 核心高度锁定：Emoji 展开时保持 _cachedPanelHeight；键盘展开时保持 currentKeyboardHeight；全关时为 0
+    final double bottomPanelHeight = _isEmojiPanelVisible
+        ? _cachedPanelHeight
+        : currentKeyboardHeight;
 
     return PopScope(
       canPop: false,
@@ -1042,7 +1055,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
           top: false,
           child: Column(
             children: [
-              // 🌟 视频上传中的绿色微光进度条卡片
+              // 🌟 视频上传进度提示条
               if (_isUploadingVideo)
                 Container(
                   width: double.infinity,
@@ -1057,22 +1070,27 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
+                          value: _videoUploadProgress > 0 ? _videoUploadProgress : null,
                           color: _primaryTeal,
                           strokeWidth: 2,
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
-                        '视频正在流式上传与智能压制转码中，请勿关闭...',
+                      Text(
+                        _videoUploadProgress < 1.0
+                            ? '正在上传视频 (${(_videoUploadProgress * 100).toInt()}%)...'
+                            : '已完成传输，云端正在进行智能转码抽帧...',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF2C7B6D),
+                          color: _primaryTeal,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
                 ),
+
+              // 编辑器主视口
               Expanded(
                 child: _isPublishing
                     ? Center(
@@ -1083,14 +1101,13 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 )
                     : _buildActiveFormBody(),
               ),
+
+              // 底部工具条
               _buildBottomActionToolbar(),
-              // 🌟 4. 确保高度平滑过渡，杜绝负数或小高度挤压
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutQuad,
-                height: _isEmojiPanelVisible
-                    ? _cachedKeyboardHeight
-                    : (keyboardHeight > 0 ? keyboardHeight : 0),
+
+              // 🌟 4. 固化高度槽位：统一使用计算好的 bottomPanelHeight，彻底消除跳动、遮挡与抽搐
+              SizedBox(
+                height: bottomPanelHeight,
                 child: _isEmojiPanelVisible
                     ? ModernEmojiPicker(
                   onEmojiSelected: _insertEmoji,
