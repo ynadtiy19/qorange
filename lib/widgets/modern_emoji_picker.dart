@@ -41,7 +41,7 @@ class EmojiCategory {
   }
 }
 
-/// 高颜值交互表情选择器（已修复搜索清空闪退、Hint 居中与分类指示器裁剪）
+/// 高颜值交互表情选择器（支持搜索时自适应横向两排流式候选与全屏浏览）
 class ModernEmojiPicker extends StatefulWidget {
   final Function(String emoji) onEmojiSelected;
   final VoidCallback? onBackspacePressed;
@@ -135,7 +135,6 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
     }
   }
 
-  /// 🌟 修复搜索过滤逻辑，杜绝类型不一致引发的闪退
   void _onSearchChanged(String query) {
     final cleanQuery = query.trim().toLowerCase();
     if (cleanQuery.isEmpty) {
@@ -181,6 +180,61 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
     }
   }
 
+  /// 🌟 搜索状态下：横向单行平滑滚动的表情候选栏
+  Widget _buildHorizontalSearchResults() {
+    if (_searchResults.isEmpty) {
+      return Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.centerLeft,
+        child: Row(
+          children: [
+            Icon(Icons.sentiment_dissatisfied_rounded,
+                size: 18, color: _lightSlateGrey),
+            const SizedBox(width: 8),
+            Text(
+              'no_emoji_found'.tr,
+              style: TextStyle(color: _lightSlateGrey, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      height: 54,
+      color: _backgroundColor,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        itemCount: _searchResults.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final item = _searchResults[index];
+          return Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: _EmojiButton(
+              emojiItem: item,
+              onTap: (emoji) {
+                HapticFeedback.selectionClick();
+                widget.onEmojiSelected(emoji);
+                _saveRecentEmoji(emoji);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -195,13 +249,17 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
       );
     }
 
+    final double keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Container(
       color: Colors.white,
+      padding: EdgeInsets.only(bottom: keyboardInset),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // 顶部精准居中的搜索框与退格键组合条
+          // 第一排：搜索框与退格键组合条
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
             child: Row(
               children: [
                 Expanded(
@@ -221,7 +279,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
                     child: TextField(
                       controller: _searchController,
                       focusNode: _searchFocusNode,
-                      textAlignVertical: TextAlignVertical.center, // 🌟 提示词垂直绝对居中
+                      textAlignVertical: TextAlignVertical.center,
                       onChanged: _onSearchChanged,
                       style: TextStyle(
                         fontSize: 13,
@@ -234,7 +292,6 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
                         hintStyle: TextStyle(
                           color: _lightSlateGrey.withOpacity(0.8),
                           fontSize: 12,
-                          height: 1.0,
                         ),
                         prefixIcon: Icon(
                           Icons.search_rounded,
@@ -252,7 +309,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
                           behavior: HitTestBehavior.opaque,
                           onTap: () {
                             _searchController.clear();
-                            _onSearchChanged(''); // 🌟 修复清空闪退
+                            _onSearchChanged('');
                           },
                           child: Icon(
                             Icons.cancel_rounded,
@@ -300,20 +357,16 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-          // 表情展示区
-          Expanded(
-            child: Container(
-              color: _backgroundColor,
-              child: _isSearching
-                  ? (_searchResults.isEmpty
-                  ? _buildEmptySearchState()
-                  : _buildGrid(_searchResults))
-                  : _buildPageView(),
+          // 🌟 核心切换：搜索状态下仅展示两排（横向候选条）；非搜索状态展示完整多分类网格
+          if (_isSearching)
+            _buildHorizontalSearchResults()
+          else ...[
+            Expanded(
+              child: Container(
+                color: _backgroundColor,
+                child: _buildPageView(),
+              ),
             ),
-          ),
-
-          // 底部分类胶囊 TabBar（已修复指示器裁剪溢出）
-          if (!_isSearching) ...[
             const Divider(height: 1, color: Color(0xFFF1F5F9)),
             Container(
               color: Colors.white,
@@ -426,34 +479,6 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
           },
         );
       },
-    );
-  }
-
-  Widget _buildEmptySearchState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off_rounded, size: 40, color: _lightSlateGrey),
-          const SizedBox(height: 6),
-          Text(
-            'no_emoji_found'.tr,
-            style: TextStyle(
-              color: _slateGrey,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'try_another_keyword'.tr,
-            style: TextStyle(
-              color: _lightSlateGrey,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

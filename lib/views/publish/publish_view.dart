@@ -107,15 +107,9 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     _pollFocusNode.addListener(_onFocusChanged);
   }
 
+  // 🌟 修复：移除插入 Emoji 时程序化更新光标导致的误关闭，支持用户连续多次点选 Emoji
   void _onFocusChanged() {
-    final hasAnyFocus = _quillEditorFocusNode.hasFocus ||
-        _shortFocusNode.hasFocus ||
-        _pollFocusNode.hasFocus;
-    if (hasAnyFocus && _isEmojiPanelVisible) {
-      setState(() {
-        _isEmojiPanelVisible = false;
-      });
-    }
+    // 空实现或仅保留基础状态，不再在获得光标时强行关闭 Emoji 面板
   }
 
   @override
@@ -899,15 +893,23 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
         ? _quillStatus
         : (_activeFormIndex == 1 ? _pollStatus : _shortStatus);
 
-    // 🌟 精准捕获键盘真实弹起高度并持久化锁定，杜绝键盘高度回落时误设小高度
+    // 🌟 1. 精准捕获键盘真实弹起高度并持久化锁定
     final double currentKeyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     if (currentKeyboardHeight > 180.0 && currentKeyboardHeight > _stableKeyboardHeight) {
       _stableKeyboardHeight = currentKeyboardHeight;
     }
 
-    // 🌟 计算底栏实际占位高度（保证表情面板与输入法键盘高度绝对一致）
+    // 🌟 2. 预设两排紧凑搜索栏高度（搜索框 38px + 内外边距与分割线 + 横向候选条 54px ≈ 112px）
+    const double compactSearchHeight = 112.0;
+
+    // 🌟 3. 动态计算底栏高度：
+    // - 当展开 Emoji 且键盘弹起（正在搜索 Emoji）时：高度 = 键盘高度 + 112px（刚好露出紧凑的两排搜索条）；
+    // - 当展开 Emoji 且键盘收起（正常翻页浏览）时：高度 = _stableKeyboardHeight（完整多行大面板）；
+    // - 当关闭 Emoji 时：高度 = currentKeyboardHeight（为文章正文输入法让位）。
     final double bottomPanelHeight = _isEmojiPanelVisible
-        ? _stableKeyboardHeight
+        ? (currentKeyboardHeight > 180.0
+        ? (currentKeyboardHeight + compactSearchHeight)
+        : _stableKeyboardHeight)
         : currentKeyboardHeight;
 
     return PopScope(

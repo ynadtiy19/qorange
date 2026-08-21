@@ -141,6 +141,66 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
             );
           }
         },
+        // 🌟 新增：支持视频在富文本中安全上移/下移一个段落
+        onMoveRequested: (bool moveUp) {
+          final doc = embedContext.controller.document;
+          int currentOffset = 0;
+          bool found = false;
+
+          for (final op in doc.toDelta().toList()) {
+            if (op.isInsert && op.data is Map) {
+              final map = op.data as Map;
+              if (map.containsKey('custom_video')) {
+                final parsed = VideoBlockEmbed.parseData(map['custom_video']);
+                if (parsed['video_url'] == videoData['video_url'] ||
+                    (parsed['id'] != null && parsed['id'] == videoData['id'])) {
+                  found = true;
+                  break;
+                }
+              }
+            }
+            currentOffset += op.length!;
+          }
+
+          if (!found) return;
+
+          final plainText = doc.toPlainText();
+          if (moveUp) {
+            if (currentOffset <= 0) {
+              Fluttertoast.showToast(msg: "视频已在最顶部");
+              return;
+            }
+            // 向上寻找上一个段落的开头
+            int targetOffset = plainText.lastIndexOf('\n', currentOffset - 2);
+            targetOffset = targetOffset == -1 ? 0 : targetOffset + 1;
+
+            embedContext.controller.replaceText(currentOffset, 1, '', null);
+            embedContext.controller.replaceText(
+              targetOffset,
+              0,
+              quill.BlockEmbed.custom(VideoBlockEmbed(videoData)),
+              null,
+            );
+            Fluttertoast.showToast(msg: "已上移一个段落");
+          } else {
+            if (currentOffset >= plainText.length - 1) {
+              Fluttertoast.showToast(msg: "视频已在最底部");
+              return;
+            }
+            // 向下寻找下一个段落的结尾
+            int nextNewline = plainText.indexOf('\n', currentOffset + 1);
+            int targetOffset = nextNewline == -1 ? plainText.length : nextNewline + 1;
+
+            embedContext.controller.replaceText(currentOffset, 1, '', null);
+            embedContext.controller.replaceText(
+              targetOffset - 1,
+              0,
+              quill.BlockEmbed.custom(VideoBlockEmbed(videoData)),
+              null,
+            );
+            Fluttertoast.showToast(msg: "已下移一个段落");
+          }
+        },
       ),
     );
   }
@@ -154,6 +214,7 @@ class QuillCustomVideoWidget extends StatefulWidget {
   final Function(Map<String, dynamic> updatedMap)? onUpdateData;
   final List<Map<String, dynamic>> Function()? onExtractAllVideosInPost;
   final VoidCallback? onDeleteRequested;
+  final Function(bool moveUp)? onMoveRequested; // 🌟 接收移动请求
 
   const QuillCustomVideoWidget({
     super.key,
@@ -163,6 +224,7 @@ class QuillCustomVideoWidget extends StatefulWidget {
     this.onUpdateData,
     this.onExtractAllVideosInPost,
     this.onDeleteRequested,
+    this.onMoveRequested, // 🌟
   });
 
   @override
@@ -187,10 +249,10 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   @override
   void didUpdateWidget(covariant QuillCustomVideoWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.videoData != oldWidget.videoData) {
-      setState(() {
-        _currentVideoData = Map<String, dynamic>.from(widget.videoData);
-      });
+    // 🌟 无论 Map 引用是否变化，直接同步最新数据并触发重绘
+    _currentVideoData = Map<String, dynamic>.from(widget.videoData);
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -427,13 +489,16 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                     final newMap = Map<String, dynamic>.from(_currentVideoData);
                     newMap['caption'] = newCaption;
 
-                    setState(() {
-                      _currentVideoData = newMap;
-                    });
-
-                    if (widget.onUpdateData != null) {
-                      widget.onUpdateData!(newMap);
+                    // 🌟 1. 优先立即强制刷新当前卡片底部的文字状态
+                    if (mounted) {
+                      setState(() {
+                        _currentVideoData = newMap;
+                      });
                     }
+
+                    // 🌟 2. 同步写入 Quill 的 Delta 数据链
+                    widget.onUpdateData?.call(newMap);
+
                     Navigator.pop(bottomContext);
                     Fluttertoast.showToast(msg: "注解已更新");
                   },
@@ -692,29 +757,61 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                   ),
                 ],
               ),
+              // 🌟 选中状态下的高功能悬浮操作栏（支持上移、下移、注解、删除）
               if (_isSelected && !widget.readOnly)
                 Positioned(
                   top: 10,
                   left: 10,
-                  child: GestureDetector(
-                    onTap: _showDeleteConfirmSheet,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 3)),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 上移按钮
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            widget.onMoveRequested?.call(true);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 18),
                           ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.delete_outline_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                        ),
+                        const SizedBox(width: 2),
+                        // 下移按钮
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            widget.onMoveRequested?.call(false);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            child: const Icon(Icons.arrow_downward_rounded, color: Colors.white, size: 18),
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 14,
+                          color: Colors.white24,
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                        ),
+                        // 移除按钮
+                        GestureDetector(
+                          onTap: _showDeleteConfirmSheet,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            child: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
