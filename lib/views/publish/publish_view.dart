@@ -32,14 +32,10 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
   // 键盘与表情面板无缝协同
   bool _isEmojiPanelVisible = false;
-  // 🌟 1. 设定健康的默认高度（至少 320），防止首次打开或被挤压时高度不够
-  double _cachedKeyboardHeight = 320.0;
+  // 🌟 核心：持久化健康键盘高度（默认 336），绝不在键盘关闭时塌陷或被覆盖为小值
+  double _stableKeyboardHeight = 336.0;
 
-
-  // 🌟 1. 预先设置标准移动端键盘高度（默认 320），绝不设为 0
-  double _cachedPanelHeight = 320.0;
-
-  // 🌟 新增：视频上传与进度状态
+  // 视频上传与进度状态
   bool _isUploadingVideo = false;
   double _videoUploadProgress = 0.0;
 
@@ -101,7 +97,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
   };
 
   bool _isPublishing = false;
-
   final Color _primaryTeal = const Color.fromRGBO(44, 123, 109, 1.0);
 
   @override
@@ -144,16 +139,14 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     super.dispose();
   }
 
-  // 🌟 2. 像微信/Notion 一样无感切换面板：高度恒定，底栏不跳动
+  // 🌟 无感切换键盘与表情面板：高度恒定锁定，绝不跳动塌陷
   void _toggleEmojiPanel() {
     HapticFeedback.lightImpact();
     if (_isEmojiPanelVisible) {
-      // 关掉 Emoji，无缝聚焦拉起软键盘
       setState(() => _isEmojiPanelVisible = false);
       _requestActiveFocus();
     } else {
-      // 升起 Emoji：先收起软键盘，保持面板高度与键盘完全对齐
-      FocusScope.of(context).unfocus();
+      FocusManager.instance.primaryFocus?.unfocus();
       setState(() => _isEmojiPanelVisible = true);
     }
   }
@@ -196,7 +189,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     }
   }
 
-  /// 🌟 修复：安全整块删除字符/完整Emoji（彻底杜绝孤立UTF-16代理对破损与渲染崩溃）
   void _handleBackspace() {
     HapticFeedback.lightImpact();
     if (_activeFormIndex == 0) {
@@ -208,13 +200,11 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     }
   }
 
-  /// 针对普通 TextField 输入框的安全整块删除（支持写想法、投票标题）
   void _safeDeleteTextCharacter(TextEditingController controller) {
     final text = controller.text;
     if (text.isEmpty) return;
 
     final selection = controller.selection;
-    // 如果当前有选中文本段，直接整段删除
     if (selection.isValid && selection.start != selection.end) {
       final start = math.min(selection.start, selection.end);
       final end = math.max(selection.start, selection.end);
@@ -232,11 +222,9 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
     if (cursorOffset <= 0) return;
 
-    // 提取光标前后的文本
     final textBefore = text.substring(0, cursorOffset);
     final textAfter = text.substring(cursorOffset);
 
-    // 🌟 利用 Characters 原子剔除光标前最后一个完整的字符簇（包括复合多字节 Emoji）
     final charsBefore = textBefore.characters;
     if (charsBefore.isEmpty) return;
 
@@ -249,7 +237,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     );
   }
 
-  /// 针对 Quill 富文本编辑器的安全整块删除
   void _safeDeleteQuillCharacter() {
     final selection = _quillController.selection;
     if (!selection.isValid) return;
@@ -275,7 +262,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     final charsBefore = textBefore.characters;
     if (charsBefore.isEmpty) return;
 
-    // 🌟 动态计算最后一个完整字符/Emoji在 UTF-16 下占用的实际代码单元长度
     final lastGrapheme = charsBefore.last;
     final deleteLength = lastGrapheme.length;
     final startDeleteIndex = index - deleteLength;
@@ -289,7 +275,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     }
   }
 
-  /// 🌟 快速插入 `#` 标签
   void _insertHashtag() {
     HapticFeedback.lightImpact();
     if (_activeFormIndex == 0) {
@@ -305,7 +290,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     }
   }
 
-  /// 🌟 换行操作并自动滚动到光标，彻底消灭视野被淹没遮挡问题
   void _insertNewlineAndAutoScroll() {
     HapticFeedback.lightImpact();
     if (_activeFormIndex == 0) {
@@ -330,7 +314,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     }
   }
 
-  /// 🌟 取消焦点收起软键盘
   void _unfocusEditor() {
     HapticFeedback.lightImpact();
     FocusScope.of(context).unfocus();
@@ -634,7 +617,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     }
   }
 
-
   Future<bool> _showExitConfirmDialog() async {
     final bool hasContent = _quillTitleController.text.isNotEmpty ||
         _quillController.document.length > 1 ||
@@ -682,7 +664,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
     return result ?? false;
   }
-  /// 🌟 拾取视频并流式上传（享受秒级起传与真实百分比进度）
+
   Future<void> _pickAndUploadVideo() async {
     final picker = ImagePicker();
     final xFile = await picker.pickVideo(
@@ -699,7 +681,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     try {
       final fileBytes = await File(xFile.path).readAsBytes();
 
-      // 🌟 接入 Dio 实时进度监听，消除卡顿等待焦虑
       final response = await HttpClient.instance.postBinary<Map<String, dynamic>>(
         '/api-system/upload-image',
         data: fileBytes,
@@ -914,20 +895,19 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    // 🌟 1. 动态判断当前模式下的状态发布标识 (公开/私密/草稿)
     final activeStatusKey = _activeFormIndex == 0
         ? _quillStatus
         : (_activeFormIndex == 1 ? _pollStatus : _shortStatus);
 
-    // 🌟 2. 实时捕获并更新键盘物理高度（仅在键盘真实弹起 > 150 时记录，绝不在键盘关闭时置零）
-    final currentKeyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    if (currentKeyboardHeight > 150 && currentKeyboardHeight != _cachedPanelHeight) {
-      _cachedPanelHeight = currentKeyboardHeight;
+    // 🌟 精准捕获键盘真实弹起高度并持久化锁定，杜绝键盘高度回落时误设小高度
+    final double currentKeyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    if (currentKeyboardHeight > 180.0 && currentKeyboardHeight > _stableKeyboardHeight) {
+      _stableKeyboardHeight = currentKeyboardHeight;
     }
 
-    // 🌟 3. 核心高度锁定：Emoji 展开时保持 _cachedPanelHeight；键盘展开时保持 currentKeyboardHeight；全关时为 0
+    // 🌟 计算底栏实际占位高度（保证表情面板与输入法键盘高度绝对一致）
     final double bottomPanelHeight = _isEmojiPanelVisible
-        ? _cachedPanelHeight
+        ? _stableKeyboardHeight
         : currentKeyboardHeight;
 
     return PopScope(
@@ -941,7 +921,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
       },
       child: Scaffold(
         backgroundColor: Colors.white,
-        resizeToAvoidBottomInset: false,
+        resizeToAvoidBottomInset: false, // 🌟 避免页面双重挤压抽搐
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
@@ -1055,7 +1035,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
           top: false,
           child: Column(
             children: [
-              // 🌟 视频上传进度提示条
+              // 视频上传进度提示条
               if (_isUploadingVideo)
                 Container(
                   width: double.infinity,
@@ -1105,7 +1085,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
               // 底部工具条
               _buildBottomActionToolbar(),
 
-              // 🌟 4. 固化高度槽位：统一使用计算好的 bottomPanelHeight，彻底消除跳动、遮挡与抽搐
+              // 🌟 固化高度底栏：无缝嵌入 Emoji 选择器
               SizedBox(
                 height: bottomPanelHeight,
                 child: _isEmojiPanelVisible
@@ -1200,7 +1180,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 ),
                 embedBuilders: [
                   DividerEmbedBuilder(),
-                  VideoEmbedBuilder(), // 🌟 注册自定义视频组件
+                  VideoEmbedBuilder(),
                   ...FlutterQuillEmbeds.editorBuilders(),
                 ],
               ),
@@ -1530,7 +1510,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     );
   }
 
-  /// 🌟 底部一体化操作条（已严格按模式隔离并补齐发文章所需的快捷键）
   Widget _buildBottomActionToolbar() {
     return Container(
       decoration: BoxDecoration(
@@ -1551,7 +1530,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4),
             child: Row(
               children: [
-                // 🌟 情况 A: 发文章模式 (0) -> 完整格式化工具条 + 标签/换行/取消焦点快捷键
                 if (_activeFormIndex == 0)
                   Expanded(
                     child: SingleChildScrollView(
@@ -1611,12 +1589,10 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                             icon: HugeIcons.strokeRoundedLeftToRightListBullet,
                             attr: quill.Attribute.ul,
                           ),
-                          // 🌟 补齐：将这一行设定为数字行 (Ordered List)
                           _buildFormatBtn(
                             icon: HugeIcons.strokeRoundedLeftToRightListNumber,
                             attr: quill.Attribute.ol,
                           ),
-                          // 🌟 补齐：将这一行居中 (Center Alignment)
                           _buildFormatBtn(
                             icon: HugeIcons.strokeRoundedTextAlignCenter,
                             attr: quill.Attribute.centerAlignment,
@@ -1629,7 +1605,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                               color: Color(0xFF64748B),
                               size: 19.0,
                             ),
-                            onPressed: _pickAndUploadVideo, // 🌟 绑定上传与插入事件
+                            onPressed: _pickAndUploadVideo,
                           ),
                           IconButton(
                             tooltip: '插入图片',
@@ -1662,7 +1638,6 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                       ),
                     ),
                   )
-                // 🌟 情况 B: 写想法模式 (2) -> 仅展示图片、GIF 与 # 号
                 else if (_activeFormIndex == 2) ...[
                   IconButton(
                     tooltip: '添加图片',
@@ -1692,13 +1667,11 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                     onPressed: _insertHashtag,
                   ),
                   const Spacer(),
-                ]
-                // 🌟 情况 C: 提问题模式 (1) -> 绝不展示图片/GIF，保持纯净
-                else ...[
-                    const Spacer(),
-                  ],
+                ] else ...[
+                  const Spacer(),
+                ],
 
-                // 表情面板呼出键（三种模式均可使用）
+                // 表情面板呼出键
                 IconButton(
                   tooltip: '表情符号',
                   icon: HugeIcon(

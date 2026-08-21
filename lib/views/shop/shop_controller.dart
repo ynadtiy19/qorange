@@ -5,11 +5,19 @@ import 'package:get/get.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'shop_goods_model.dart';
-import 'shop_view.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../services/epay_client_service.dart';
 import '../../user_controller.dart';
+
+/// 支付处理状态枚举
+enum PaymentProcessingStatus {
+  idle,
+  waiting,     // 正在等待外部支付与轮询
+  success,     // 验证成功
+  failed,      // 失败
+  timeout,     // 超时
+}
 
 class ShopController extends GetxController with WidgetsBindingObserver {
   static ShopController get to => Get.find<ShopController>();
@@ -39,10 +47,19 @@ class ShopController extends GetxController with WidgetsBindingObserver {
   final RxBool isLoadingMorePost = false.obs;
   final RxBool isLoadingMoreGroup = false.obs;
 
+  // 🌟 实时支付状态与当前轮询对象
+  final Rx<PaymentProcessingStatus> paymentStatus = PaymentProcessingStatus.idle.obs;
+  final RxString paymentStatusMessage = ''.obs;
+  final Rx<ShopGoods?> purchasingItem = Rx<ShopGoods?>(null);
+  final RxMap<String, dynamic> lastOrderDetails = <String, dynamic>{}.obs;
+
+  // 🌟 购买成功后高亮呼吸聚焦的商品 ID
+  final RxString highlightedGoodsId = ''.obs;
+
   String? currentOutTradeNo;
   Timer? _pollingTimer;
   int _pollingSecondsElapsed = 0;
-  final int maxPollingDurationSeconds = 30;
+  final int maxPollingDurationSeconds = 45;
   bool isPolling = false;
 
   Worker? _userStateWorker;
@@ -53,12 +70,12 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
 
-    // 🌟 1. 监听用户状态变动（切号后第一个 Tab 强制清空并全量重拉）
+    // 🌟 1. 监听用户状态变动（切号后全量重拉）
     _userStateWorker = ever(UserController.to.user, (_) {
       loadAllShopData();
     });
 
-    // 🌟 2. 监听全局同步信号（在任何页面购买、加群、发帖后，所有 Tab 物理同步已购状态）
+    // 🌟 2. 监听全局同步信号（在任何页面购买、加群、发帖后物理同步已购状态）
     _globalSyncWorker = ever(globalDataSyncSignal, (_) {
       loadAllShopData();
     });
@@ -78,8 +95,9 @@ class ShopController extends GetxController with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (currentOutTradeNo != null && !isPolling) {
-        startPollingVerification(currentOutTradeNo!);
+      if (currentOutTradeNo != null && isPolling) {
+        // 用户切回 App 时立即触发一次静默校准
+        verifyPaymentOnBackend(currentOutTradeNo!, isSilent: true);
       }
     }
   }
@@ -105,7 +123,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     await fetchGoods(category: category, isRefresh: true);
   }
 
-  /// 一键刷新所有 Tab，确保第 1 个 Tab 与其他页面 100% 同步
+  /// 一键刷新所有 Tab，确保数据 100% 同步
   Future<void> loadAllShopData() async {
     isLoadingAll.value = true;
     isLoadingPost.value = true;
@@ -207,18 +225,16 @@ class ShopController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  Future<void> executePaymentWorkflow(ShopGoods item, String selectedPayType) async {
+  /// 发起支付并拉起外部收银台与自动轮询流程
+  Future<bool> startPaymentWorkflow(ShopGoods item, String selectedPayType) async {
     if (!UserController.to.isLoggedIn) {
       Fluttertoast.showToast(msg: 'login_to_purchase'.tr);
-      return;
+      return false;
     }
 
-    Get.dialog(
-      const Center(
-        child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0)),
-      ),
-      barrierDismissible: false,
-    );
+    purchasingItem.value = item;
+    paymentStatus.value = PaymentProcessingStatus.waiting;
+    paymentStatusMessage.value = '正在安全创建订单...';
 
     try {
       final orderRes = await HttpClient.instance.post<Map<String, dynamic>>(
@@ -231,9 +247,9 @@ class ShopController extends GetxController with WidgetsBindingObserver {
       );
 
       if (orderRes.respCode != 0 || orderRes.datas == null) {
-        Get.back();
-        Fluttertoast.showToast(msg: orderRes.respMsg);
-        return;
+        paymentStatus.value = PaymentProcessingStatus.failed;
+        paymentStatusMessage.value = orderRes.respMsg.isNotEmpty ? orderRes.respMsg : '订单创建失败';
+        return false;
       }
 
       final outTradeNo = orderRes.datas!['outTradeNo']?.toString();
@@ -241,10 +257,12 @@ class ShopController extends GetxController with WidgetsBindingObserver {
       final goodsName = orderRes.datas!['goodsName'];
 
       if (outTradeNo == null) {
-        Get.back();
-        Fluttertoast.showToast(msg: 'no_order_number'.tr);
-        return;
+        paymentStatus.value = PaymentProcessingStatus.failed;
+        paymentStatusMessage.value = 'no_order_number'.tr;
+        return false;
       }
+
+      paymentStatusMessage.value = '正在唤起收银台...';
 
       final epay = EpayClientService();
       final epayCreateRes = await epay.createPaymentDirectly(params: {
@@ -256,99 +274,62 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         'money': amount,
       });
 
-      Get.back();
-
       if (epayCreateRes['code'] == 0) {
         final payUrl = epayCreateRes['pay_info'] ?? epayCreateRes['pay_url'];
         if (payUrl != null && payUrl.toString().isNotEmpty) {
           currentOutTradeNo = outTradeNo;
+          paymentStatusMessage.value = '已打开支付页面，正在实时监听支付结果...';
+
           await launchExternalBrowser(payUrl.toString());
-          showPaymentCheckDialog(outTradeNo);
+          startPollingVerification(outTradeNo);
+          return true;
         } else {
-          Fluttertoast.showToast(msg: 'gateway_parse_error'.tr);
+          paymentStatus.value = PaymentProcessingStatus.failed;
+          paymentStatusMessage.value = 'gateway_parse_error'.tr;
+          return false;
         }
       } else {
-        Fluttertoast.showToast(msg: epayCreateRes['msg'] ?? 'gateway_launch_error'.tr);
+        paymentStatus.value = PaymentProcessingStatus.failed;
+        paymentStatusMessage.value = epayCreateRes['msg'] ?? 'gateway_launch_error'.tr;
+        return false;
       }
     } catch (e) {
-      Get.back();
+      paymentStatus.value = PaymentProcessingStatus.failed;
       if (e is ApiException) {
-        Fluttertoast.showToast(msg: e.message);
+        paymentStatusMessage.value = e.message;
       } else {
-        Fluttertoast.showToast(msg: 'err_request_link'.trParams({'error': '$e'}));
+        paymentStatusMessage.value = 'err_request_link'.trParams({'error': '$e'});
       }
+      return false;
     }
   }
 
-  void showPaymentCheckDialog(String outTradeNo) {
-    final BuildContext context = Get.context!;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('payment_confirm'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          content: Text('payment_confirm_desc'.tr, style: const TextStyle(fontSize: 13, height: 1.4)),
-          actions: [
-            TextButton(
-              onPressed: () {
-                currentOutTradeNo = null;
-                _pollingTimer?.cancel();
-                isPolling = false;
-                Navigator.pop(context);
-              },
-              child: Text('payment_cancelled'.tr, style: const TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                verifyPaymentOnBackend(outTradeNo, isSilent: false);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text('payment_completed'.tr, style: const TextStyle(color: Colors.white)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
+  /// 开启高频自动轮询检测
   void startPollingVerification(String outTradeNo) {
     _pollingTimer?.cancel();
     _pollingSecondsElapsed = 0;
     isPolling = true;
 
+    // 立即触发一次
     verifyPaymentOnBackend(outTradeNo, isSilent: true);
 
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _pollingSecondsElapsed += 3;
+    _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      _pollingSecondsElapsed += 2;
       if (_pollingSecondsElapsed >= maxPollingDurationSeconds) {
         timer.cancel();
         isPolling = false;
-        currentOutTradeNo = null;
-        Fluttertoast.showToast(msg: 'payment_not_detected'.tr);
+        if (paymentStatus.value == PaymentProcessingStatus.waiting) {
+          paymentStatus.value = PaymentProcessingStatus.timeout;
+          paymentStatusMessage.value = '未在规定时间内检测到到账，若已扣款请稍后手动刷新';
+        }
       } else {
         verifyPaymentOnBackend(outTradeNo, isSilent: true);
       }
     });
   }
 
-  /// 🌟 核心修复：精准判定支付成功，并彻底打通全局广播同步
+  /// 向后端核验订单状态
   Future<void> verifyPaymentOnBackend(String outTradeNo, {required bool isSilent}) async {
-    if (!isSilent) {
-      Get.dialog(
-        const Center(
-          child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0)),
-        ),
-        barrierDismissible: false,
-      );
-    }
-
     try {
       final epay = EpayClientService();
       final realEpayData = await epay.queryOrderDirectly(outTradeNo: outTradeNo);
@@ -358,13 +339,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         data: {'epay_response': realEpayData},
       );
 
-      if (!isSilent) {
-        Get.back();
-      }
-
       final Map<String, dynamic>? datas = verifyRes.datas;
-
-      // 🌟 核心修正：只要接口返回 0 并且包含 datas，即确认支付发货成功
       final bool isSuccess = verifyRes.respCode == 0 && datas != null;
 
       if (isSuccess) {
@@ -372,43 +347,35 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         isPolling = false;
         currentOutTradeNo = null;
 
-        _closePaymentDialogs();
+        lastOrderDetails.assignAll(datas);
+        paymentStatus.value = PaymentProcessingStatus.success;
+        paymentStatusMessage.value = '支付成功，权益已实时解锁！';
 
-        // 🌟 1. 广播全 App 页面同步（首页、社群与商店全部生效已拥有）
+        // 🌟 1. 全局数据信号广播
         triggerGlobalDataSync();
 
-        // 🌟 2. 立即主动刷新商店自身全部 Tab
-        await loadAllShopData();
+        // 🌟 2. 标记需要高亮聚焦的商品
+        if (purchasingItem.value != null) {
+          highlightedGoodsId.value = purchasingItem.value!.id;
+        }
 
-        Get.to(() => ShopPaymentSuccessPage(
-          orderDetails: Map<String, dynamic>.from(datas),
-          primaryColor: primaryColor,
-          onDone: () {
-            loadAllShopData();
-          },
-        ));
+        // 🌟 3. 静默全量刷新当前商城列表
+        await loadAllShopData();
       } else {
         if (!isSilent) {
           Fluttertoast.showToast(msg: verifyRes.respMsg);
         }
       }
-    } catch (e) {
-      if (!isSilent) {
-        Get.back();
-        if (e is ApiException) {
-          Fluttertoast.showToast(msg: e.message);
-        } else {
-          Fluttertoast.showToast(msg: 'err_verify_gateway'.trParams({'error': '$e'}));
-        }
-      }
+    } catch (_) {
+      // 轮询中的网络波动静默忽略，继续下次轮询
     }
   }
 
-  void _closePaymentDialogs() {
-    try {
-      if (Get.isDialogOpen == true) {
-        Get.back();
-      }
-    } catch (_) {}
+  /// 手动取消/关闭轮询
+  void cancelPolling() {
+    _pollingTimer?.cancel();
+    isPolling = false;
+    currentOutTradeNo = null;
+    paymentStatus.value = PaymentProcessingStatus.idle;
   }
 }

@@ -816,7 +816,8 @@ class _ActorsBottomSheet extends StatelessWidget {
       final String actionLabel = currentNotif.actionType.contains('like')
           ? '赞了'
           : (currentNotif.actionType.contains('collect') ? '收藏了' : '互动了');
-      final String targetTitle = currentNotif.target['title']?.toString() ?? '文章';
+      final String targetTitle =
+          currentNotif.target['title']?.toString() ?? '文章';
 
       return Container(
         decoration: const BoxDecoration(
@@ -846,47 +847,60 @@ class _ActorsBottomSheet extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // 头部标题与互动总数
+            // 头部标题与互动总数（🌟 已修复水平溢出问题）
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const HugeIcon(
-                        icon: HugeIcons.strokeRoundedFavourite,
-                        color: Color(0xFFEF4444),
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '互动用户清单',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                          ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withOpacity(0.1),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '共 ${currentNotif.actorCount} 位用户$actionLabel《$targetTitle》',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        child: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedFavourite,
+                          color: Color(0xFFEF4444),
+                          size: 18,
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '互动用户清单',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '共 ${currentNotif.actorCount} 位用户$actionLabel《$targetTitle》',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 22),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFF94A3B8),
+                    size: 22,
+                  ),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -904,24 +918,32 @@ class _ActorsBottomSheet extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const BouncingScrollPhysics(),
                 itemCount: currentNotif.latestActors.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF8FAFC)),
+                separatorBuilder: (_, __) =>
+                const Divider(height: 1, color: Color(0xFFF8FAFC)),
                 itemBuilder: (context, index) {
                   final actor = currentNotif.latestActors[index];
                   final String userId = actor['user_id']?.toString() ?? '';
-                  final String nickname = actor['nickname']?.toString() ?? '用户';
+                  final String nickname =
+                      actor['nickname']?.toString() ?? '用户';
                   final String avatar = actor['avatar']?.toString() ?? '';
 
                   // 🌟 2. 优先提取学者的真实个性签名与简介，不再全部硬编码
                   final String bio = actor['bio']?.toString().trim() ?? '';
-                  final String location = actor['location']?.toString().trim() ?? '';
+                  final String location =
+                      actor['location']?.toString().trim() ?? '';
                   final String subtitleText = bio.isNotEmpty
                       ? bio
-                      : (location.isNotEmpty ? '现居 $location' : '与你互动的用户');
+                      : (location.isNotEmpty
+                      ? '现居 $location'
+                      : '与你互动的用户');
 
                   return Material(
                     color: Colors.transparent, // 🌟 3. 解决 ListTile 依赖 Material 导致的断言报错
                     child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 4,
+                      ),
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(14),
                         child: Image.network(
@@ -945,6 +967,8 @@ class _ActorsBottomSheet extends StatelessWidget {
                       ),
                       title: Text(
                         nickname,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -955,7 +979,10 @@ class _ActorsBottomSheet extends StatelessWidget {
                         subtitleText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8),
+                        ),
                       ),
                       trailing: ElevatedButton(
                         onPressed: () {
@@ -968,10 +995,21 @@ class _ActorsBottomSheet extends StatelessWidget {
                           backgroundColor: const Color(0xFFF1F5F9),
                           foregroundColor: const Color(0xFF2C7B6D),
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                         ),
-                        child: const Text('主页', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                        child: const Text(
+                          '主页',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                       onTap: () {
                         if (userId.isNotEmpty) {

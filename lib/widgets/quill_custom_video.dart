@@ -1,4 +1,4 @@
-// lib/widgets/quill_custom_video.dart (精确定位防误删、防克隆、红框删除与全功能独立视频组件完全体)
+// lib/widgets/quill_custom_video.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -34,7 +34,7 @@ class VideoBlockEmbed extends quill.CustomBlockEmbed {
   }
 }
 
-/// 🌟 2. VideoEmbedBuilder (带动态 Delta 反查：彻底解决克隆多发与误删上方文字问题)
+/// 🌟 2. VideoEmbedBuilder (精准物理位置更新与防误删防弹键盘)
 class VideoEmbedBuilder extends quill.EmbedBuilder {
   final Map<String, dynamic>? author;
   final List<Map<String, dynamic>> Function()? onExtractAllVideosInPost;
@@ -68,7 +68,7 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
         author: author,
         readOnly: embedContext.readOnly,
         onExtractAllVideosInPost: onExtractAllVideosInPost,
-        // 🌟 核心防克隆：在文档中精确定位该视频的当前实时物理偏移量并原地替换
+        // 🌟 原位安全替换：先查实时 offset，保障文案保存即生效
         onUpdateData: (updatedMap) {
           final doc = embedContext.controller.document;
           int currentOffset = 0;
@@ -95,7 +95,6 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
             currentOffset += op.length!;
           }
 
-          // 兜底保护
           if (!replaced && embedContext.node.parent != null) {
             embedContext.controller.replaceText(
               embedContext.node.documentOffset,
@@ -105,7 +104,7 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
             );
           }
         },
-        // 🌟 核心防误删：精准定位该视频组件节点，绝不删除上方或下方的无关文字
+        // 🌟 防误删节点
         onDeleteRequested: () {
           final doc = embedContext.controller.document;
           int currentOffset = 0;
@@ -120,7 +119,6 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
                     (parsed['id'] != null && parsed['id'] == videoData['id'])) {
                   final plainText = doc.toPlainText();
                   int deleteLen = 1;
-                  // 若紧随一个多余换行则一并清理，保持排版纯净
                   if (currentOffset + 1 < plainText.length &&
                       plainText[currentOffset + 1] == '\n') {
                     deleteLen = 2;
@@ -148,7 +146,7 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
   }
 }
 
-/// 🌟 3. 富文本内的视频卡片小部件（红框高亮选中、删除弹窗确认）
+/// 🌟 3. 富文本内的视频卡片小部件（阻断键盘弹起、文案实时双向同步）
 class QuillCustomVideoWidget extends StatefulWidget {
   final Map<String, dynamic> videoData;
   final Map<String, dynamic>? author;
@@ -175,9 +173,26 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   VideoPlayerController? _videoPlayerController;
   bool _isPlayingInline = false;
   bool _isInitialized = false;
-  bool _isSelected = false; // 控制红色边框高亮与删除按钮显隐
+  bool _isSelected = false;
+  late Map<String, dynamic> _currentVideoData;
 
   static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+
+  @override
+  void initState() {
+    super.initState();
+    _currentVideoData = Map<String, dynamic>.from(widget.videoData);
+  }
+
+  @override
+  void didUpdateWidget(covariant QuillCustomVideoWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.videoData != oldWidget.videoData) {
+      setState(() {
+        _currentVideoData = Map<String, dynamic>.from(widget.videoData);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -186,7 +201,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   }
 
   void _toggleInlinePlay() async {
-    final videoUrl = widget.videoData['video_url']?.toString() ?? '';
+    final videoUrl = _currentVideoData['video_url']?.toString() ?? '';
     if (videoUrl.isEmpty) return;
 
     if (_videoPlayerController == null) {
@@ -206,6 +221,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   }
 
   void _showDeleteConfirmSheet() {
+    FocusScope.of(context).unfocus(); // 🌟 解除富文本焦点
     HapticFeedback.mediumImpact();
     showModalBottomSheet<void>(
       context: context,
@@ -318,7 +334,8 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   }
 
   void _showEditCaptionSheet() {
-    final currentCaption = widget.videoData['caption']?.toString() ?? '';
+    FocusScope.of(context).unfocus(); // 🌟 阻止外界键盘弹起
+    final currentCaption = _currentVideoData['caption']?.toString() ?? '';
     final TextEditingController captionC =
     TextEditingController(text: currentCaption);
 
@@ -326,7 +343,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (bottomContext) {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -336,7 +353,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
             top: 16,
             left: 24,
             right: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            bottom: MediaQuery.of(bottomContext).viewInsets.bottom + 24,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -389,6 +406,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                   controller: captionC,
                   maxLines: 3,
                   minLines: 1,
+                  autofocus: true,
                   style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B)),
                   decoration: const InputDecoration(
                     hintText: '为这个视频写下一段深度见解或说明（可选）...',
@@ -406,13 +424,18 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                 child: ElevatedButton(
                   onPressed: () {
                     final newCaption = captionC.text.trim();
-                    final newMap = Map<String, dynamic>.from(widget.videoData);
+                    final newMap = Map<String, dynamic>.from(_currentVideoData);
                     newMap['caption'] = newCaption;
+
+                    setState(() {
+                      _currentVideoData = newMap;
+                    });
 
                     if (widget.onUpdateData != null) {
                       widget.onUpdateData!(newMap);
                     }
-                    Navigator.pop(context);
+                    Navigator.pop(bottomContext);
+                    Fluttertoast.showToast(msg: "注解已更新");
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primaryTeal,
@@ -437,7 +460,8 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   }
 
   void _launchFullscreenReels() {
-    final videoUrl = widget.videoData['video_url']?.toString() ?? '';
+    FocusScope.of(context).unfocus();
+    final videoUrl = _currentVideoData['video_url']?.toString() ?? '';
     if (videoUrl.isEmpty) return;
 
     _videoPlayerController?.pause();
@@ -448,7 +472,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
       allVideoMaps = widget.onExtractAllVideosInPost!();
     }
     if (allVideoMaps.isEmpty) {
-      allVideoMaps = [widget.videoData];
+      allVideoMaps = [_currentVideoData];
     }
 
     int targetIndex = allVideoMaps
@@ -467,13 +491,13 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final thumbnailUrl = widget.videoData['thumbnail_url']?.toString() ?? '';
-    final caption = widget.videoData['caption']?.toString() ?? '';
+    final thumbnailUrl = _currentVideoData['thumbnail_url']?.toString() ?? '';
+    final caption = _currentVideoData['caption']?.toString() ?? '';
 
-    // 🌟 点击卡片边缘非播放按键区域切换选中红色高亮状态
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
+        FocusScope.of(context).unfocus(); // 🌟 阻断外界键盘响应
         if (!widget.readOnly) {
           HapticFeedback.lightImpact();
           setState(() {
@@ -534,10 +558,10 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                         if (!_isPlayingInline)
                           Container(color: Colors.black.withOpacity(0.25)),
 
-                        // 居中播放控制按钮
                         Center(
                           child: GestureDetector(
                             onTap: () {
+                              FocusScope.of(context).unfocus();
                               HapticFeedback.lightImpact();
                               _toggleInlinePlay();
                             },
@@ -562,12 +586,12 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                           ),
                         ),
 
-                        // 全屏 Reels 按钮
                         Positioned(
                           top: 10,
                           right: 10,
                           child: GestureDetector(
                             onTap: () {
+                              FocusScope.of(context).unfocus();
                               HapticFeedback.selectionClick();
                               _launchFullscreenReels();
                             },
@@ -606,7 +630,6 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                       ],
                     ),
                   ),
-                  // 注解文案条
                   InkWell(
                     onTap: widget.readOnly ? null : _showEditCaptionSheet,
                     child: Container(
@@ -669,7 +692,6 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                   ),
                 ],
               ),
-              // 选中状态下的独立红色删除按钮
               if (_isSelected && !widget.readOnly)
                 Positioned(
                   top: 10,
@@ -717,7 +739,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   }
 }
 
-/// 🌟 4. 全屏 Reels 播放器（直连硬件解码 + 帖内多视频垂直滑切）
+/// 🌟 4. 全屏 Reels 播放器（直连硬件解码 + 开启防挤压）
 class _FullscreenReelsPlayerScreen extends StatefulWidget {
   final List<Map<String, dynamic>> videoList;
   final int initialIndex;
@@ -756,6 +778,7 @@ class _FullscreenReelsPlayerScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: false, // 🌟 核心防挤压：打开评论键盘时，视频画面绝不形变上移
       body: Stack(
         children: [
           PageView.builder(
@@ -796,7 +819,7 @@ class _FullscreenReelsPlayerScreenState
   }
 }
 
-/// 🌟 5. 单个直连视频播放页
+/// 🌟 5. 单个直连视频播放页（搭载防手势误触 + 放大交互进度条）
 class _DirectReelsVideoPage extends StatefulWidget {
   final Map<String, dynamic> videoMap;
   final Map<String, dynamic>? author;
@@ -976,27 +999,182 @@ class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
           totalVideosInPost: widget.totalCount,
           currentIndex: widget.currentIndex,
         ),
+        // 🌟 自定义拖动进度条（带放大交互与防小白条手势避让）
         if (_controller != null && _isInitialized)
           Positioned(
-            bottom: 0,
+            bottom: MediaQuery.of(context).padding.bottom + 6,
             left: 0,
             right: 0,
-            child: VideoProgressIndicator(
-              _controller!,
-              allowScrubbing: true,
-              colors: const VideoProgressColors(
-                playedColor: Color.fromRGBO(44, 123, 109, 1.0),
-                bufferedColor: Colors.white24,
-                backgroundColor: Colors.transparent,
-              ),
-            ),
+            child: _InteractiveReelsProgressBar(controller: _controller!),
           ),
       ],
     );
   }
 }
 
-/// 🌟 6. 独立的视频社交互动覆盖层 (进入时自动初始化点赞、评论与状态，支持游客与用户)
+/// 🌟 6. 高品质自绘制交互进度条（触碰即放大 + 避让系统小白条防误触）
+class _InteractiveReelsProgressBar extends StatefulWidget {
+  final VideoPlayerController controller;
+
+  const _InteractiveReelsProgressBar({required this.controller});
+
+  @override
+  State<_InteractiveReelsProgressBar> createState() =>
+      _InteractiveReelsProgressBarState();
+}
+
+class _InteractiveReelsProgressBarState
+    extends State<_InteractiveReelsProgressBar> {
+  bool _isDragging = false;
+  double _dragValue = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onControllerUpdate);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerUpdate);
+    super.dispose();
+  }
+
+  void _onControllerUpdate() {
+    if (!_isDragging && mounted) {
+      setState(() {});
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = widget.controller.value.duration;
+    final position = widget.controller.value.position;
+
+    final double totalMs = duration.inMilliseconds.toDouble();
+    final double currentMs = position.inMilliseconds.toDouble();
+    final double progress = totalMs > 0 ? (currentMs / totalMs).clamp(0.0, 1.0) : 0.0;
+    final double displayProgress = _isDragging ? _dragValue : progress;
+
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      clipBehavior: Clip.none,
+      children: [
+        // 拖拽时浮现的大字号时间气泡
+        if (_isDragging)
+          Positioned(
+            bottom: 24,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Text(
+                '${_formatDuration(Duration(milliseconds: (displayProgress * totalMs).toInt()))} / ${_formatDuration(duration)}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+
+        // 触控条（热区扩大至 32px 彻底消灭切 App 冲突）
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: (details) {
+            final box = context.findRenderObject() as RenderBox?;
+            if (box == null) return;
+            HapticFeedback.selectionClick();
+            setState(() {
+              _isDragging = true;
+              _dragValue = (details.localPosition.dx / box.size.width).clamp(0.0, 1.0);
+            });
+          },
+          onHorizontalDragUpdate: (details) {
+            final box = context.findRenderObject() as RenderBox?;
+            if (box == null) return;
+            setState(() {
+              _dragValue = (details.localPosition.dx / box.size.width).clamp(0.0, 1.0);
+            });
+          },
+          onHorizontalDragEnd: (details) async {
+            final targetMs = (_dragValue * totalMs).toInt();
+            await widget.controller.seekTo(Duration(milliseconds: targetMs));
+            setState(() {
+              _isDragging = false;
+            });
+          },
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            alignment: Alignment.center,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    // 轨道背景
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      height: _isDragging ? 6.0 : 2.5,
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    // 已播放进度
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      height: _isDragging ? 6.0 : 2.5,
+                      width: constraints.maxWidth * displayProgress,
+                      decoration: BoxDecoration(
+                        color: const Color.fromRGBO(44, 123, 109, 1.0),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    // 拖动手柄指示圆点
+                    if (_isDragging)
+                      Positioned(
+                        left: (constraints.maxWidth * displayProgress) - 7,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black45,
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 🌟 7. 独立的视频社交互动覆盖层
 class _ReelsSocialOverlayWidget extends StatefulWidget {
   final Map<String, dynamic> videoMap;
   final Map<String, dynamic>? author;
@@ -1140,7 +1318,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
     return Positioned.fill(
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -1290,7 +1468,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
   }
 }
 
-/// 🌟 7. 独立视频评论二级回复抽屉
+/// 🌟 8. 独立视频评论二级回复抽屉
 class _VideoCommentBottomSheet extends StatefulWidget {
   final String videoId;
   final Function(int count)? onCommentCountChanged;

@@ -1,9 +1,11 @@
 // lib/views/shop/shop_view.dart
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'shop_goods_model.dart';
 import 'shop_controller.dart';
+import 'confetti_celebration_overlay.dart';
 import '../community/community_space_view.dart';
 import '../post_detail/post_detail_view.dart';
 
@@ -64,6 +66,53 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     }
   }
 
+  /// 🌟 自动平滑滚动并将刚刚购买的商品高亮居中展示
+  void _scrollToPurchasedItem(String goodsId) {
+    if (goodsId.isEmpty) return;
+
+    final currentCategoryIndex = _tabController.index;
+    ScrollController activeController;
+    List<ShopGoods> activeList;
+
+    if (currentCategoryIndex == 0) {
+      activeController = _allScrollController;
+      activeList = controller.allGoods;
+    } else if (currentCategoryIndex == 1) {
+      activeController = _postScrollController;
+      activeList = controller.postGoods;
+    } else {
+      activeController = _groupScrollController;
+      activeList = controller.groupGoods;
+    }
+
+    final targetIndex = activeList.indexWhere((item) => item.id == goodsId);
+    if (targetIndex == -1 || !activeController.hasClients) return;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final itemWidth = (screenWidth - 48) / 2;
+    final itemHeight = itemWidth / 0.72;
+    final rowIndex = targetIndex ~/ 2;
+    final targetOffset = rowIndex * (itemHeight + 16.0);
+
+    Future.delayed(const Duration(milliseconds: 250), () {
+      if (activeController.hasClients) {
+        activeController.animateTo(
+          targetOffset.clamp(0.0, activeController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+
+    // 4 秒后自动清除高亮边框
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted && controller.highlightedGoodsId.value == goodsId) {
+        controller.highlightedGoodsId.value = '';
+      }
+    });
+  }
+
+  /// 🌟 步骤 1：选择支付方式底部弹窗
   void _showPurchaseSheet(ShopGoods item) {
     String selectedPayType = 'alipay';
 
@@ -78,8 +127,8 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                  topLeft: Radius.circular(28),
+                  topRight: Radius.circular(28),
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -89,10 +138,10 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                 children: [
                   Center(
                     child: Container(
-                      width: 40,
-                      height: 5,
+                      width: 36,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
+                        color: Colors.grey.shade300,
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
@@ -103,23 +152,23 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: controller.primaryColor.withOpacity(0.1),
+                          color: controller.primaryColor.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: HugeIcon(
                           icon: _getCategoryIconData(item.category),
                           color: controller.primaryColor,
-                          size: 28,
+                          size: 26,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               item.title,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A)),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -136,8 +185,9 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                     ],
                   ),
                   const SizedBox(height: 24),
-                  Text('select_payment_method'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('select_payment_method'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
                   const SizedBox(height: 12),
+                  // 支付宝选项
                   InkWell(
                     onTap: () => setModalState(() => selectedPayType = 'alipay'),
                     borderRadius: BorderRadius.circular(16),
@@ -149,24 +199,34 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                           width: 1.5,
                         ),
                         borderRadius: BorderRadius.circular(16),
-                        color: selectedPayType == 'alipay' ? controller.primaryColor.withOpacity(0.02) : Colors.transparent,
+                        color: selectedPayType == 'alipay' ? controller.primaryColor.withOpacity(0.03) : Colors.transparent,
                       ),
                       child: Row(
                         children: [
-                          const HugeIcon(
-                            icon: HugeIcons.strokeRoundedCreditCard,
-                            color: Colors.blue,
-                            size: 24,
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: const Color(0xFF1677FF).withOpacity(0.1), shape: BoxShape.circle),
+                            child: const HugeIcon(icon: HugeIcons.strokeRoundedCreditCard, color: Color(0xFF1677FF), size: 20),
                           ),
                           const SizedBox(width: 12),
-                          Expanded(child: Text('alipay'.tr, style: const TextStyle(fontWeight: FontWeight.w600))),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('alipay'.tr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                                const SizedBox(height: 2),
+                                Text('支持快捷安全跳转支付', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                              ],
+                            ),
+                          ),
                           if (selectedPayType == 'alipay')
-                            Icon(Icons.check_circle, color: controller.primaryColor, size: 20)
+                            Icon(Icons.check_circle_rounded, color: controller.primaryColor, size: 22)
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
+                  // 微信支付选项
                   InkWell(
                     onTap: () => setModalState(() => selectedPayType = 'wxpay'),
                     borderRadius: BorderRadius.circular(16),
@@ -178,45 +238,60 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                           width: 1.5,
                         ),
                         borderRadius: BorderRadius.circular(16),
-                        color: selectedPayType == 'wxpay' ? controller.primaryColor.withOpacity(0.02) : Colors.transparent,
+                        color: selectedPayType == 'wxpay' ? controller.primaryColor.withOpacity(0.03) : Colors.transparent,
                       ),
                       child: Row(
                         children: [
-                          const HugeIcon(
-                            icon: HugeIcons.strokeRoundedWallet01,
-                            color: Colors.green,
-                            size: 24,
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: const Color(0xFF07C160).withOpacity(0.1), shape: BoxShape.circle),
+                            child: const HugeIcon(icon: HugeIcons.strokeRoundedWallet01, color: Color(0xFF07C160), size: 20),
                           ),
                           const SizedBox(width: 12),
-                          Expanded(child: Text('wechat_pay'.tr, style: const TextStyle(fontWeight: FontWeight.w600))),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('wechat_pay'.tr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                                const SizedBox(height: 2),
+                                Text('微信扫码或 App 跳转支付', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                              ],
+                            ),
+                          ),
                           if (selectedPayType == 'wxpay')
-                            Icon(Icons.check_circle, color: controller.primaryColor, size: 20)
+                            Icon(Icons.check_circle_rounded, color: controller.primaryColor, size: 22)
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 28),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('total_due'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-                          const SizedBox(height: 4),
+                          Text('total_due'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 2),
                           Text(
-                            '¥${item.price.toStringAsFixed(2)}',
-                            style: TextStyle(color: controller.primaryColor, fontWeight: FontWeight.bold, fontSize: 22),
+                            item.price <= 0 ? '免费' : '¥${item.price.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: item.price <= 0 ? const Color(0xFF059669) : controller.primaryColor,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 22,
+                            ),
                           ),
                         ],
                       ),
                       SizedBox(
                         width: 160,
-                        height: 50,
+                        height: 48,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            // 🌟 1. 立即关闭当前选择弹窗
                             Navigator.pop(context);
-                            controller.executePaymentWorkflow(item, selectedPayType);
+                            // 🌟 2. 唤起不可被手势关闭的支付监听弹窗
+                            _showPaymentPollingSheet(item, selectedPayType);
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: controller.primaryColor,
@@ -224,18 +299,270 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 0,
                           ),
-                          child: Text('buy_now'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          child: Text('buy_now'.tr, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                         ),
                       )
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
                 ],
               ),
             );
           },
         );
       },
+    );
+  }
+
+  /// 🌟 步骤 2：沉浸式支付中与自动轮询状态底部弹窗（不可由手势或点击外围关闭）
+  void _showPaymentPollingSheet(ShopGoods item, String selectedPayType) {
+    // 启动支付与轮询
+    controller.startPaymentWorkflow(item, selectedPayType);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,    // 禁止点击外围关闭
+      enableDrag: false,       // 禁止下滑手势拖拽关闭
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (bottomSheetContext) {
+        return PopScope(
+          canPop: false, // 拦截物理返回键
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(32),
+                topRight: Radius.circular(32),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Obx(() {
+              final status = controller.paymentStatus.value;
+              final msg = controller.paymentStatusMessage.value;
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 顶部呼吸指示条
+                  Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // 核心动效区域（等待波纹 / 成功勾选 / 失败重试）
+                  if (status == PaymentProcessingStatus.waiting) ...[
+                    _buildRadarWaitingIndicator(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      '正在安全同步支付结果',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        msg,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+                      ),
+                    ),
+                  ] else if (status == PaymentProcessingStatus.success) ...[
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: controller.primaryColor.withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(Icons.check_circle_rounded, color: controller.primaryColor, size: 56),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      '支付成功，权益已解锁',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '《${item.title}》已成功绑定至您的账号',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    ),
+                  ] else ...[
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(Icons.error_outline_rounded, color: Colors.red.shade400, size: 52),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      '支付未完成或检测超时',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        msg.isNotEmpty ? msg : '如已扣款，系统将稍后自动补单同步。',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 32),
+
+                  // 底部操作按钮区域
+                  if (status == PaymentProcessingStatus.success) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // 🌟 1. 关闭底部弹窗
+                          Navigator.pop(bottomSheetContext);
+
+                          // 🌟 2. 屏幕中央释放全自绘制烟花彩带特效
+                          ConfettiCelebrationOverlay.show(
+                            context,
+                            title: '恭喜！解锁成功 🎉',
+                            subtitle: '《${item.title}》现已生效',
+                            onFinished: () {
+                              // 🌟 3. 动画完成后自动平滑滚动并高亮该卡片
+                              _scrollToPurchasedItem(item.id);
+                            },
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: controller.primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        child: const Text('完成', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                    ),
+                  ] else if (status == PaymentProcessingStatus.waiting) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              controller.cancelPolling();
+                              Navigator.pop(bottomSheetContext);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text('放弃支付', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              if (controller.currentOutTradeNo != null) {
+                                controller.verifyPaymentOnBackend(controller.currentOutTradeNo!, isSilent: false);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: controller.primaryColor,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              elevation: 0,
+                            ),
+                            child: const Text('我已完成支付', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          controller.cancelPolling();
+                          Navigator.pop(bottomSheetContext);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.shade100,
+                          foregroundColor: Colors.black87,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        child: const Text('关闭返回', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                    ),
+                  ],
+
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+                ],
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 优雅的雷达脉冲呼吸加载指示部件
+  Widget _buildRadarWaitingIndicator() {
+    return SizedBox(
+      width: 90,
+      height: 90,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 80,
+            height: 80,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(controller.primaryColor.withOpacity(0.3)),
+            ),
+          ),
+          SizedBox(
+            width: 80,
+            height: 80,
+            child: CircularProgressIndicator(
+              strokeWidth: 3.5,
+              valueColor: AlwaysStoppedAnimation<Color>(controller.primaryColor),
+              strokeCap: StrokeCap.round,
+            ),
+          ),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: controller.primaryColor.withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedCreditCard,
+                color: controller.primaryColor,
+                size: 26,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -261,7 +588,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
   }) {
     if (isLoading) {
       return Center(
-        child: CircularProgressIndicator(color: controller.primaryColor, strokeWidth: 2),
+        child: CircularProgressIndicator(color: controller.primaryColor, strokeWidth: 2.5),
       );
     }
     if (goods.isEmpty) {
@@ -272,10 +599,10 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
             HugeIcon(
               icon: HugeIcons.strokeRoundedShoppingBag01,
               color: Colors.grey.shade300,
-              size: 48,
+              size: 54,
             ),
-            const SizedBox(height: 12),
-            Text('shop_empty_category'.tr, style: TextStyle(color: Colors.grey.shade400)),
+            const SizedBox(height: 14),
+            Text('shop_empty_category'.tr, style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
           ],
         ),
       );
@@ -286,7 +613,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
       color: controller.primaryColor,
       child: GridView.builder(
         controller: scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: const EdgeInsets.all(16),
         itemCount: goods.length + 1,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -302,156 +629,180 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
 
           final item = goods[index];
 
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey.shade100, width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.shade200.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+          return Obx(() {
+            final isHighlighted = controller.highlightedGoodsId.value == item.id;
+
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: isHighlighted ? controller.primaryColor : Colors.grey.shade100,
+                  width: isHighlighted ? 2.2 : 1.0,
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: controller.primaryColor.withOpacity(0.04),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: isHighlighted
+                        ? controller.primaryColor.withOpacity(0.25)
+                        : Colors.grey.shade200.withOpacity(0.35),
+                    blurRadius: isHighlighted ? 18 : 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 图片与标签
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: controller.primaryColor.withOpacity(0.04),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                        ),
                       ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          if (item.imageUrl.isNotEmpty)
-                            Image.network(
-                              item.imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (c, e, s) => Center(
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                        ),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (item.imageUrl.isNotEmpty)
+                              Image.network(
+                                item.imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (c, e, s) => Center(
+                                  child: HugeIcon(
+                                    icon: _getCategoryIconData(item.category),
+                                    color: controller.primaryColor.withOpacity(0.8),
+                                    size: 44,
+                                  ),
+                                ),
+                              )
+                            else
+                              Center(
                                 child: HugeIcon(
                                   icon: _getCategoryIconData(item.category),
                                   color: controller.primaryColor.withOpacity(0.8),
-                                  size: 48,
+                                  size: 44,
+                                ),
+                              ),
+                            Positioned(
+                              left: 10,
+                              top: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: item.isPurchased
+                                      ? const Color(0xFF059669).withOpacity(0.14)
+                                      : controller.primaryColor.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  item.isPurchased ? 'owned'.tr : item.tag,
+                                  style: TextStyle(
+                                    color: item.isPurchased ? const Color(0xFF059669) : controller.primaryColor,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
                             )
-                          else
-                            Center(
-                              child: HugeIcon(
-                                icon: _getCategoryIconData(item.category),
-                                color: controller.primaryColor.withOpacity(0.8),
-                                size: 48,
-                              ),
-                            ),
-                          Positioned(
-                            left: 12,
-                            top: 12,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: controller.primaryColor.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                item.isPurchased
-                                    ? 'owned'.tr
-                                    : item.tag,
-                                style: TextStyle(
-                                  color: item.isPurchased ? Colors.green.shade800 : controller.primaryColor,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          )
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item.desc,
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '¥${item.price.toStringAsFixed(2)}',
-                            style: TextStyle(color: controller.primaryColor, fontWeight: FontWeight.w900, fontSize: 15),
-                          ),
-                          if (item.isPurchased || item.price <= 0)
-                            SizedBox(
-                              height: 28,
-                              child: TextButton(
-                                onPressed: () {
-                                  final String targetId = item.targetId;
-                                  if (item.category == 'group' && targetId.isNotEmpty) {
-                                    Get.to(() => CommunitySpaceView(communityId: targetId));
-                                  } else if (item.category == 'post' && targetId.isNotEmpty) {
-                                    Get.to(() => PostDetailView(postId: targetId));
-                                  }
-                                },
-                                style: TextButton.styleFrom(
-                                  backgroundColor: controller.primaryColor.withOpacity(0.1),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                ),
-                                child: Text(
-                                  item.category == 'group' ? 'enter_space'.tr : 'read_content'.tr,
-                                  style: TextStyle(color: controller.primaryColor, fontSize: 11, fontWeight: FontWeight.bold),
-                                ),
+
+                  // 内容详情
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          item.desc,
+                          style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              item.price <= 0 ? '免费' : '¥${item.price.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: item.price <= 0 ? const Color(0xFF059669) : controller.primaryColor, // 免费可使用清爽的绿色或保持主题色
+                                fontWeight: FontWeight.w900,
+                                fontSize: item.price <= 0 ? 14 : 15,
                               ),
-                            )
-                          else
-                            InkWell(
-                              onTap: () => _showPurchaseSheet(item),
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: controller.primaryColor,
-                                  borderRadius: BorderRadius.circular(10),
+                            ),
+                            if (item.isPurchased || item.price <= 0)
+                              SizedBox(
+                                height: 28,
+                                child: TextButton(
+                                  onPressed: () {
+                                    final String targetId = item.targetId;
+                                    if (item.category == 'group' && targetId.isNotEmpty) {
+                                      Get.to(() => CommunitySpaceView(communityId: targetId));
+                                    } else if (item.category == 'post' && targetId.isNotEmpty) {
+                                      Get.to(() => PostDetailView(postId: targetId));
+                                    }
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: controller.primaryColor.withOpacity(0.1),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  ),
+                                  child: Text(
+                                    item.category == 'group' ? 'enter_space'.tr : 'read_content'.tr,
+                                    style: TextStyle(color: controller.primaryColor, fontSize: 11, fontWeight: FontWeight.w800),
+                                  ),
                                 ),
-                                child: const Icon(Icons.add, color: Colors.white, size: 16),
-                              ),
-                            )
-                        ],
-                      )
-                    ],
-                  ),
-                )
-              ],
-            ),
-          );
+                              )
+                            else
+                              InkWell(
+                                onTap: () => _showPurchaseSheet(item),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: controller.primaryColor,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: controller.primaryColor.withOpacity(0.3),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(Icons.add, color: Colors.white, size: 16),
+                                ),
+                              )
+                          ],
+                        )
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            );
+          });
         },
       ),
     );
@@ -461,8 +812,8 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
     if (isLoadingMore) {
       return Center(
         child: SizedBox(
-          width: 24,
-          height: 24,
+          width: 22,
+          height: 22,
           child: CircularProgressIndicator(color: controller.primaryColor, strokeWidth: 2),
         ),
       );
@@ -473,18 +824,22 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text('shop_title'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.black)),
+        title: Text(
+          'shop_title'.tr,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0F172A)),
+        ),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: controller.primaryColor,
+          indicatorWeight: 2.5,
           labelColor: controller.primaryColor,
-          unselectedLabelColor: Colors.grey,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          unselectedLabelColor: Colors.grey.shade500,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           tabs: [
             Tab(text: 'shop_tab_all'.tr),
             Tab(text: 'shop_tab_posts'.tr),
@@ -520,246 +875,6 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
             categoryCode: 'group',
           )),
         ],
-      ),
-    );
-  }
-}
-
-class ShopPaymentSuccessPage extends StatefulWidget {
-  final Map<String, dynamic> orderDetails;
-  final Color primaryColor;
-  final VoidCallback onDone;
-
-  const ShopPaymentSuccessPage({
-    super.key,
-    required this.orderDetails,
-    required this.primaryColor,
-    required this.onDone,
-  });
-
-  @override
-  State<ShopPaymentSuccessPage> createState() => _ShopPaymentSuccessPageState();
-}
-
-class _ShopPaymentSuccessPageState extends State<ShopPaymentSuccessPage> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.elasticOut,
-      ),
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: const Interval(0.4, 1.0, curve: Curves.easeIn),
-      ),
-    );
-
-    _animationController.forward();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final String targetId = widget.orderDetails['goodsId']?.toString() ?? '';
-    final String targetType = widget.orderDetails['goodsType']?.toString() ?? '';
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
-          child: Column(
-            children: [
-              const SizedBox(height: 30),
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: widget.primaryColor.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.check_circle_rounded,
-                      color: widget.primaryColor,
-                      size: 64,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Text(
-                  'order_paid_success'.tr,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Text(
-                  'goods_unlocked'.tr,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'receipt_details'.tr,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Divider(height: 1, color: Colors.grey),
-                      const SizedBox(height: 16),
-                      ...widget.orderDetails.entries.map((entry) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${entry.key}:',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '${entry.value}',
-                                  textAlign: TextAlign.end,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade800,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  children: [
-                    if (targetId.isNotEmpty && (targetType == 'group' || targetType == 'post')) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            widget.onDone();
-                            Get.back();
-                            if (targetType == 'group') {
-                              Get.to(() => CommunitySpaceView(communityId: targetId));
-                            } else if (targetType == 'post') {
-                              Get.to(() => PostDetailView(postId: targetId));
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: widget.primaryColor,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          child: Text(
-                            'enter_now'.tr,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: TextButton(
-                        onPressed: () {
-                          widget.onDone();
-                          Get.back();
-                        },
-                        style: TextButton.styleFrom(
-                          backgroundColor: Colors.grey.shade100,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Text(
-                          'done_and_back'.tr,
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        ),
       ),
     );
   }
