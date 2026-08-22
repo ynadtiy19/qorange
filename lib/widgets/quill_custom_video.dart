@@ -471,7 +471,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                       color: _primaryTeal.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const HugeIcon(
+                    child: HugeIcon(
                       icon: HugeIcons.strokeRoundedPencilEdit02,
                       color: _primaryTeal,
                       size: 18.0,
@@ -774,7 +774,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                                 color: _primaryTeal.withOpacity(0.08),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const HugeIcon(
+                              child: HugeIcon(
                                 icon: HugeIcons.strokeRoundedPencilEdit02,
                                 color: _primaryTeal,
                                 size: 13.0,
@@ -1715,7 +1715,7 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(
+                ? Center(
                 child: CircularProgressIndicator(
                     color: _primaryTeal, strokeWidth: 2))
                 : _comments.isEmpty
@@ -1862,7 +1862,7 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const HugeIcon(
+                  icon: HugeIcon(
                     icon: HugeIcons.strokeRoundedSent,
                     color: _primaryTeal,
                     size: 20,

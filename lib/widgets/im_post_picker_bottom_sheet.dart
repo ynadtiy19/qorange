@@ -91,7 +91,7 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
                         color: _primaryTeal.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.auto_stories_rounded, color: _primaryTeal, size: 20),
+                      child: Icon(Icons.auto_stories_rounded, color: _primaryTeal, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -128,7 +128,7 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
           // 3. 列表内容视图
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2.5))
+                ? Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2.5))
                 : TabBarView(
               controller: _tabController,
               children: [
@@ -224,7 +224,7 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
                               ),
                               child: Text(
                                 category,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 9.5,
                                   fontWeight: FontWeight.w800,
                                   color: _primaryTeal,
@@ -286,7 +286,7 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
         color: _primaryTeal.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Icon(Icons.article_rounded, color: _primaryTeal, size: 26),
+      child: Icon(Icons.article_rounded, color: _primaryTeal, size: 26),
     );
   }
 }

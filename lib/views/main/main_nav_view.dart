@@ -120,7 +120,7 @@ class _MainNavViewState extends State<MainNavView> {
                 icon: HugeIcons.strokeRoundedHome01,
                 color: AppColors.textHint,
               ),
-              activeIcon: const HugeIcon(
+              activeIcon: HugeIcon(
                 icon: HugeIcons.strokeRoundedHome01,
                 color: themeColor,
               ),
@@ -131,7 +131,7 @@ class _MainNavViewState extends State<MainNavView> {
                 icon: HugeIcons.strokeRoundedUserGroup,
                 color: AppColors.textHint,
               ),
-              activeIcon: const HugeIcon(
+              activeIcon: HugeIcon(
                 icon: HugeIcons.strokeRoundedUserGroup,
                 color: themeColor,
               ),
@@ -155,7 +155,7 @@ class _MainNavViewState extends State<MainNavView> {
                 icon: HugeIcons.strokeRoundedShoppingBag01,
                 color: AppColors.textHint,
               ),
-              activeIcon: const HugeIcon(
+              activeIcon: HugeIcon(
                 icon: HugeIcons.strokeRoundedShoppingBag01,
                 color: themeColor,
               ),
@@ -166,7 +166,7 @@ class _MainNavViewState extends State<MainNavView> {
                 icon: HugeIcons.strokeRoundedUser,
                 color: AppColors.textHint,
               ),
-              activeIcon: const HugeIcon(
+              activeIcon: HugeIcon(
                 icon: HugeIcons.strokeRoundedUser,
                 color: themeColor,
               ),

@@ -645,7 +645,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   children: [
                     // 🌟 1. 新增：私信好友 (拉起 PostShareToChatSheet)
                     _buildShareOption(
-                      icon: const HugeIcon(
+                      icon: HugeIcon(
                         icon: HugeIcons.strokeRoundedBubbleChat,
                         color: themeColor,
                         size: 22,
@@ -669,7 +669,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
                     // 2. 邮件分享 (拉起邮件通讯录)
                     _buildShareOption(
-                      icon: const HugeIcon(
+                      icon: HugeIcon(
                         icon: HugeIcons.strokeRoundedMail01,
                         color: themeColor,
                         size: 22,

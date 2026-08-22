@@ -117,7 +117,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                         color: _primaryTeal.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.send_rounded, color: _primaryTeal, size: 18),
+                      child: Icon(Icons.send_rounded, color: _primaryTeal, size: 18),
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -194,7 +194,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
           // 4. 好友列表
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2))
+                ? Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2))
                 : _contacts.isEmpty
                 ? Center(
               child: Text('share_no_users'.tr, style: TextStyle(fontSize: 13, color: AppColors.textHint)),
@@ -247,7 +247,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                               color: _primaryTeal.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Text('im_send_btn'.tr, style: const TextStyle(color: _primaryTeal, fontSize: 12, fontWeight: FontWeight.w700)),
+                            child: Text('im_send_btn'.tr, style: TextStyle(color: _primaryTeal, fontSize: 12, fontWeight: FontWeight.w700)),
                           ),
                         ],
                       ),

@@ -297,7 +297,7 @@ class _ImChatViewState extends State<ImChatView> {
                   children: [
                     Obx(() {
                       if (_controller.isLoadingHistory.value && _controller.messages.isEmpty) {
-                        return const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2));
+                        return Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2));
                       }
 
                       return ListView.builder(
@@ -1350,7 +1350,7 @@ class _ImChatViewState extends State<ImChatView> {
             ),
             const SizedBox(height: 18),
             ListTile(
-              leading: const Icon(Icons.photo_library_rounded, color: _primaryTeal),
+              leading: Icon(Icons.photo_library_rounded, color: _primaryTeal),
               title: Text('im_bg_from_album'.tr, style: const TextStyle(fontWeight: FontWeight.w600)),
               onTap: () async {
                 Get.back();
@@ -1670,7 +1670,7 @@ class _VoiceRecordBottomSheetState extends State<_VoiceRecordBottomSheet> {
           // 录音计时器
           Text(
             '$minutes:$seconds',
-            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: _primaryTeal, letterSpacing: 1),
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: _primaryTeal, letterSpacing: 1),
           ),
           const SizedBox(height: 24),
 

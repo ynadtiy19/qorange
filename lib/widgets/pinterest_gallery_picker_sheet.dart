@@ -134,7 +134,7 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
                         color: _primaryTeal.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.auto_awesome_rounded, color: _primaryTeal, size: 20),
+                      child: Icon(Icons.auto_awesome_rounded, color: _primaryTeal, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Column(
@@ -206,7 +206,7 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
           // 3. 瀑布流壁纸卡片展示区
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2.5))
+                ? Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2.5))
                 : _images.isEmpty
                 ? _buildEmptyState()
                 : RefreshIndicator(
@@ -224,7 +224,7 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
                 itemCount: _images.length + (_hasMore ? 1 : 0),
                 itemBuilder: (context, index) {
                   if (index == _images.length) {
-                    return const Center(
+                    return Center(
                       child: Padding(
                         padding: EdgeInsets.all(16),
                         child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2),
@@ -280,7 +280,7 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
                     if (progress == null) return child;
                     return Container(
                       color: AppColors.surfaceAlt,
-                      child: const Center(
+                      child: Center(
                         child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2),
                       ),
                     );

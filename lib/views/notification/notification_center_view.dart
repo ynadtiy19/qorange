@@ -225,7 +225,7 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
 
     return Obx(() {
       if (state.isLoading.value) {
-        return const Center(
+        return Center(
           child: CircularProgressIndicator(
             color: _primaryTeal,
             strokeWidth: 2.5,
@@ -258,7 +258,7 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
               if (index == state.list.length) {
                 return Obx(() {
                   if (state.isLoadingMore.value) {
-                    return const Padding(
+                    return Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: Center(
                         child: SizedBox(

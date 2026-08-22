@@ -120,7 +120,7 @@ class ImConversationListView extends StatelessWidget {
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2.5));
+          return Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2.5));
         }
 
         if (controller.conversations.isEmpty) {

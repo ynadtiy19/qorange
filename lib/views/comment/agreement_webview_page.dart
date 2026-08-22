@@ -80,7 +80,7 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
           backgroundColor: AppColors.surface,
           centerTitle: true,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19, color: _slateText),
+            icon: Icon(Icons.arrow_back_ios_new_rounded, size: 19, color: _slateText),
             onPressed: () async {
               HapticFeedback.lightImpact();
               if (await _controller.canGoBack()) {
@@ -93,7 +93,7 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
           title: Obx(
                 () => Text(
               _title.value,
-              style: const TextStyle(
+              style: TextStyle(
                 color: _slateText,
                 fontSize: 16.5,
                 fontWeight: FontWeight.w700,
@@ -124,7 +124,7 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
                   value: _loadingProgress.value / 100.0,
                   minHeight: 2.5,
                   backgroundColor: Colors.transparent,
-                  valueColor: const AlwaysStoppedAnimation<Color>(_primaryTeal),
+                  valueColor: AlwaysStoppedAnimation<Color>(_primaryTeal),
                 ),
               );
             }),

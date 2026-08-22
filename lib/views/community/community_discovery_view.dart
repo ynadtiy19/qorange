@@ -45,7 +45,7 @@ class CommunityDiscoveryView extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           onPressed: () => _showCreateCommunitySheet(context, controller, themeColor, categories),
-          icon: const HugeIcon(
+          icon: HugeIcon(
             icon: HugeIcons.strokeRoundedPlusSignSquare,
             color: themeColor,
             size: 22.0,
@@ -54,7 +54,7 @@ class CommunityDiscoveryView extends StatelessWidget {
         actions: [
           IconButton(
             onPressed: () => _showFilterBottomSheet(context, controller, themeColor),
-            icon: const HugeIcon(
+            icon: HugeIcon(
               icon: HugeIcons.strokeRoundedFilter,
               color: themeColor,
               size: 22.0,
@@ -106,7 +106,7 @@ class CommunityDiscoveryView extends StatelessWidget {
           Expanded(
             child: Obx(() {
               if (controller.isLoading.value) {
-                return const Center(child: CircularProgressIndicator(color: themeColor, strokeWidth: 2));
+                return Center(child: CircularProgressIndicator(color: themeColor, strokeWidth: 2));
               }
               if (controller.communities.isEmpty) {
                 return Center(
@@ -139,7 +139,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                     itemBuilder: (context, index) {
                       if (index == controller.communities.length) {
                         return Obx(() => controller.isLoadingMore.value
-                            ? const Center(
+                            ? Center(
                           child: Padding(
                             padding: EdgeInsets.all(16),
                             child: CircularProgressIndicator(color: themeColor, strokeWidth: 2),

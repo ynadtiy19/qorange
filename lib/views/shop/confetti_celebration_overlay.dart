@@ -1,6 +1,7 @@
 // lib/views/shop/confetti_celebration_overlay.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:qorange/theme.dart';
 
 /// 自绘制烟花与庆祝彩带粒子模型
