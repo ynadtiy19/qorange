@@ -15,7 +15,7 @@ class VoiceChatController extends GetxController {
   WebSocketChannel? _translateWsChannel;
 
   // 观察状态变量
-  final RxString statusText = "轻触下方开始与 AI 助手语音对话".obs;
+  final RxString statusText = 'voice_tap_to_start'.tr.obs;
   final RxBool isConnected = false.obs;
   final RxBool isConnecting = false.obs;
   final RxBool isMuted = false.obs;
@@ -71,7 +71,7 @@ class VoiceChatController extends GetxController {
     };
 
     _voiceService.onError = (errorMsg) {
-      statusText.value = "异常: $errorMsg";
+      statusText.value = 'voice_error_status'.trParams({'error': '$errorMsg'});
       _resetStates();
     };
 
@@ -85,17 +85,17 @@ class VoiceChatController extends GetxController {
     if (isConnecting.value || isConnected.value) return;
 
     isConnecting.value = true;
-    statusText.value = "正在申请麦克风权限...";
+    statusText.value = 'voice_requesting_mic'.tr;
 
     final permission = await Permission.microphone.request();
     if (!permission.isGranted) {
       isConnecting.value = false;
-      statusText.value = "麦克风权限被拒绝，无法建立语音";
-      Fluttertoast.showToast(msg: "请在系统设置中开放麦克风权限");
+      statusText.value = 'voice_mic_denied'.tr;
+      Fluttertoast.showToast(msg: 'voice_open_mic_settings'.tr);
       return;
     }
 
-    statusText.value = "代签握手中，即将接通...";
+    statusText.value = 'voice_connecting'.tr;
     HapticFeedback.mediumImpact(); // 开启清脆的物理马达回弹振动
 
     await _voiceService.startVoiceSession(
@@ -105,14 +105,14 @@ class VoiceChatController extends GetxController {
 
     isConnected.value = true;
     isConnecting.value = false;
-    statusText.value = "已接通，开始倾听您的观点";
+    statusText.value = 'voice_connected'.tr;
 
     _startRmsSimulator();
   }
 
   /// 一键挂断物理 WSS 会话
   Future<void> endCall() async {
-    statusText.value = "正在断开语音链路...";
+    statusText.value = 'voice_disconnecting'.tr;
     HapticFeedback.mediumImpact();
     await _voiceService.disconnect();
     _resetStates();
@@ -131,13 +131,13 @@ class VoiceChatController extends GetxController {
   /// 🌟🌟 核心：在语音进行中，一键开启/关闭实时翻译同传 WSS 管道（注入多维控制台实时调试日志） 🌟🌟
   Future<void> toggleTranslationStream() async {
     if (!isConnected.value) {
-      Fluttertoast.showToast(msg: "请先接通语音通话再开启翻译");
+      Fluttertoast.showToast(msg: 'voice_connect_first'.tr);
       return;
     }
 
     if (isTranslationActive.value) {
       _closeTranslationChannel();
-      Fluttertoast.showToast(msg: "已关闭实时同传翻译");
+      Fluttertoast.showToast(msg: 'voice_translation_off'.tr);
     } else {
       isTranslationConnecting.value = true;
       transcribedText.value = "";
@@ -147,7 +147,7 @@ class VoiceChatController extends GetxController {
         final token = await SecureStorageManager.instance.getAccessToken();
         if (token == null || token.isEmpty) {
           isTranslationConnecting.value = false;
-          Fluttertoast.showToast(msg: "请登录后使用同传功能");
+          Fluttertoast.showToast(msg: 'login_to_use_translation'.tr);
           return;
         }
 
@@ -179,19 +179,19 @@ class VoiceChatController extends GetxController {
               print('🔴 解析同传下发数据包异常: $e');
             }
           },
-          onError: (err) => _closeTranslationChannel(reason: "翻译网关异常断开"),
-          onDone: () => _closeTranslationChannel(reason: "翻译流正常关闭"),
+          onError: (err) => _closeTranslationChannel(reason: 'voice_translation_gateway_error'.tr),
+          onDone: () => _closeTranslationChannel(reason: 'voice_translation_closed'.tr),
         );
 
         isTranslationActive.value = true;
         isTranslationConnecting.value = false;
         HapticFeedback.mediumImpact();
-        Fluttertoast.showToast(msg: "🎉 实时同传翻译已成功开启，已扣除 5 代币开机费！");
+        Fluttertoast.showToast(msg: 'voice_translation_on'.tr);
 
       } catch (e) {
         isTranslationConnecting.value = false;
         _closeTranslationChannel();
-        Fluttertoast.showToast(msg: "开启翻译失败: $e");
+        Fluttertoast.showToast(msg: 'voice_translation_start_failed'.trParams({'error': '$e'}));
       }
     }
   }
@@ -235,7 +235,7 @@ class VoiceChatController extends GetxController {
     hasVoiceActivity.value = false;
     elapsedSeconds.value = 0;
     visualRms.value = 0.05;
-    statusText.value = "轻触下方开始与 AI 助手语音对话";
+    statusText.value = 'voice_tap_to_start'.tr;
     _rmsTimer?.cancel();
     _closeTranslationChannel();
   }

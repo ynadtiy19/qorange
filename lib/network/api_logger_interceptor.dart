@@ -1,4 +1,6 @@
+// lib/network/api_logger_interceptor.dart
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -16,8 +18,16 @@ class ApiLoggerInterceptor extends Interceptor {
       if (options.data != null) {
         if (options.data is FormData) {
           debugPrint('➤ 请求体    : [FormData 文件上传]');
+        } else if (options.data is List<int> || options.data is Uint8List) {
+          // 🌟 核心改动：遇到二进制大包直接跳过 JSON 序列化，释放手机 CPU！
+          final int bytesLen = (options.data as dynamic).length ?? 0;
+          debugPrint('➤ 请求体    : [Binary 二进制数据流: ${(bytesLen / 1024 / 1024).toStringAsFixed(2)} MB]');
         } else {
-          debugPrint('➤ 请求体    : ${jsonEncode(options.data)}');
+          try {
+            debugPrint('➤ 请求体    : ${jsonEncode(options.data)}');
+          } catch (_) {
+            debugPrint('➤ 请求体    : [无法序列化的对象数据]');
+          }
         }
       }
       debugPrint('==================================================\n');
@@ -33,7 +43,6 @@ class ApiLoggerInterceptor extends Interceptor {
         '➤ 请求地址  : ${response.requestOptions.baseUrl}${response.requestOptions.path}',
       );
       debugPrint('➤ 状态码    : ${response.statusCode}');
-      // debugPrint('➤ 返回数据  : ${_prettyPrintJson(response.data)}');
       if (response.data is ResponseBody) {
         debugPrint('➤ 返回数据    : [SSE Stream Body - 流式数据不予打印]');
       } else {

@@ -1,4 +1,4 @@
-// lib/services/frontend_chat_service.dart (双独立通道定向通配监听 + 离线缓存双向全兼容拉取完全体)
+// lib/services/frontend_chat_service.dart (双独立通道定向通配监听 + IM 私聊 + 通知中心全模态监听完全体)
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -11,9 +11,13 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:qorange/models/im_message_model.dart';
 import 'package:qorange/services/push_notification_model.dart';
 import 'package:version/version.dart';
 
+import '../../controllers/im_chat_controller.dart';
+import '../../controllers/im_conversation_controller.dart';
+import '../../controllers/notification_center_controller.dart';
 import '../../user_controller.dart';
 import 'notification_handler_service.dart';
 
@@ -28,24 +32,30 @@ class FrontendChatService extends GetxService {
   final RxBool isOnboarded = false.obs;
   AtClient? _atClient;
 
-  // 使用 List 持有多重订阅，便于在登出或切换账号时安全、干净地一次性销毁
   final List<StreamSubscription<dynamic>> _monitorSubscriptions = [];
   Worker? _loginStateWorker;
 
   @override
   void onInit() {
     super.onInit();
-    // 监听本地用户登录状态 [1]
     _loginStateWorker = ever(UserController.to.user, (user) {
       if (UserController.to.isLoggedIn) {
-        if (isOnboarded.value) {
-          // 如果账号发生切换或重新登录，直接重启 Monitor，使用新用户的 ID 重新注册监听
-          _startFrontendMonitor(_atClient!);
+        if (isOnboarded.value && _atClient != null) {
+          Future.microtask(() => _startFrontendMonitor(_atClient!));
         } else {
           authenticate();
         }
+
+        // 🌟 账号切换时重载会话列表
+        if (Get.isRegistered<ImConversationController>()) {
+          ImConversationController.to.fetchConversations(refresh: true);
+        }
       } else {
         disconnect();
+        // 🌟 账号登出时清空会话数据
+        if (Get.isRegistered<ImConversationController>()) {
+          ImConversationController.to.clearLocalState();
+        }
       }
     });
 
@@ -87,7 +97,7 @@ class FrontendChatService extends GetxService {
       ..rootDomain = rootDomain
       ..atKeysFilePath = keysPath
       ..commitLogPath = '${supportDir.path}/.atsign/$myAtsign/storage/commitLog'
-      ..fetchOfflineNotifications = true // 启用离线通知拉取同步机制
+      ..fetchOfflineNotifications = true
       ..atProtocolEmitted = Version(2, 0, 0);
 
     AtOnboardingService onboardingService = AtOnboardingServiceImpl(myAtsign, config);
@@ -108,7 +118,6 @@ class FrontendChatService extends GetxService {
   }
 
   void _startFrontendMonitor(AtClient atClient) async {
-    // 1. 先安全取消并清空上一个账号注册的所有 Monitor 订阅
     if (_monitorSubscriptions.isNotEmpty) {
       for (var sub in _monitorSubscriptions) {
         await sub.cancel();
@@ -117,140 +126,305 @@ class FrontendChatService extends GetxService {
     }
 
     final myRealIdStr = UserController.to.user.value?.id ?? 'none';
+    if (myRealIdStr == 'none' || myRealIdStr.isEmpty) return;
 
-    // 🌟 核心改进 1：开启双源离线同步拉取，支持通配，一站式拉取个人和广播未读！🌟
-    if (myRealIdStr != 'none') {
-      await _pullKeysByRegex(atClient, 'push_message_$myRealIdStr');
-      await _pullKeysByRegex(atClient, 'push_message_all');
-    }
+    // 1. 离线缓存拉取 (包含 notif_msg_ 与 im_msg_)
+    await _pullKeysByRegex(atClient, 'push_message_$myRealIdStr');
+    await _pullKeysByRegex(atClient, 'push_message_all');
+    await _pullKeysByRegex(atClient, 'im_msg_$myRealIdStr');
+    await _pullKeysByRegex(atClient, 'notif_msg_$myRealIdStr');
 
-    // 🌟 核心改进 2：在命名空间之前全部引入 .* 通配符，以便完美匹配后端生成的带有唯一尾缀的广播与个人实时推送！
+    // 2. 注册多路复用正则监听通道
     final String broadcastRegex = 'push_message_all.*\\.$nameSpace@';
     final String personalRegex = 'push_message_$myRealIdStr.*\\.$nameSpace@';
+    final String imMessageRegex = 'im_msg_$myRealIdStr.*\\.$nameSpace@';
+    final String imStatusRegex = 'im_status_$myRealIdStr.*\\.$nameSpace@';
+    final String notifCenterRegex = 'notif_msg_$myRealIdStr.*\\.$nameSpace@';
 
-    debugPrint("🎧 [Frontend] 开启共享通道定向监听 - 广播通道: $broadcastRegex");
-    debugPrint("🎧 [Frontend] 开启共享通道定向监听 - 专属个人通道: $personalRegex");
+    debugPrint("🎧 [Frontend] 开启监听 - 广播通道: $broadcastRegex");
+    debugPrint("🎧 [Frontend] 开启监听 - 社交通道: $personalRegex");
+    debugPrint("🎧 [Frontend] 开启监听 - IM私聊通道: $imMessageRegex");
+    debugPrint("🎧 [Frontend] 开启监听 - 通知中心通道: $notifCenterRegex");
 
     try {
-      // 订阅全员广播通道并监听
       final broadcastSub = atClient.notificationService
           .subscribe(regex: broadcastRegex, shouldDecrypt: true)
           .listen(_onNotificationReceived, onError: (e) => debugPrint("🔴 广播通道监听错误: $e"));
 
-      // 订阅当前登录学者的专属个人通道并监听
       final personalSub = atClient.notificationService
           .subscribe(regex: personalRegex, shouldDecrypt: true)
           .listen(_onNotificationReceived, onError: (e) => debugPrint("🔴 个人通道监听错误: $e"));
 
-      // 将这两个活跃订阅托管到集合中
-      _monitorSubscriptions.addAll([broadcastSub, personalSub]);
+      final imSub = atClient.notificationService
+          .subscribe(regex: imMessageRegex, shouldDecrypt: true)
+          .listen(_onImMessageReceived, onError: (e) => debugPrint("🔴 IM通道监听错误: $e"));
+
+      final statusSub = atClient.notificationService
+          .subscribe(regex: imStatusRegex, shouldDecrypt: true)
+          .listen(_onImStatusReceived, onError: (e) => debugPrint("🔴 状态通道监听错误: $e"));
+
+      final notifSub = atClient.notificationService
+          .subscribe(regex: notifCenterRegex, shouldDecrypt: true)
+          .listen(_onNotifCenterMessageReceived, onError: (e) => debugPrint("🔴 通知中心监听错误: $e"));
+
+      _monitorSubscriptions.addAll([broadcastSub, personalSub, imSub, statusSub, notifSub]);
     } catch (e) {
       debugPrint("❌ [Frontend] 注册 AtSign 订阅服务发生异常: $e");
     }
   }
 
-  /// 🌟 极简高兼容离线拉取通用方法（加入 .* 通配符匹配唯一尾缀）
+  void _onNotifCenterMessageReceived(AtNotification notification) async {
+    final String? jsonVal = notification.value;
+    if (jsonVal == null || jsonVal.isEmpty) return;
+
+    try {
+      final Map<String, dynamic> eventPayload = jsonDecode(jsonVal);
+      final String eventType = eventPayload['event_type']?.toString() ?? 'upsert_notif';
+      final dynamic rawData = eventPayload['data'];
+
+      // 1. 通知大厅与铃铛红点同步
+      if (Get.isRegistered<NotificationCenterController>()) {
+        NotificationCenterController.to.onAtSignEventReceived(eventPayload);
+      }
+
+      final int unreadTotal = int.tryParse(eventPayload['unread_total']?.toString() ?? '') ?? -1;
+      if (unreadTotal >= 0 && Get.isRegistered<ImConversationController>()) {
+        ImConversationController.to.unreadNotifCount.value = unreadTotal;
+      }
+
+      // 2. 状态栏通知唤醒
+      if (eventType == 'upsert_notif' && rawData is Map) {
+        final Map<String, dynamic> payload = Map<String, dynamic>.from(rawData);
+        final String notifId = payload['id']?.toString() ?? payload['_id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+        if (_deduplicator.isDuplicate(notifId)) return;
+
+        final String displayTitle = payload['display_title']?.toString() ?? 'push_new_activity'.tr;
+        final String category = payload['tab_category']?.toString() ?? 'social';
+        final String actionType = payload['action_type']?.toString() ?? 'like';
+        final target = payload['target'] as Map? ?? {};
+        final actors = payload['latest_actors'] as List? ?? [];
+        final firstActor = actors.isNotEmpty ? (actors.first as Map) : {};
+
+        final String contentSnippet = payload['context_data']?['comment_content']?.toString() ??
+            target['title']?.toString() ??
+            target['snippet']?.toString() ??
+            '';
+
+        final note = PushNotificationModel.fromJson({
+          'notification_id': notifId,
+          'recipient_id': payload['recipient_id'] ?? '',
+          'category': category,
+          'type': actionType,
+          'sender': {
+            'id': firstActor['user_id'] ?? '',
+            'nickname': firstActor['nickname'] ?? 'user'.tr,
+            'avatar': firstActor['avatar'] ?? '',
+            'atsign': '',
+          },
+          'target': {
+            'id': target['target_id'] ?? '',
+            'title': target['title'] ?? '',
+            'type': target['target_type'] ?? 'post',
+          },
+          'custom_data': {
+            'title': displayTitle,
+            'content': contentSnippet,
+          },
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+
+        _notificationHandler.handleIncomingNotification(note);
+      }
+    } catch (e) {
+      debugPrint("🔴 [Frontend] 通知中心 AtSign 事件解析异常: $e");
+    }
+  }
+
+  void _onImMessageReceived(AtNotification notification) async {
+    final String? jsonVal = notification.value;
+    if (jsonVal == null || jsonVal.isEmpty) return;
+
+    try {
+      final Map<String, dynamic> payload = jsonDecode(jsonVal);
+      final imMsg = ImMessageModel.fromJson(payload);
+
+      if (_deduplicator.isDuplicate(imMsg.messageId)) return;
+
+      final String senderName = payload['sender_nickname']?.toString() ?? 'user'.tr;
+      final String senderAvatar = payload['sender_avatar']?.toString() ?? '';
+
+      if (Get.isRegistered<ImChatController>(tag: imMsg.conversationId)) {
+        final chatCtrl = Get.find<ImChatController>(tag: imMsg.conversationId);
+        chatCtrl.onIncomingMessage(imMsg);
+
+        if (Get.isRegistered<ImConversationController>()) {
+          ImConversationController.to.onNewMessageReceived(imMsg, senderName, senderAvatar);
+        }
+        return;
+      }
+
+      if (Get.isRegistered<ImConversationController>()) {
+        ImConversationController.to.onNewMessageReceived(imMsg, senderName, senderAvatar);
+      }
+
+      String preview = 'msg_type_new_dm'.tr;
+      if (imMsg.msgType == 'text') {
+        preview = imMsg.payload['text']?.toString() ?? '';
+      } else if (imMsg.msgType == 'image') {
+        preview = 'msg_type_image'.tr;
+      } else if (imMsg.msgType == 'voice') {
+        preview = 'msg_type_voice_short'.tr;
+      } else if (imMsg.msgType == 'token_transfer') {
+        preview = 'msg_type_token_transfer'.tr;
+      } else if (imMsg.msgType == 'token_request') {
+        preview = 'msg_type_token_request'.tr;
+      } else if (imMsg.msgType == 'post_card') {
+        preview = 'msg_type_article'.tr;
+      }
+
+      final note = PushNotificationModel.fromJson({
+        'notification_id': imMsg.messageId,
+        'recipient_id': imMsg.recipientId,
+        'category': 'social',
+        'type': 'im_chat',
+        'sender': {
+          'id': imMsg.senderId,
+          'nickname': senderName,
+          'avatar': senderAvatar,
+          'atsign': '',
+        },
+        'target': {
+          'id': imMsg.conversationId,
+          'title': preview,
+          'type': 'conversation',
+        },
+        'custom_data': {
+          'title': senderName,
+          'content': preview,
+        },
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      _notificationHandler.handleIncomingNotification(note);
+    } catch (e) {
+      debugPrint("🔴 [Frontend] IM 消息解析错误: $e");
+    }
+  }
+
+  void _onImStatusReceived(AtNotification notification) async {
+    final String? jsonVal = notification.value;
+    if (jsonVal == null || jsonVal.isEmpty) return;
+
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonVal);
+      final signalType = data['signal_type']?.toString();
+      final conversationId = data['conversation_id']?.toString();
+
+      if (conversationId == null) return;
+
+      final String targetUserId = data['extra']?['user_id']?.toString() ?? '';
+      final String newNick = data['extra']?['nickname']?.toString() ?? '';
+      final String newAvatar = data['extra']?['avatar']?.toString() ?? '';
+
+      if (Get.isRegistered<ImChatController>(tag: conversationId)) {
+        final chatCtrl = Get.find<ImChatController>(tag: conversationId);
+
+        if (signalType == 'revoke') {
+          final String msgId = data['extra']?['message_id']?.toString() ?? '';
+          chatCtrl.onMessageRevoked(msgId);
+        } else if (signalType == 'token_request_status_change') {
+          final String msgId = data['extra']?['message_id']?.toString() ?? '';
+          final String status = data['extra']?['status']?.toString() ?? 'paid';
+          chatCtrl.onTokenRequestStatusChanged(msgId, status);
+        } else if (signalType == 'profile_updated') {
+          if (chatCtrl.partnerId == targetUserId || targetUserId.isEmpty) {
+            chatCtrl.onPartnerProfileUpdated(newNick, newAvatar);
+          }
+        }
+      }
+
+      if (Get.isRegistered<ImConversationController>()) {
+        if (signalType == 'revoke') {
+          final String msgId = data['extra']?['message_id']?.toString() ?? '';
+          final bool isLatest = data['extra']?['is_latest_message'] == true;
+          ImConversationController.to.onMessageRevokedInConversation(
+            conversationId,
+            msgId,
+            isLatestMessage: isLatest,
+          );
+        } else if (signalType == 'profile_updated') {
+          if (targetUserId.isNotEmpty) {
+            ImConversationController.to.onPartnerProfileUpdated(targetUserId, newNick, newAvatar);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("🔴 [Frontend] 状态信号解析异常: $e");
+    }
+  }
+
   Future<void> _pullKeysByRegex(AtClient atClient, String regexPattern) async {
     try {
-      // 🌟 核心修补：在此处加上 .* 通配符，确保模糊正则匹配，把带唯一尾缀的未读 Key 物理扫描出来！
       final List<String> matchingKeys = await atClient.getKeys(
-        regex: '$regexPattern.*', // 🌟 加上 .* 允许匹配尾缀
-        useRemoteAtServer: true, // 直接扫描云端存储
+        regex: '$regexPattern.*',
+        useRemoteAtServer: true,
       );
-
-      debugPrint("📩 [Frontend] 成功检索到云端离线缓存的未读通知数 [$regexPattern]: ${matchingKeys.length}");
 
       for (final rawKeyStr in matchingKeys) {
         try {
           final atKey = AtKey.fromString(rawKeyStr);
-
-          // 拉取并解密该 Key 对应内容的值
           final AtValue atValue = await atClient.get(atKey);
           final String? jsonVal = atValue.value?.toString();
 
           if (jsonVal != null && jsonVal.isNotEmpty) {
-            debugPrint("📥 [Frontend] 成功提取到云端缓存通知: $jsonVal");
-
             final Map<String, dynamic> payload = jsonDecode(jsonVal);
-            final pushModel = PushNotificationModel.fromJson(payload);
 
-            // 消息层防抖排重
-            if (_deduplicator.isDuplicate(pushModel.notificationId)) {
-              continue;
+            if (rawKeyStr.contains('im_msg_')) {
+              final imMsg = ImMessageModel.fromJson(payload);
+              if (!_deduplicator.isDuplicate(imMsg.messageId)) {
+                _onImMessageReceived(AtNotification.empty()..value = jsonVal);
+              }
+            } else if (rawKeyStr.contains('notif_msg_')) {
+              _onNotifCenterMessageReceived(AtNotification.empty()..value = jsonVal);
+            } else {
+              final pushModel = PushNotificationModel.fromJson(payload);
+              if (!_deduplicator.isDuplicate(pushModel.notificationId)) {
+                _notificationHandler.handleIncomingNotification(pushModel);
+              }
             }
-
-            // 3. 升起本地系统通知栏
-            _notificationHandler.handleIncomingNotification(pushModel);
           }
 
-          // 成功展示后，立即删除云端的缓存 Key，防止下次登录重复弹窗
           await atClient.delete(atKey);
-          debugPrint("🗑️ [Frontend] 已成功清理云端已读通知 Key: $rawKeyStr");
-
         } catch (e) {
-          debugPrint("❌ [Frontend] 处理单条离线缓存通知时出错 ($rawKeyStr): $e");
+          debugPrint("❌ [Frontend] 离线通知处理错误 ($rawKeyStr): $e");
         }
       }
     } catch (e) {
-      debugPrint("🔴 [Frontend] 离线通知拉取同步过程发生异常 [$regexPattern]: $e");
+      debugPrint("🔴 [Frontend] 离线通知拉取异常 [$regexPattern]: $e");
     }
   }
 
-  /// 统一处理接收到的通知载荷
   void _onNotificationReceived(AtNotification notification) async {
     String? jsonVal = notification.value;
     if (jsonVal == null) return;
 
     try {
-      // 核心调试打印：格式化输出接收到的 AtSign 通知结构
-      if (kDebugMode) {
-        debugPrint('\n==================== AtSign 接收通知 ====================');
-        debugPrint('➤ 来自 AtSign : ${notification.from}');
-        debugPrint('➤ 原始通知 Key : ${notification.key}');
-        debugPrint('➤ 原始 JSON 数据: $jsonVal');
-      }
-
       Map<String, dynamic> payload = jsonDecode(jsonVal);
       final pushModel = PushNotificationModel.fromJson(payload);
 
-      if (kDebugMode) {
-        debugPrint('➤ 解析后物理模型 ───');
-        debugPrint('  ├─ 消息 ID    : ${pushModel.notificationId}');
-        debugPrint('  ├─ 目标接收人 : ${pushModel.recipientId}');
-        debugPrint('  ├─ 分类大项   : ${pushModel.category}');
-        debugPrint('  ├─ 行为类型   : ${pushModel.type}');
-        debugPrint('  ├─ 发送人姓名 : ${pushModel.sender.nickname} (ID: ${pushModel.sender.id})');
-        debugPrint('  ├─ 目标载体名 : ${pushModel.target.title} (ID: ${pushModel.target.id}, 载体类型: ${pushModel.target.type})');
-        debugPrint('  └─ 附带自定义数据 : ${pushModel.customData}');
-        debugPrint('========================================================\n');
-      }
+      if (_deduplicator.isDuplicate(pushModel.notificationId)) return;
 
-      // 消息层排重
-      if (_deduplicator.isDuplicate(pushModel.notificationId)) {
-        debugPrint("❌ [Frontend] 跳过重复通知");
-        return;
-      }
-
-      // 过滤自己触发的通知行为
       final myRealIdStr = UserController.to.user.value?.id;
-      if (pushModel.sender.id == myRealIdStr) {
-        debugPrint("ℹ️ [Frontend] 过滤自己触发的通知行为");
-        return;
-      }
+      if (pushModel.sender.id == myRealIdStr) return;
 
-      // 校验完全通过，确认是发送给本人的通知，升起状态通知栏进行通知
       _notificationHandler.handleIncomingNotification(pushModel);
-
     } catch (e) {
       debugPrint("❌ [Frontend] 共享消息处理失败: $e");
-      if (kDebugMode) {
-        debugPrint('========================================================\n');
-      }
     }
   }
 
   void disconnect() async {
-    debugPrint("🔌 [Frontend] 断开公共通道连接并清空资源...");
+    debugPrint("🔌 [Frontend] 断开连接并清空资源...");
     if (_monitorSubscriptions.isNotEmpty) {
       for (var sub in _monitorSubscriptions) {
         await sub.cancel();
@@ -270,7 +444,6 @@ class FrontendChatService extends GetxService {
   }
 }
 
-/// 消息去重器
 class MessageDeduplicator {
   final HashSet<String> _processedIds = HashSet<String>();
   final Duration cacheDuration;
@@ -278,17 +451,11 @@ class MessageDeduplicator {
   MessageDeduplicator({this.cacheDuration = const Duration(seconds: 10)});
 
   bool isDuplicate(String messageId) {
-    if (_processedIds.contains(messageId)) {
-      return true;
-    }
+    if (_processedIds.contains(messageId)) return true;
     _processedIds.add(messageId);
-    Future.delayed(cacheDuration, () {
-      _processedIds.remove(messageId);
-    });
+    Future.delayed(cacheDuration, () => _processedIds.remove(messageId));
     return false;
   }
 
-  void clear() {
-    _processedIds.clear();
-  }
+  void clear() => _processedIds.clear();
 }

@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:get/get.dart' hide Response, FormData, MultipartFile;
 import '../network/http_client.dart'; // 引入平台的统一请求工具
 
 class EpayClientConfig {
   // 易支付的官方请求物理前缀
-  static const String apiUrl = 'https://www.qingtianyzff.com/';
+  static const String apiUrl = 'https://pay.02s.cn/';
 }
 
 class EpayClientService {
@@ -23,10 +24,10 @@ class EpayClientService {
         final signedData = Map<String, dynamic>.from(res.datas!);
         return signedData.map((key, value) => MapEntry(key.toString(), value.toString()));
       } else {
-        throw Exception('应用服务器签名被拒绝');
+        throw Exception('err_sign_rejected'.tr);
       }
     } catch (e) {
-      throw Exception('网络签名握手失败: $e');
+      throw Exception('err_sign_handshake'.trParams({'error': '$e'}));
     }
   }
 
@@ -65,10 +66,10 @@ class EpayClientService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body.trim()) as Map<String, dynamic>;
       } else {
-        return {'code': -1, 'msg': '支付网关通信失败 HTTP ${response.statusCode}'};
+        return {'code': -1, 'msg': 'err_pay_gateway_http'.trParams({'code': '${response.statusCode}'})};
       }
     } catch (e) {
-      return {'code': -1, 'msg': '下单链路断开: $e'};
+      return {'code': -1, 'msg': 'err_order_link_broken'.trParams({'error': '$e'})};
     }
   }
 
@@ -107,10 +108,10 @@ class EpayClientService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body.trim()) as Map<String, dynamic>;
       } else {
-        return {'code': -1, 'msg': '直连平台订单查询失败 HTTP ${response.statusCode}'};
+        return {'code': -1, 'msg': 'err_order_query_http'.trParams({'code': '${response.statusCode}'})};
       }
     } catch (e) {
-      return {'code': -1, 'msg': '直连查询网络异常: $e'};
+      return {'code': -1, 'msg': 'err_order_query_net'.trParams({'error': '$e'})};
     }
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:get/get.dart' hide Response, FormData, MultipartFile;
 
 /// 全局自定义异常处理类
 class ApiException implements Exception {
@@ -37,15 +38,15 @@ class ApiException implements Exception {
   factory ApiException.fromDioException(DioException error) {
     switch (error.type) {
       case DioExceptionType.cancel:
-        return ApiException(message: "请求被取消");
+        return ApiException(message: 'err_request_cancelled'.tr);
       case DioExceptionType.connectionTimeout:
-        return ApiException(message: "连接超时，请检查网络");
+        return ApiException(message: 'err_connect_timeout'.tr);
       case DioExceptionType.sendTimeout:
-        return ApiException(message: "请求发送超时");
+        return ApiException(message: 'err_send_timeout'.tr);
       case DioExceptionType.receiveTimeout:
-        return ApiException(message: "响应接收超时");
+        return ApiException(message: 'err_receive_timeout'.tr);
       case DioExceptionType.badCertificate:
-        return ApiException(message: "证书验证失败");
+        return ApiException(message: 'err_bad_certificate'.tr);
       case DioExceptionType.badResponse:
         final statusCode = error.response?.statusCode;
 
@@ -62,27 +63,31 @@ class ApiException implements Exception {
         // 如果后端没有返回任何包含 resp_msg 的内容，再退回到本地通用的 HTTP 提示
         switch (statusCode) {
           case 400:
-            return ApiException(statusCode: statusCode, message: "语法错误，服务器无法理解请求");
+            return ApiException(statusCode: statusCode, message: 'err_bad_request'.tr);
           case 401:
-            return ApiException(statusCode: statusCode, message: "登录已过期，请重新登录");
+            return ApiException(statusCode: statusCode, message: 'err_unauthorized'.tr);
           case 403:
-            return ApiException(statusCode: statusCode, message: "服务器拒绝执行此请求");
+            return ApiException(statusCode: statusCode, message: 'err_forbidden'.tr);
           case 404:
-            return ApiException(statusCode: statusCode, message: "请求资源不存在");
+            return ApiException(statusCode: statusCode, message: 'err_not_found'.tr);
           case 500:
           case 502:
           case 503:
-            return ApiException(statusCode: statusCode, message: "服务器内部异常，请稍后重试");
+            return ApiException(statusCode: statusCode, message: 'err_server_error'.tr);
           default:
             return ApiException(
               statusCode: statusCode,
-              message: error.response?.statusMessage ?? "网络响应异常",
+              message: error.response?.statusMessage ?? 'err_bad_response'.tr,
             );
         }
       case DioExceptionType.connectionError:
-        return ApiException(message: "网络连接断开，请检查网络设置");
+        return ApiException(message: 'err_connection_lost'.tr);
       case DioExceptionType.unknown:
-        return ApiException(message: "未知网络错误");
+        return ApiException(message: 'err_unknown_network'.tr);
+      // 🌟 兜底分支：dio 后续版本新增的异常类型(如 transformTimeout)统一按未知网络错误处理，
+      //    避免依赖升级后 switch 不完备导致编译失败。
+      default:
+        return ApiException(message: 'err_unknown_network'.tr);
     }
   }
 

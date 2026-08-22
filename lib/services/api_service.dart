@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart' hide Response, FormData, MultipartFile;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
@@ -132,7 +133,7 @@ class ApiService {
         'Idempotency-Key': '1fb41c34ab9cdd74',
         'internal': '',
         'is_intersection_booted': 'false',
-        'page_title': '加入优雅主题',
+        'page_title': 'elegant_theme_title'.tr,
         'user_active_company_id': '-1',
         'user_data': '{"anonymous_id":"80109712-c126-4c90-a265-c09853d7450c"}',
         'query': query,

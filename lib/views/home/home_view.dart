@@ -2,12 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 import '../../network/http_client.dart';
 import '../../user_controller.dart';
 import '../post_detail/post_detail_view.dart';
 import '../publish/publish_view.dart';
 import '../search/search_view.dart';
-import '../voice/voice_chat_view.dart'; // 🌟 引入新设计的搜索页面
+import '../voice/voice_chat_view.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -20,7 +21,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
 
-  // 滚动控制器
   final ScrollController _forYouScrollController = ScrollController();
   final ScrollController _featuredScrollController = ScrollController();
 
@@ -28,11 +28,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
   List<dynamic> _featuredPosts = [];
   List<dynamic> _recommendedTags = [];
 
-  // 首屏加载状态
   bool _isLoadingForYou = true;
   bool _isLoadingFeatured = true;
 
-  // 分页状态
   int _forYouPage = 1;
   int _featuredPage = 1;
   final int _pageSize = 10;
@@ -43,24 +41,42 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
   bool _isLoadingMoreForYou = false;
   bool _isLoadingMoreFeatured = false;
 
-  // 🌟 核心增强：实时过滤筛选器状态
   String? _selectedTag;
   String? _selectedCategory;
+
+  Worker? _userStateWorker;
+  Worker? _globalSyncWorker;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
-    // 监听列表滑动
     _forYouScrollController.addListener(_onForYouScroll);
     _featuredScrollController.addListener(_onFeaturedScroll);
+
+    // 🌟 1. 监听用户状态变动
+    _userStateWorker = ever(UserController.to.user, (_) {
+      if (mounted) {
+        _clearActiveFilters();
+      }
+    });
+
+    // 🌟 2. 监听全局数据一致性同步信号（跨页购买、点赞后首页 Tab 0 即时静默刷新）
+    _globalSyncWorker = ever(globalDataSyncSignal, (_) {
+      if (mounted) {
+        _fetchForYou(isRefresh: true);
+        _fetchFeatured(isRefresh: true);
+      }
+    });
 
     _loadFeeds();
   }
 
   @override
   void dispose() {
+    _userStateWorker?.dispose();
+    _globalSyncWorker?.dispose();
     _tabController.dispose();
     _searchController.dispose();
     _forYouScrollController.dispose();
@@ -68,7 +84,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
-  // 监听“为你推荐”滚动
   void _onForYouScroll() {
     if (_forYouScrollController.position.pixels >=
         _forYouScrollController.position.maxScrollExtent - 200) {
@@ -76,7 +91,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     }
   }
 
-  // 监听“精选高赞”滚动
   void _onFeaturedScroll() {
     if (_featuredScrollController.position.pixels >=
         _featuredScrollController.position.maxScrollExtent - 200) {
@@ -84,9 +98,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     }
   }
 
-  // 下拉刷新或初始化加载
   Future<void> _loadFeeds() async {
-    // 🌟 安全防护：确保初始化时组件仍挂载
     if (!mounted) return;
     setState(() {
       _isLoadingForYou = true;
@@ -98,7 +110,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     ]);
   }
 
-  // 获取/刷新 “为你推荐”
   Future<void> _fetchForYou({bool isRefresh = false}) async {
     if (isRefresh) {
       _forYouPage = 1;
@@ -111,7 +122,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         'pageSize': _pageSize,
       };
 
-      // 🌟 深度适配后端多路召回：若有激活的局部过滤标签，无感并入请求参数
       if (_selectedTag != null && _selectedTag!.isNotEmpty) {
         queryParams['tag'] = _selectedTag;
       }
@@ -127,7 +137,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         final List<dynamic> newPosts = res.datas!['posts'] as List? ?? [];
         final List<dynamic> tags = res.datas!['recommended_tags'] as List? ?? [];
 
-        // 🌟 核心防崩保护：接口异步返回时，检验组件是否已被移出渲染树 [2]
         if (!mounted) return;
         setState(() {
           if (isRefresh) {
@@ -152,7 +161,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     }
   }
 
-  // 加载更多 “为你推荐”
   Future<void> _fetchMoreForYou() async {
     if (_isLoadingMoreForYou || !_hasMoreForYou || _isLoadingForYou) return;
     if (!mounted) return;
@@ -163,7 +171,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     await _fetchForYou(isRefresh: false);
   }
 
-  // 获取/刷新 “精选高赞”
   Future<void> _fetchFeatured({bool isRefresh = false}) async {
     if (isRefresh) {
       _featuredPage = 1;
@@ -190,7 +197,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
       if (res.datas != null) {
         final List<dynamic> newPosts = res.datas!['posts'] as List? ?? [];
 
-        // 🌟 核心防崩保护：接口异步返回时，检验组件是否已被移出渲染树 [2]
         if (!mounted) return;
         setState(() {
           if (isRefresh) {
@@ -214,7 +220,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     }
   }
 
-  // 加载更多 “精选高赞”
   Future<void> _fetchMoreFeatured() async {
     if (_isLoadingMoreFeatured || !_hasMoreFeatured || _isLoadingFeatured) return;
     if (!mounted) return;
@@ -225,7 +230,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     await _fetchFeatured(isRefresh: false);
   }
 
-  // 🌟 静默重置所有局部筛选，恢复全量漏斗推荐流
   void _clearActiveFilters() {
     if (!mounted) return;
     setState(() {
@@ -237,12 +241,11 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     _loadFeeds();
   }
 
-  // 🌟 点击标签实现的主页即时内页过滤
   void _onTagSelected(String tag) {
     if (!mounted) return;
     setState(() {
       _selectedTag = tag;
-      _selectedCategory = null; // 清除分类筛选
+      _selectedCategory = null;
       _isLoadingForYou = true;
       _isLoadingFeatured = true;
     });
@@ -251,60 +254,56 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         centerTitle: false,
         title: Text(
           'app_name'.tr,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w900,
-            color: Color.fromRGBO(44, 123, 109, 1.0),
+            color: AppColors.primary,
             letterSpacing: -0.5,
           ),
         ),
         actions: [
-          // 🌟 核心设计：美观温润的搜索入口
           IconButton(
             onPressed: () => Get.to(() => const SearchView()),
-            icon: const HugeIcon(
+            icon: HugeIcon(
               icon: HugeIcons.strokeRoundedSearch01,
-              color: Color.fromRGBO(44, 123, 109, 1.0),
+              color: AppColors.primary,
             ),
           ),
           Obx(() {
-            // 如果没有登录，则返回一个空占位组件，隐藏按钮
             if (!UserController.to.isLoggedIn) {
               return const SizedBox.shrink();
             }
 
-            // 已登录状态下完美承接两个高颜值图标，点击语音直接进行 Cupertino 风格的原生右滑手势迁跃
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // AI 语音通话入口（选用专为 AI 波动设计的 AiWave 物理指示图标）
                 IconButton(
                   onPressed: () => Get.to(
                         () => const VoiceChatView(),
-                    transition: Transition.cupertino, // 完美还原系统右滑物理视差手势关闭
+                    transition: Transition.cupertino,
                     duration: const Duration(milliseconds: 300),
                   ),
                   icon: HugeIcon(
                     icon: HugeIcons.strokeRoundedAiGame,
-                    color: const Color.fromRGBO(44, 123, 109, 1.0),
+                    color: AppColors.primary,
                   ),
                 ),
-
-                // 观点 Saysay 发布按钮
                 IconButton(
-                  onPressed: () => Get.to(() => const PublishView()),
-                  icon: const HugeIcon(
+                  onPressed: () => Get.to(() => const PublishView())?.then((_) {
+                    triggerGlobalDataSync();
+                  }),
+                  icon: HugeIcon(
                     icon: HugeIcons.strokeRoundedQuillWrite02,
-                    color: Color.fromRGBO(44, 123, 109, 1.0),
+                    color: AppColors.primary,
                   ),
                 ),
               ],
@@ -319,7 +318,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
               controller: _tabController,
               isScrollable: true,
               labelColor: Colors.black,
-              unselectedLabelColor: Colors.grey.shade400,
+              unselectedLabelColor: AppColors.textHint,
               indicatorColor: themeColor,
               indicatorWeight: 3,
               indicatorSize: TabBarIndicatorSize.label,
@@ -335,7 +334,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
       ),
       body: Column(
         children: [
-          // 🌟 核心设计：美观舒展的当前过滤条件展示横幅 (支持动画切入)
           AnimatedCrossFade(
             firstChild: _buildActiveFilterBanner(),
             secondChild: const SizedBox.shrink(),
@@ -372,9 +370,8 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     );
   }
 
-  // 🌟 过滤状态提示横幅组件
   Widget _buildActiveFilterBanner() {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -392,8 +389,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
             onTap: _clearActiveFilters,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: themeColor.withOpacity(0.3), width: 0.8),
               ),
@@ -412,7 +408,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     );
   }
 
-  // 统一构建列表
   Widget _buildPostList({
     required List<dynamic> posts,
     required bool isLoading,
@@ -421,11 +416,10 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     required bool hasMore,
     required bool isLoadingMore,
   }) {
-    // 🌟 状态动效过渡：平滑展示加载占位
     if (isLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
-          color: Color.fromRGBO(44, 123, 109, 1.0),
+          color: AppColors.primary,
           strokeWidth: 2,
         ),
       );
@@ -435,9 +429,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.article_outlined, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.article_outlined, size: 48, color: AppColors.border),
             const SizedBox(height: 12),
-            Text('no_content_try_tag'.tr, style: TextStyle(color: Colors.grey.shade400)),
+            Text('no_content_try_tag'.tr, style: TextStyle(color: AppColors.textHint)),
           ],
         ),
       );
@@ -448,7 +442,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
     return RefreshIndicator(
       onRefresh: _loadFeeds,
-      color: const Color.fromRGBO(44, 123, 109, 1.0),
+      color: AppColors.primary,
       child: ListView.separated(
         controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -456,24 +450,19 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         separatorBuilder: (context, index) {
           if (hasTags && index == 0) return const SizedBox.shrink();
           if (index >= posts.length + (hasTags ? 1 : 0)) return const SizedBox.shrink();
-          // 🌟 采用微型间距取代原本普通扁平线，让精致卡片自然呼吸呼吸
           return const SizedBox(height: 4);
         },
         itemBuilder: (context, index) {
-          // 1. 顶部推荐标签栏 (仅“为你推荐”的第一项)
           if (hasTags && index == 0) {
             return _buildTagsSection();
           }
 
-          // 计算当前 post 真实的索引位置
           final postIndex = hasTags ? index - 1 : index;
 
-          // 2. 底部加载更多或无数据提示
           if (postIndex == posts.length) {
             return _buildBottomIndicator(isLoadingMore, hasMore);
           }
 
-          // 3. 🌟 精致美化的学术芯片大卡片
           final post = posts[postIndex];
           return _buildAestheticPostItem(post);
         },
@@ -481,17 +470,16 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     );
   }
 
-  // 底部加载状态/到底提示
   Widget _buildBottomIndicator(bool isLoadingMore, bool hasMore) {
     if (isLoadingMore) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
         child: Center(
           child: SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(
-              color: Color.fromRGBO(44, 123, 109, 1.0),
+              color: AppColors.primary,
               strokeWidth: 2,
             ),
           ),
@@ -504,7 +492,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         child: Center(
           child: Text(
             'no_more_data'.tr,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            style: TextStyle(fontSize: 12, color: AppColors.textHint),
           ),
         ),
       );
@@ -523,7 +511,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         itemBuilder: (context, index) {
           final tag = _recommendedTags[index];
           final isSelected = _selectedTag == tag;
-          final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+          final themeColor = AppColors.primary;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ActionChip(
@@ -547,9 +535,8 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     );
   }
 
-  // 🌟 精重写：超高质感学术说说与精选高赞芯片大卡片（完美对接 content_min 快照） [1]
   Widget _buildAestheticPostItem(dynamic post) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     if (post == null || post['id'] == null) return const SizedBox.shrink();
 
     final author = post['author'] ?? {};
@@ -557,9 +544,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     final authorNickname = author['nickname'] ?? 'user'.tr;
 
     final title = post['title'] ?? '';
-    final type = post['post_type'] ?? 'quill';
-
-    // 🌟 核心优化点 1：全面对接服务器端提取出的 50 字 content_min 正文快照，消灭重度首屏数据 [1]
     final contentMin = post['content_min'] ?? '';
 
     final likesCount = (post['likes'] as List?)?.length ?? 0;
@@ -575,16 +559,14 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     final isLiked = post['is_liked'] ?? false;
     final isCollected = post['is_collected'] ?? false;
 
-    // 如果是说说等无大标题的，自动将 50 字极简正文作为主标题放大展示 [1]
     final mainHeading = title.isNotEmpty ? title : contentMin;
     final hasSubtitle = title.isNotEmpty && contentMin.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100, width: 0.8),
+        border: Border.all(color: AppColors.divider, width: 0.8),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.015),
@@ -598,35 +580,35 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () => Get.to(() => PostDetailView(postId: post['id'] ?? '')),
+            onTap: () => Get.to(() => PostDetailView(postId: post['id'] ?? ''))?.then((_) {
+              // 从详情页返回时静默同步点赞与购买变化
+              _fetchForYou(isRefresh: true);
+            }),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. 头衔行（用户头像、昵称、学科类别微芯片）
                   Row(
                     children: [
                       CircleAvatar(
                         radius: 12,
                         backgroundImage: authorAvatar.isNotEmpty ? NetworkImage(authorAvatar) : null,
-                        backgroundColor: Colors.grey.shade100,
+                        backgroundColor: AppColors.divider,
                         child: authorAvatar.isEmpty ? const Icon(Icons.person, size: 12, color: Colors.grey) : null,
                       ),
                       const SizedBox(width: 8),
                       Text(
                         authorNickname,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                       ),
                       const Spacer(),
-
-                      // 专业学科方向指示小标签
                       GestureDetector(
                         onTap: () {
                           if (!mounted) return;
                           setState(() {
                             _selectedCategory = category;
-                            _selectedTag = null; // 清除标签筛选
+                            _selectedTag = null;
                             _isLoadingForYou = true;
                             _isLoadingFeatured = true;
                           });
@@ -652,8 +634,6 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // 2. 主体区（标题、50字快照、高清裁剪略缩图） [1]
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -675,12 +655,12 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                             if (hasSubtitle) ...[
                               const SizedBox(height: 6),
                               Text(
-                                contentMin, // 🌟 渲染快照 [1]
+                                contentMin,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade500,
+                                  color: AppColors.textSecondary,
                                   height: 1.35,
                                 ),
                               ),
@@ -704,11 +684,8 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // 3. 🌟 数据承接底栏（时间、阅读、点赞红色联动、收藏金色联动、分享）
                   Row(
                     children: [
-                      // 1. 发布时间
                       const HugeIcon(
                         icon: HugeIcons.strokeRoundedCalendar01,
                         color: Colors.grey,
@@ -717,11 +694,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       const SizedBox(width: 4),
                       Text(
                         timestamp,
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                        style: TextStyle(fontSize: 10, color: AppColors.textHint),
                       ),
                       const Spacer(),
-
-                      // 2. 浏览量
                       const HugeIcon(
                         icon: HugeIcons.strokeRoundedView,
                         color: Colors.grey,
@@ -730,14 +705,12 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       const SizedBox(width: 4),
                       Text(
                         '$viewsCount',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 10, color: AppColors.textHint, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 14),
-
-                      // 3. 点赞指示器（如果已经点赞，自适应高亮为甜美粉红）
                       HugeIcon(
                         icon: isLiked ? HugeIcons.strokeRoundedFavourite : HugeIcons.strokeRoundedFavourite,
-                        color: isLiked ? Colors.redAccent : Colors.grey.shade400,
+                        color: isLiked ? Colors.redAccent : AppColors.textHint,
                         size: 13,
                       ),
                       const SizedBox(width: 4),
@@ -745,16 +718,14 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                         '$likesCount',
                         style: TextStyle(
                           fontSize: 10,
-                          color: isLiked ? Colors.redAccent : Colors.grey.shade400,
+                          color: isLiked ? Colors.redAccent : AppColors.textHint,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(width: 14),
-
-                      // 4. 收藏指示器（如果已经收藏，自适应高亮为暖金色）
                       HugeIcon(
                         icon: isCollected ? HugeIcons.strokeRoundedBookmark01 : HugeIcons.strokeRoundedBookmark01,
-                        color: isCollected ? Colors.orangeAccent : Colors.grey.shade400,
+                        color: isCollected ? Colors.orangeAccent : AppColors.textHint,
                         size: 13,
                       ),
                       const SizedBox(width: 4),
@@ -762,13 +733,11 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                         '$collectsCount',
                         style: TextStyle(
                           fontSize: 10,
-                          color: isCollected ? Colors.orangeAccent : Colors.grey.shade400,
+                          color: isCollected ? Colors.orangeAccent : AppColors.textHint,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(width: 14),
-
-                      // 5. 转发分享数
                       const HugeIcon(
                         icon: HugeIcons.strokeRoundedShare01,
                         color: Colors.grey,
@@ -777,7 +746,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       const SizedBox(width: 4),
                       Text(
                         '$repostsCount',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 10, color: AppColors.textHint, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),

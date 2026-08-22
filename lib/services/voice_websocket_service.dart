@@ -40,7 +40,7 @@ class VoiceWebSocketService {
       );
 
       if (res.respCode != 0 || res.datas == null) {
-        Fluttertoast.showToast(msg: res.respMsg ?? "初始化语音失败");
+        Fluttertoast.showToast(msg: res.respMsg);
         return;
       }
 
@@ -81,11 +81,11 @@ class VoiceWebSocketService {
                 onError!(val.toString());
               }
             } else if (type == 'status' && val == 'Disconnected') {
-              _handleSessionEnd(reason: "通话结束");
+              _handleSessionEnd(reason: 'voice_call_ended'.tr);
             }
           }
         },
-        onError: (err) => _handleSessionEnd(reason: "通信异常断开: $err"),
+        onError: (err) => _handleSessionEnd(reason: 'voice_disconnected_err'.trParams({'error': '$err'})),
       );
 
       // c. 通过平台通道向 Android 原生发起连接（免去预热直接开启）
@@ -100,7 +100,7 @@ class VoiceWebSocketService {
 
       if (!success) {
         _cleanupSession();
-        Fluttertoast.showToast(msg: "建立语音通道失败");
+        Fluttertoast.showToast(msg: 'voice_channel_failed'.tr);
         return;
       }
 
@@ -121,7 +121,7 @@ class VoiceWebSocketService {
 
         // 临界预警：最后 5 秒提示
         if (_maxSecondsAllowed - _elapsedSeconds == 5) {
-          Fluttertoast.showToast(msg: "⚠️ 您的账户代币余额即将耗尽，通话将在 5 秒后自动关闭！");
+          Fluttertoast.showToast(msg: 'voice_low_balance'.tr);
         }
 
         // 🌟 物理阻断保护点：代币扣尽，客户端强制强行物理切断底层 WSS 链路！
@@ -129,7 +129,7 @@ class VoiceWebSocketService {
           _billingTimer?.cancel();
           _billingTimer = null;
           disconnect(); // 🌟 物理强斩
-          _handleSessionEnd(reason: "代币可用余额不足，已自动断开连接");
+          _handleSessionEnd(reason: 'voice_no_balance'.tr);
         }
       });
 
@@ -138,7 +138,7 @@ class VoiceWebSocketService {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "语音引擎初始化异常: $e");
+        Fluttertoast.showToast(msg: 'voice_engine_error'.trParams({'error': '$e'}));
       }
     }
   }
@@ -149,7 +149,7 @@ class VoiceWebSocketService {
     try {
       await _controlChannel.invokeMethod<bool>('disconnect');
     } catch (_) {}
-    _handleSessionEnd(reason: "通话结束");
+    _handleSessionEnd(reason: 'voice_call_ended'.tr);
   }
 
   /// 🌟 3. 通话完结处理并向 Zeabur 后台提交实扣对账单
@@ -199,7 +199,7 @@ class VoiceWebSocketService {
         print('$e');
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "未知异常: $e");
+        Fluttertoast.showToast(msg: 'err_unknown_with_msg'.trParams({'error': '$e'}));
       }
     }
   }

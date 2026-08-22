@@ -1,29 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 
 import 'login_controller.dart';
 
-// 🌟 核心改进：改回 StatelessWidget，并使用自承载的 GetBuilder 来统一管理注入与销毁
 class LoginView extends StatelessWidget {
   const LoginView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
 
     return GetBuilder<LoginController>(
-      init: LoginController(), // 🌟 挂载第一步：确保控制器立刻被注入，100% 解决 "not found" 问题
+      init: LoginController(),
       dispose: (state) {
-        // 🌟 卸载最后一步：页面退出时，物理销毁控制器，杜绝内存残留和软键盘失控问题
         Get.delete<LoginController>();
       },
       builder: (controller) {
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           resizeToAvoidBottomInset: false,
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            backgroundColor: AppColors.surface,
             elevation: 0,
             leading: IconButton(
               icon: const HugeIcon(
@@ -43,43 +42,31 @@ class LoginView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 20),
-                      // 动态切换标题
                       Text(
                         controller.isRegisterMode.value ? 'app_name'.tr : 'welcome_login'.tr,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         controller.isRegisterMode.value ? 'enter_account'.tr : 'enter_password'.tr,
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 40),
 
-                      // 账号输入框
+                      // 账号输入框（正常点击聚焦打字，无多余弹窗拦截）
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: AppColors.divider,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: TextField(
                           controller: controller.usernameController,
                           focusNode: controller.usernameFocusNode,
                           keyboardType: TextInputType.text,
-                          // 🌟 核心设计：如果本地安全存储有账号，点击输入框时拦截物理键盘，直接唤起 Edge 风格填充面板
-                          onTap: () {
-                            if (controller.savedCredentials.isNotEmpty &&
-                                controller.usernameController.text.isEmpty &&
-                                !controller.isRegisterMode.value) {
-                              // 收起输入框物理焦点防止闪现物理键盘
-                              controller.usernameFocusNode.unfocus();
-                              // 唤起自动填充面板
-                              controller.showSavedAccountsBottomSheet();
-                            }
-                          },
                           decoration: InputDecoration(
                             hintText: 'phone_or_email'.tr,
                             counterText: "",
@@ -88,27 +75,29 @@ class LoginView extends StatelessWidget {
                               horizontal: 20,
                               vertical: 16,
                             ),
-                            // 🌟 核心设计：如果本地有已存凭据且非注册模式下，右侧显示科技感“钥匙安全锁”图标
+                            // 🌟 仅点击右侧钥匙图标才唤起保存的密码面板
                             suffixIcon: (controller.savedCredentials.isNotEmpty &&
                                 !controller.isRegisterMode.value)
                                 ? GestureDetector(
+                              behavior: HitTestBehavior.opaque,
                               onTap: () {
                                 controller.usernameFocusNode.unfocus();
+                                controller.passwordFocusNode.unfocus();
                                 controller.showSavedAccountsBottomSheet();
                               },
-                              child: const Padding(
-                                padding: EdgeInsets.only(right: 12.0),
+                              child: Padding(
+                                padding: EdgeInsets.only(right: 14.0),
                                 child: HugeIcon(
                                   icon: HugeIcons.strokeRoundedKey01,
-                                  color: Color.fromRGBO(44, 123, 109, 1.0),
+                                  color: AppColors.primary,
                                   size: 20,
                                 ),
                               ),
                             )
                                 : null,
                             suffixIconConstraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
+                              minWidth: 44,
+                              minHeight: 44,
                             ),
                           ),
                         ),
@@ -119,7 +108,7 @@ class LoginView extends StatelessWidget {
                       // 密码输入框
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: AppColors.divider,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: TextField(
@@ -138,12 +127,12 @@ class LoginView extends StatelessWidget {
                         ),
                       ),
 
-                      // 注册模式下显示“昵称”输入框
+                      // 注册模式下显示昵称输入框
                       if (controller.isRegisterMode.value) ...[
                         const SizedBox(height: 16),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: AppColors.divider,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: TextField(
@@ -177,9 +166,9 @@ class LoginView extends StatelessWidget {
                               : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: themeColor,
-                            disabledBackgroundColor: Colors.grey.shade200,
+                            disabledBackgroundColor: AppColors.divider,
                             foregroundColor: Colors.white,
-                            disabledForegroundColor: Colors.grey.shade400,
+                            disabledForegroundColor: AppColors.textHint,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -206,7 +195,7 @@ class LoginView extends StatelessWidget {
 
                       const SizedBox(height: 16),
 
-                      // 登录/注册模式快速切换
+                      // 切换登录/注册模式
                       Center(
                         child: TextButton(
                           onPressed: () {

@@ -1,20 +1,35 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
-import 'package:open_filex/open_filex.dart'; // 🌟 引入打开文件的插件
+import 'package:open_filex/open_filex.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:qorange/theme.dart';
 
+import '../network/http_client.dart';
 import '../views/post_detail/post_detail_view.dart';
 import '../views/profile/profile_view.dart';
 import 'push_notification_model.dart';
 
 class NotificationHandlerService extends GetxService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  static const String appBranch = 'arena/01a004f0-qorange';
+  static const String backendApiUrl = 'https://googlechat.zeabur.app';
+
+  // 避免同一次运行期间反复检测打扰
+  bool _isChecking = false;
 
   @override
   void onInit() {
@@ -27,6 +42,14 @@ class NotificationHandlerService extends GetxService {
       final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
       _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       await androidImplementation?.requestNotificationsPermission();
+    } else if (Platform.isIOS) {
+      final IOSFlutterLocalNotificationsPlugin? iosImplementation =
+      _notificationsPlugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+      await iosImplementation?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
     }
   }
 
@@ -55,22 +78,21 @@ class NotificationHandlerService extends GetxService {
   }
 
   Future<void> _createNotificationChannel() async {
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    final AndroidNotificationChannel channel = AndroidNotificationChannel(
       'googlechat_alerts',
-      '同频社交动态',
-      description: '点赞、评论、分享、外部链接推送等通知',
+      'notif_channel_social'.tr,
+      description: 'notif_channel_social_desc'.tr,
       importance: Importance.max,
       playSound: true,
       enableVibration: true,
       showBadge: true,
     );
 
-    // 独立创建一个用于更新下载进度的低重要度通道（不发出持续的响铃打扰用户）
-    const AndroidNotificationChannel updateChannel = AndroidNotificationChannel(
+    final AndroidNotificationChannel updateChannel = AndroidNotificationChannel(
       'app_update_channel',
-      '应用更新下载',
-      description: '软件更新下载进度通知',
-      importance: Importance.low, // 设为 low，防止进度每次变更都发出叮咚声
+      'notif_channel_update'.tr,
+      description: 'notif_channel_update_desc'.tr,
+      importance: Importance.low,
       playSound: false,
       enableVibration: false,
     );
@@ -82,25 +104,306 @@ class NotificationHandlerService extends GetxService {
     await androidImplementation?.createNotificationChannel(updateChannel);
   }
 
-  /// 🌟 处理系统通知栏点击行为，智能分发路由跳转与更新下载
+  /// 🌟 启动时自动检查更新：精准上报本地编译包信息 + 剥离 ABI 偏移与双重防线比对
+  Future<void> checkForUpdate({bool isManualCheck = false}) async {
+    if (_isChecking) return;
+    _isChecking = true;
+
+    try {
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String lastIgnoredTag = prefs.getString('ignored_update_tag') ?? '';
+
+      // 🌟 1. 核心修复：剥离 --split-per-abi 带来的高位偏移 (例如 2002 还原为 2)
+      final int rawBuildNumber = int.tryParse(packageInfo.buildNumber) ?? 1;
+      final int normalizedBuild = rawBuildNumber > 1000 ? (rawBuildNumber % 1000) : rawBuildNumber;
+
+      final response = await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api/check-update',
+        data: {
+          'branch': appBranch,
+          'version': packageInfo.version,
+          'build_number': normalizedBuild,
+          'arch': 'arm64-v8a',
+        },
+        receiveTimeout: const Duration(seconds: 6),
+      );
+
+      final Map<String, dynamic>? datas = response.datas;
+
+      if (datas != null) {
+        final String latestVersion = datas['version']?.toString() ?? '';
+        final int latestBuild = int.tryParse(datas['build_number']?.toString() ?? '0') ?? 0;
+        final String tag = datas['tag_name']?.toString() ?? 'New Version';
+
+        // 🌟 2. 核心双保险：只要线上构建号更大，或者版本名称不一致，客户端强制判定需要更新！
+        bool needUpdate = datas['has_update'] == true;
+        if (!needUpdate) {
+          if (latestBuild > normalizedBuild) {
+            needUpdate = true;
+          } else if (latestVersion.isNotEmpty && latestVersion != packageInfo.version) {
+            needUpdate = true;
+          }
+        }
+
+        if (needUpdate) {
+          if (!isManualCheck && lastIgnoredTag == tag) {
+            _isChecking = false;
+            return;
+          }
+
+          final String wssUrl = datas['wss_download_url']?.toString() ?? '';
+          final String fallbackUrl = datas['download_url']?.toString() ?? '';
+          final String rawChangelog = datas['changelog']?.toString() ?? 'update_changelog_default'.tr;
+          final String cleanChangelog = _cleanMarkdownText(rawChangelog);
+
+          _showRefinedUpdateDialog(
+            tag: tag,
+            changelog: cleanChangelog,
+            onIgnore: () async {
+              Get.back();
+              await prefs.setString('ignored_update_tag', tag);
+            },
+            onConfirm: () async {
+              Get.back();
+              await prefs.remove('ignored_update_tag');
+              if (wssUrl.isNotEmpty) {
+                _startAppUpdateDownloadWss(wssUrl, fallbackUrl);
+              } else if (fallbackUrl.isNotEmpty) {
+                _startAppUpdateDownload(fallbackUrl);
+              }
+            },
+          );
+
+          await _showUpdateAvailableNotification(
+            tag: tag,
+            notes: cleanChangelog,
+            downloadUrl: fallbackUrl,
+            wssUrl: wssUrl,
+          );
+        } else {
+          if (isManualCheck) {
+            Fluttertoast.showToast(
+              msg: 'update_already_latest'.trParams({'version': '${packageInfo.version}+$normalizedBuild'}),
+            );
+          }
+        }
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AppUpdate] 自动检查更新异常: $e');
+      debugPrint('❌ [AppUpdate] StackTrace: $stackTrace');
+      if (isManualCheck) {
+        Fluttertoast.showToast(msg: 'update_check_failed'.tr);
+      }
+    } finally {
+      _isChecking = false;
+    }
+  }
+
+  String _cleanMarkdownText(String raw) {
+    return raw
+        .replaceAll(RegExp(r'#{1,6}\s*'), '')
+        .replaceAllMapped(RegExp(r'\*\*([^*]+)\*\*'), (m) => m[1] ?? '')
+        .replaceAllMapped(RegExp(r'\*([^*]+)\*'), (m) => m[1] ?? '')
+        .replaceAllMapped(RegExp(r'__([^_]+)__'), (m) => m[1] ?? '')
+        .replaceAll(RegExp(r'[-*]\s+'), '• ')
+        .trim();
+  }
+
+  void _showRefinedUpdateDialog({
+    required String tag,
+    required String changelog,
+    required VoidCallback onIgnore,
+    required VoidCallback onConfirm,
+  }) {
+    Get.dialog(
+      PopScope(
+        canPop: false,
+        child: Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: AppColors.surface,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.12),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                )
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEBF5F3),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.rocket_launch_rounded, color: AppColors.primary, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'update_found_title'.tr,
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                          ),
+                          Text(
+                            tag,
+                            style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'update_contents'.tr,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      changelog,
+                      style: TextStyle(fontSize: 13, height: 1.6, color: AppColors.textPrimary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          onIgnore();
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textHint,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text('update_later'.tr, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          onConfirm();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: Text('update_upgrade_now'.tr, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  Future<void> _showUpdateAvailableNotification({
+    required String tag,
+    required String notes,
+    required String downloadUrl,
+    required String wssUrl,
+  }) async {
+    const int updateNoticeId = 9999;
+    final String title = 'update_push_title'.trParams({'tag': tag});
+    final String body = 'update_push_body'.trParams({'notes': notes});
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'googlechat_alerts',
+      'notif_channel_social'.tr,
+      channelDescription: 'notif_channel_social_desc2'.tr,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+      color: AppColors.primary,
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: 'update_version'.tr,
+      ),
+    );
+
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notificationsPlugin.show(
+      updateNoticeId,
+      title,
+      body,
+      platformDetails,
+      payload: jsonEncode({
+        'type': 'appUpdate',
+        'target_id': tag,
+        'target_type': 'system',
+        'custom_url': downloadUrl,
+        'wss_url': wssUrl,
+      }),
+    );
+  }
+
   void _onNotificationTap(NotificationResponse response) async {
     if (response.payload == null) return;
-
     try {
       final Map<String, dynamic> data = jsonDecode(response.payload!);
       final String type = data['type'] ?? '';
       final String targetId = data['target_id'] ?? '';
       final String targetType = data['target_type'] ?? '';
       final String customUrl = data['custom_url'] ?? '';
+      final String wssUrl = data['wss_url'] ?? '';
       final String filePath = data['file_path'] ?? '';
 
-      // 点击更新通知，启动后台流式下载
-      if (type == 'appUpdate' && customUrl.isNotEmpty) {
-        _startAppUpdateDownload(customUrl);
+      if (type == 'appUpdate') {
+        if (wssUrl.isNotEmpty) {
+          _startAppUpdateDownloadWss(wssUrl, customUrl);
+        } else if (customUrl.isNotEmpty) {
+          _startAppUpdateDownload(customUrl);
+        }
         return;
       }
 
-      // 点击下载完成的通知，直接重新拉起安装界面
       if (type == 'installApk' && filePath.isNotEmpty) {
         _installApk(filePath);
         return;
@@ -124,14 +427,15 @@ class NotificationHandlerService extends GetxService {
     }
   }
 
-  // 执行 OTA 下载主逻辑
-  Future<void> _startAppUpdateDownload(String url) async {
-    const int updateNotificationId = 8888; // 固定的下载通知 ID
+  Future<void> _startAppUpdateDownloadWss(String wssUrl, String fallbackHttpUrl) async {
+    const int updateNotificationId = 8888;
+    WebSocketChannel? channel;
+    IOSink? fileSink;
+
     try {
-      // 1. 初始化通知栏进度为 0%
+      Fluttertoast.showToast(msg: 'update_downloading'.tr);
       await _updateDownloadNotification(0, updateNotificationId);
 
-      // 2. 获取临时存储目录并建立 APK 文件，确保覆盖旧文件
       final Directory tempDir = await getTemporaryDirectory();
       final String filePath = '${tempDir.path}/qorange_update.apk';
       final File file = File(filePath);
@@ -139,13 +443,91 @@ class NotificationHandlerService extends GetxService {
         await file.delete();
       }
 
-      // 3. 建立流式 HTTP 下载请求
+      fileSink = file.openWrite();
+      final Uri uri = Uri.parse(wssUrl);
+      channel = WebSocketChannel.connect(uri);
+
+      int totalBytes = 0;
+      int downloadedBytes = 0;
+      int lastProgressPercent = -1;
+      final Completer<void> completer = Completer<void>();
+
+      channel.stream.listen(
+            (dynamic message) async {
+          if (message is String) {
+            try {
+              final Map<String, dynamic> json = jsonDecode(message);
+              if (json['type'] == 'meta') {
+                totalBytes = json['total_bytes'] ?? 0;
+              } else if (json['type'] == 'done') {
+                if (!completer.isCompleted) completer.complete();
+              } else if (json['type'] == 'error') {
+                if (!completer.isCompleted) completer.completeError(json['message'] ?? 'update_download_failed'.tr);
+              }
+            } catch (_) {}
+          } else if (message is List<int>) {
+            fileSink?.add(message);
+            downloadedBytes += message.length;
+
+            if (totalBytes > 0) {
+              final int percentage = ((downloadedBytes / totalBytes) * 100).toInt();
+              if (percentage > lastProgressPercent) {
+                lastProgressPercent = percentage;
+                await _updateDownloadNotification(percentage, updateNotificationId);
+              }
+            } else {
+              await _updateDownloadNotification(-1, updateNotificationId);
+            }
+          }
+        },
+        onError: (err) {
+          if (!completer.isCompleted) completer.completeError(err);
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+        cancelOnError: true,
+      );
+
+      await completer.future;
+      await fileSink.flush();
+      await fileSink.close();
+      fileSink = null;
+      channel.sink.close();
+
+      await _notificationsPlugin.cancel(updateNotificationId);
+      await _installApk(filePath);
+      await _showDownloadCompleteNotification(filePath);
+    } catch (e) {
+      debugPrint("⚠️ [WSS Update] WebSocket 下载异常，降级切换到 HTTP: $e");
+      await fileSink?.close();
+      channel?.sink.close();
+      if (fallbackHttpUrl.isNotEmpty) {
+        _startAppUpdateDownload(fallbackHttpUrl);
+      } else {
+        await _showDownloadFailedNotification(updateNotificationId);
+      }
+    }
+  }
+
+  Future<void> _startAppUpdateDownload(String url) async {
+    const int updateNotificationId = 8888;
+    try {
+      await _updateDownloadNotification(0, updateNotificationId);
+
+      final Directory tempDir = await getTemporaryDirectory();
+      final String filePath = '${tempDir.path}/qorange_update.apk';
+      final File file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+
       final http.Client client = http.Client();
       final http.Request request = http.Request('GET', Uri.parse(url));
       final http.StreamedResponse response = await client.send(request);
 
       if (response.statusCode != 200) {
-        throw HttpException('下载失败，状态码: ${response.statusCode}');
+        throw HttpException('update_download_failed'.tr + ' (HTTP ${response.statusCode})');
       }
 
       final int totalBytes = response.contentLength ?? 0;
@@ -153,99 +535,82 @@ class NotificationHandlerService extends GetxService {
       final List<int> bytes = [];
       int lastProgressPercent = -1;
 
-      // 4. 流式接收数据，并在收到时计算进度
       await for (final List<int> chunk in response.stream) {
         bytes.addAll(chunk);
         downloadedBytes += chunk.length;
 
         if (totalBytes > 0) {
           final int percentage = ((downloadedBytes / totalBytes) * 100).toInt();
-          // 节流优化：只有百分比整数变动时才调用 show()，避免卡顿
           if (percentage > lastProgressPercent) {
             lastProgressPercent = percentage;
             await _updateDownloadNotification(percentage, updateNotificationId);
           }
         } else {
-          // 如果服务器没有返回真实长度，显示无上限的默认进度条
           await _updateDownloadNotification(-1, updateNotificationId);
         }
       }
 
-      // 5. 保存字节数组为本地 APK 文件
       await file.writeAsBytes(bytes);
-
-      // 6. 成功下载后清除下载进度通知
       await _notificationsPlugin.cancel(updateNotificationId);
-
-      // 7. 调用安装逻辑（直接拉起底部安装询问弹窗）
       await _installApk(filePath);
-
-      // 8. 同时在通知栏展现“下载完成”，万一用户在弹窗中不小心取消了，还可以通过通知点击重新调起
       await _showDownloadCompleteNotification(filePath);
-
     } catch (e) {
       debugPrint("❌ [AppUpdate] 后台下载失败: $e");
       await _showDownloadFailedNotification(updateNotificationId);
     }
   }
 
-  // 向通知栏发送并刷新当前的下载进度
   Future<void> _updateDownloadNotification(int progress, int notificationId) async {
-    final bool isIndeterminate = progress < 0; // 是否显示无进度滚动条
+    final bool isIndeterminate = progress < 0;
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'app_update_channel',
-      '应用更新下载',
-      channelDescription: '显示更新包的实时下载进度',
+      'notif_channel_update'.tr,
+      channelDescription: 'notif_update_progress_desc'.tr,
       importance: Importance.low,
       priority: Priority.low,
       showProgress: true,
       maxProgress: 100,
       progress: isIndeterminate ? 0 : progress,
       indeterminate: isIndeterminate,
-      ongoing: true, // 强制常驻通知栏，不允许用户通过左滑手势删除
-      onlyAlertOnce: true, // 确保进度刷新时手机不会重复响铃/振动
+      ongoing: true,
+      onlyAlertOnce: true,
     );
 
     final NotificationDetails platformDetails = NotificationDetails(android: androidDetails);
     await _notificationsPlugin.show(
       notificationId,
-      '正在下载系统更新...',
-      isIndeterminate ? '下载中...' : '已完成 $progress%',
+      'notif_downloading_update'.tr,
+      isIndeterminate ? 'notif_downloading'.tr : 'notif_download_percent'.trParams({'progress': '$progress'}),
       platformDetails,
     );
   }
 
-  // 唤起系统 PackageInstaller 开始安装
   Future<void> _installApk(String filePath) async {
     try {
       final File file = File(filePath);
       if (await file.exists()) {
-        // 利用 open_filex 安全唤起系统安装面板
         final result = await OpenFilex.open(filePath);
-        debugPrint("ℹ️ [AppUpdate] 系统安装面板调用结果: ${result.message} (ResultType: ${result.type})");
-      } else {
-        debugPrint("❌ [AppUpdate] 未能找到 APK 文件");
+        debugPrint("ℹ️ [AppUpdate] 系统安装面板调用结果: ${result.message}");
       }
     } catch (e) {
-      debugPrint("❌ [AppUpdate] 唤起系统安装弹窗异常: $e");
+      debugPrint("❌ [AppUpdate] 唤起安装异常: $e");
     }
   }
 
-  // 下载成功但用户取消后，常驻在通知栏的备份入口
   Future<void> _showDownloadCompleteNotification(String filePath) async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'app_update_channel',
-      '应用更新下载',
-      channelDescription: '下载完毕提示安装',
+      'notif_channel_update'.tr,
+      channelDescription: 'notif_download_done_desc'.tr,
       importance: Importance.max,
       priority: Priority.high,
       ongoing: false,
     );
 
     await _notificationsPlugin.show(
-      8889, // 独立 ID
-      '🎉 更新包已准备就绪',
-      '点击此处立即安装最新版本',
+      8889,
+      'notif_update_ready'.tr,
+      'notif_update_ready_body'.tr,
       NotificationDetails(android: androidDetails),
       payload: jsonEncode({
         'type': 'installApk',
@@ -254,16 +619,15 @@ class NotificationHandlerService extends GetxService {
     );
   }
 
-  // 下载失败处理通知
   Future<void> _showDownloadFailedNotification(int notificationId) async {
     await _notificationsPlugin.show(
       notificationId,
-      '❌ 更新包下载失败',
-      '网络异常，请稍后重试',
-      const NotificationDetails(
+      'notif_update_failed'.tr,
+      'notif_update_failed_body'.tr,
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'app_update_channel',
-          '应用更新下载',
+          'notif_channel_update'.tr,
           importance: Importance.max,
           priority: Priority.high,
           ongoing: false,
@@ -272,129 +636,181 @@ class NotificationHandlerService extends GetxService {
     );
   }
 
+  /// 🌟 修复核心：增加 SVG 格式拦截、HTTP 200 校验、字节体量校验与落盘检验
   Future<String?> _downloadAndSaveFile(String? url, String fileName) async {
-    if (url == null || url.isEmpty) return null;
+    if (url == null || url.trim().isEmpty) return null;
+    final cleanUrl = url.trim();
+
+    // 1. iOS UNNotificationAttachment 不支持 SVG 矢量格式，直接跳过
+    if (cleanUrl.toLowerCase().endsWith('.svg') || cleanUrl.contains('.svg')) {
+      return null;
+    }
+
     try {
-      final Directory directory = await getTemporaryDirectory();
-      final String filePath = '${directory.path}/$fileName';
-      final http.Response response = await http.get(Uri.parse(url));
-      final File file = File(filePath);
-      await file.writeAsBytes(response.bodyBytes);
-      return filePath;
-    } catch (e) {
+      final uri = Uri.tryParse(cleanUrl);
+      if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+        return null;
+      }
+
+      final http.Response response = await http.get(uri).timeout(const Duration(seconds: 3));
+      // 2. 状态码必须为 200 且字节大小有效，避免将错误页 HTML 写入导致 iOS 解析异常
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty && response.bodyBytes.length > 50) {
+        final Directory directory = await getTemporaryDirectory();
+        final sanitizedFileName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9_\.-]'), '_');
+        final String filePath = '${directory.path}/$sanitizedFileName';
+        final File file = File(filePath);
+
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+
+        if (await file.exists() && await file.length() > 50) {
+          return filePath;
+        }
+      }
+      return null;
+    } catch (_) {
       return null;
     }
   }
 
-  /// 🌟 将后端的规范 JSON 数据转换为美观的本地通知卡片
+  /// 🌟 修复核心：挂载前物理校验文件，并在外部加入双重降级捕获，彻底杜绝 PlatformException 100
   Future<void> handleIncomingNotification(PushNotificationModel note) async {
-    String title = '🔔 新动态';
-    String body = '';
+    try {
+      String title = 'notif_default_title'.tr;
+      String body = '';
 
-    final nickname = note.sender.nickname;
-    final targetTitle = note.target.title;
+      final nickname = note.sender.nickname;
+      final targetTitle = note.target.title;
 
-    // 🌟🌟 核心安全修正：优先提取 customData 中由后端统一设计好的定制化交易/提现文案
-    // 这完美解决并消除了客户端硬编码造成的交易字段对不上、展现单调不美观的底层局限性 [1]！
-    if (note.customData.containsKey('title') && note.customData['title'].toString().isNotEmpty) {
-      title = note.customData['title'].toString();
-    }
-    if (note.customData.containsKey('content') && note.customData['content'].toString().isNotEmpty) {
-      body = note.customData['content'].toString();
-    }
+      if (note.customData.containsKey('title') && note.customData['title'].toString().isNotEmpty) {
+        title = note.customData['title'].toString();
+      }
+      if (note.customData.containsKey('content') && note.customData['content'].toString().isNotEmpty) {
+        body = note.customData['content'].toString();
+      }
 
-    // 🌟 降级机制：如果后端没有提供自定义文案，无缝退回到原先的社交通知/个性化学术推荐翻译中
-    if (body.isEmpty) {
-      if (note.category == 'social') {
-        switch (note.type) {
-          case 'like':
-            title = '🔥 点赞通知';
-            body = '$nickname 赞了你的观点: "$targetTitle"';
-            break;
-          case 'collect':
-            title = 'bookmark 收藏通知';
-            body = '$nickname 收藏了你的帖子: "$targetTitle"';
-            break;
-          case 'comment':
-            title = '💬 新讨论消息';
-            body = '$nickname 对你发表了看法: "$targetTitle"';
-            break;
-          case 'repost':
-            title = '🔁 转发通知';
-            body = '$nickname 转发同步了你的帖子: "$targetTitle"';
-            break;
-          case 'follow':
-            title = '🎉 关注';
-            body = '$nickname 关注了你，开始倾听你的观点';
-            break;
-        }
-      } else if (note.category == 'recommendation') {
-        if (note.type == 'recommendPost') {
-          title = '💡 个性化学术推荐';
-          body = '基于您的研究兴趣，向您推荐好文: "$targetTitle"';
-        } else if (note.type == 'recommendUser') {
-          title = '🤝 推荐认识的学者';
-          body = '推荐您关注同领域的创作者: @$nickname';
-        }
-      } else if (note.category == 'landingPage') {
-        title = '🌐 推荐落地页';
-        body = targetTitle.isNotEmpty ? targetTitle : '点击查看最新推荐文章与落地页。';
-      } else if (note.category == 'system') {
-        if (note.type == 'appUpdate') {
-          title = '🚀 发现新版本';
-          body = targetTitle.isNotEmpty ? targetTitle : '点击立即下载更新最新版本';
-        } else {
-          title = '📢 系统广播通知';
-          body = targetTitle;
+      if (body.isEmpty) {
+        if (note.category == 'social') {
+          switch (note.type) {
+            case 'like':
+              title = 'notif_like_title'.tr;
+              body = 'notif_like_body'.trParams({'nickname': nickname, 'title': targetTitle});
+              break;
+            case 'collect':
+              title = 'notif_collect_title'.tr;
+              body = 'notif_collect_body'.trParams({'nickname': nickname, 'title': targetTitle});
+              break;
+            case 'comment':
+              title = 'notif_comment_title'.tr;
+              body = 'notif_comment_body'.trParams({'nickname': nickname, 'title': targetTitle});
+              break;
+            case 'repost':
+              title = 'notif_repost_title'.tr;
+              body = 'notif_repost_body'.trParams({'nickname': nickname, 'title': targetTitle});
+              break;
+            case 'follow':
+              title = 'notif_follow_title'.tr;
+              body = 'notif_follow_body'.trParams({'nickname': nickname});
+              break;
+          }
+        } else if (note.category == 'recommendation') {
+          if (note.type == 'recommendPost') {
+            title = 'notif_rec_post_title'.tr;
+            body = 'notif_rec_post_body'.trParams({'title': targetTitle});
+          } else if (note.type == 'recommendUser') {
+            title = 'notif_rec_user_title'.tr;
+            body = 'notif_rec_user_body'.trParams({'nickname': nickname});
+          }
+        } else if (note.category == 'landingPage') {
+          title = 'notif_landing_title'.tr;
+          body = targetTitle.isNotEmpty ? targetTitle : 'notif_landing_body'.tr;
+        } else if (note.category == 'system') {
+          if (note.type == 'appUpdate') {
+            title = 'notif_new_version_title'.tr;
+            body = targetTitle.isNotEmpty ? targetTitle : 'notif_new_version_body'.tr;
+          } else {
+            title = 'notif_broadcast_title'.tr;
+            body = targetTitle;
+          }
         }
       }
-    }
 
-    final String? avatarPath = await _downloadAndSaveFile(
-      note.sender.avatar,
-      'avatar_${note.sender.id}.png',
-    );
+      final String? avatarPath = await _downloadAndSaveFile(
+        note.sender.avatar,
+        'avatar_${note.sender.id.isNotEmpty ? note.sender.id : DateTime.now().millisecondsSinceEpoch}.png',
+      );
 
-    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'googlechat_alerts',
-      '同频社交动态',
-      channelDescription: '点赞、评论、关注、推荐等通知提示',
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: true,
-      color: const Color(0xFF2C7B6D),
-      largeIcon: avatarPath != null ? FilePathAndroidBitmap(avatarPath) : null,
-      styleInformation: BigTextStyleInformation(
-        body,
-        contentTitle: title,
-        summaryText: '观点同频通知',
-      ),
-    );
+      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'googlechat_alerts',
+        'notif_channel_social'.tr,
+        channelDescription: 'notif_channel_social_desc2'.tr,
+        importance: Importance.max,
+        priority: Priority.high,
+        showWhen: true,
+        color: AppColors.primary,
+        largeIcon: avatarPath != null ? FilePathAndroidBitmap(avatarPath) : null,
+        styleInformation: BigTextStyleInformation(
+          body,
+          contentTitle: title,
+          summaryText: 'notif_summary'.tr,
+        ),
+      );
 
-    final DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-      attachments: avatarPath != null ? [DarwinNotificationAttachment(avatarPath)] : null,
-    );
+      final DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        // 🌟 严格把关：只有确认为 iOS 平台且物理文件真实有效存在时才挂载 Attachment
+        attachments: (avatarPath != null && Platform.isIOS && File(avatarPath).existsSync())
+            ? [DarwinNotificationAttachment(avatarPath)]
+            : null,
+      );
 
-    final NotificationDetails platformDetails = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
+      final notifId = (note.notificationId.isNotEmpty
+          ? note.notificationId.hashCode
+          : DateTime.now().millisecondsSinceEpoch)
+          .abs() %
+          100000;
 
-    // 发送通知给本地底层
-    await _notificationsPlugin.show(
-      note.hashCode,
-      title,
-      body,
-      platformDetails,
-      payload: jsonEncode({
-        'type': note.type, // 如果为 system/appUpdate，点击将正确触发响应
+      final payloadStr = jsonEncode({
+        'type': note.type,
         'target_id': note.target.id,
         'target_type': note.target.type,
         'custom_url': note.customData['url'] ?? '',
-      }),
-    );
+        'wss_url': note.customData['wss_url'] ?? '',
+      });
+
+      // 🌟 核心保护：若附件导致 iOS/Android 弹出异常，自动降级为无附件纯文本展示，绝不崩溃
+      try {
+        await _notificationsPlugin.show(
+          notifId,
+          title,
+          body,
+          NotificationDetails(android: androidDetails, iOS: iosDetails),
+          payload: payloadStr,
+        );
+      } catch (innerError) {
+        debugPrint("⚠️ [NotificationHandler] 带附件通知弹出失败，已自动平滑降级为纯文本通知: $innerError");
+        final fallbackAndroid = AndroidNotificationDetails(
+          'googlechat_alerts',
+          'notif_channel_social'.tr,
+          importance: Importance.max,
+          priority: Priority.high,
+        );
+        const fallbackIos = DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        );
+        await _notificationsPlugin.show(
+          notifId,
+          title,
+          body,
+          NotificationDetails(android: fallbackAndroid, iOS: fallbackIos),
+          payload: payloadStr,
+        );
+      }
+    } catch (e) {
+      debugPrint("🔴 [NotificationHandler] 弹出通知全局捕获异常: $e");
+    }
   }
 }

@@ -6,6 +6,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:qorange/theme.dart';
 
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
@@ -26,23 +27,23 @@ class _ProfileEditViewState extends State<ProfileEditView> {
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _websiteController = TextEditingController();
 
-  // 学术/生活领域 中英文标准字典映射
+  // 学术/生活领域字典映射：值为多语言词条 key，展示时调用 .tr 取当前语言文案
   final Map<String, String> _topicMap = {
-    'technology': '前沿技术',
-    'blockchain': '区块链',
-    'cryptocurrency': '加密货币',
-    'data_science': '数据科学',
-    'finance': '金融财务',
-    'trading': '投资交易',
-    'business': '商业洞察',
-    'aviation': '航空航天',
-    'education': '教育学研',
-    'car': '汽车世界',
-    'gamer': '游戏电竞',
-    'style': '风格潮流',
-    'restaurant': '美食餐饮',
-    'traveler': '旅行探险',
-    'news': '时事热点',
+    'technology': 'topic_technology',
+    'blockchain': 'topic_blockchain',
+    'cryptocurrency': 'topic_cryptocurrency',
+    'data_science': 'topic_data_science',
+    'finance': 'topic_finance',
+    'trading': 'topic_trading',
+    'business': 'topic_business',
+    'aviation': 'topic_aviation',
+    'education': 'topic_education',
+    'car': 'topic_car',
+    'gamer': 'topic_gamer',
+    'style': 'topic_style',
+    'restaurant': 'topic_restaurant',
+    'traveler': 'topic_traveler',
+    'news': 'topic_news',
   };
 
   final List<String> _selectedTopics = [];
@@ -86,7 +87,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "加载个人资料异常");
+        Fluttertoast.showToast(msg: 'load_profile_failed'.tr);
       }
       setState(() => _isLoading = false);
     }
@@ -96,13 +97,13 @@ class _ProfileEditViewState extends State<ProfileEditView> {
     final String nickname = _nicknameController.text.trim();
 
     if (nickname.isEmpty) {
-      Fluttertoast.showToast(msg: "昵称不能为空");
+      Fluttertoast.showToast(msg: 'nickname_required'.tr);
       return;
     }
 
     // 🌟 核心改进：提交阶段强化校验逻辑，确保昵称字符长度严格在安全边界内
     if (nickname.length > 20) {
-      Fluttertoast.showToast(msg: "昵称最长支持20个字符");
+      Fluttertoast.showToast(msg: 'nickname_too_long'.tr);
       return;
     }
 
@@ -120,14 +121,14 @@ class _ProfileEditViewState extends State<ProfileEditView> {
 
       final res = await HttpClient.instance.put('/api-users/profile', data: body);
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "更新成功");
+        Fluttertoast.showToast(msg: 'update_success'.tr);
         Get.back();
       }
     } catch (e) {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "更新资料异常");
+        Fluttertoast.showToast(msg: 'update_profile_failed'.tr);
       }
     } finally {
       setState(() => _isSaving = false);
@@ -141,8 +142,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.only(top: 12, bottom: 30, left: 24, right: 24),
@@ -152,14 +152,14 @@ class _ProfileEditViewState extends State<ProfileEditView> {
               Container(
                 width: 36,
                 height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 24),
-              const Text("更换头像图片", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+              Text('change_avatar'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: Colors.black87),
-                title: const Text("从本地系统相册选取"),
+                leading: Icon(Icons.photo_library_outlined, color: AppColors.textPrimary),
+                title: Text('pick_from_gallery'.tr),
                 onTap: () {
                   Navigator.pop(context);
                   _pickLocalAvatar();
@@ -167,8 +167,8 @@ class _ProfileEditViewState extends State<ProfileEditView> {
               ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.gif_box_outlined, color: Colors.black87),
-                title: const Text("选取有趣的动态 GIF"),
+                leading: Icon(Icons.gif_box_outlined, color: AppColors.textPrimary),
+                title: Text('pick_animated_gif'.tr),
                 onTap: () {
                   Navigator.pop(context);
                   _pickGifAvatar();
@@ -176,8 +176,8 @@ class _ProfileEditViewState extends State<ProfileEditView> {
               ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.link_outlined, color: Colors.black87),
-                title: const Text("手动粘贴/键入图片 URL"),
+                leading: Icon(Icons.link_outlined, color: AppColors.textPrimary),
+                title: Text('paste_image_url'.tr),
                 onTap: () {
                   Navigator.pop(context);
                   _showManualUrlDialog();
@@ -196,15 +196,15 @@ class _ProfileEditViewState extends State<ProfileEditView> {
     final xFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (xFile == null) return;
 
-    Fluttertoast.showToast(msg: "正在上传头像至云存储...");
+    Fluttertoast.showToast(msg: 'uploading_avatar'.tr);
     final url = await ApiService.uploadImage(File(xFile.path));
     if (url != null) {
       setState(() {
         _avatarController.text = url;
       });
-      Fluttertoast.showToast(msg: "头像选取并更新成功");
+      Fluttertoast.showToast(msg: 'avatar_updated'.tr);
     } else {
-      Fluttertoast.showToast(msg: "头像上传失败，请重新尝试");
+      Fluttertoast.showToast(msg: 'avatar_upload_failed'.tr);
     }
   }
 
@@ -223,8 +223,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
           expand: false,
           builder: (context, scrollController) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: ClipRRect(
@@ -236,7 +235,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
                     setState(() {
                       _avatarController.text = url;
                     });
-                    Fluttertoast.showToast(msg: "动态 GIF 头像更新成功");
+                    Fluttertoast.showToast(msg: 'gif_avatar_updated'.tr);
                   },
                 ),
               ),
@@ -252,13 +251,13 @@ class _ProfileEditViewState extends State<ProfileEditView> {
     final textC = TextEditingController(text: _avatarController.text);
     Get.dialog(
       AlertDialog(
-        title: const Text("输入图片 URL", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: Text('enter_image_url'.tr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: textC,
           decoration: const InputDecoration(hintText: "https://example.com/avatar.png"),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text("取消", style: TextStyle(color: Colors.grey))),
+          TextButton(onPressed: () => Get.back(), child: Text('cancel'.tr, style: const TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
               if (textC.text.trim().isNotEmpty) {
@@ -266,10 +265,10 @@ class _ProfileEditViewState extends State<ProfileEditView> {
                   _avatarController.text = textC.text.trim();
                 });
                 Get.back();
-                Fluttertoast.showToast(msg: "链接地址设置成功");
+                Fluttertoast.showToast(msg: 'link_set_success'.tr);
               }
             },
-            child: const Text("确定", style: TextStyle(color: Color.fromRGBO(44, 123, 109, 1.0))),
+            child: Text('ok'.tr, style: TextStyle(color: AppColors.primary)),
           ),
         ],
       ),
@@ -278,12 +277,12 @@ class _ProfileEditViewState extends State<ProfileEditView> {
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
 
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+        backgroundColor: AppColors.surface,
+        appBar: AppBar(backgroundColor: AppColors.surface, elevation: 0),
         body: Center(child: CircularProgressIndicator(color: themeColor, strokeWidth: 2)),
       );
     }
@@ -291,13 +290,13 @@ class _ProfileEditViewState extends State<ProfileEditView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F9FB),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.close, color: Colors.black87),
+          icon: Icon(Icons.close, color: AppColors.textPrimary),
         ),
-        title: const Text("编辑资料", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text('edit_profile_title'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
         actions: [
           _isSaving
               ? const Center(child: Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
@@ -305,7 +304,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
             padding: const EdgeInsets.only(right: 8.0),
             child: TextButton(
               onPressed: _saveProfile,
-              child: Text("保存", style: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 15)),
+              child: Text('save'.tr, style: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
         ],
@@ -314,8 +313,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
         child: Column(
           children: [
             // 顶部渐变学术气场背景与可视化头像区
-            Container(
-              color: Colors.white,
+            Container(color: AppColors.surface,
               padding: const EdgeInsets.only(top: 24, bottom: 24),
               width: double.infinity,
               child: Column(
@@ -336,20 +334,20 @@ class _ProfileEditViewState extends State<ProfileEditView> {
                           child: CircleAvatar(
                             radius: 46,
                             backgroundImage: _avatarController.text.isNotEmpty ? NetworkImage(_avatarController.text) : null,
-                            backgroundColor: Colors.grey.shade100,
+                            backgroundColor: AppColors.divider,
                             child: _avatarController.text.isEmpty ? const Icon(Icons.add_a_photo_outlined, size: 32, color: Colors.grey) : null,
                           ),
                         ),
                         Container(
                           padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(color: Color.fromRGBO(44, 123, 109, 1.0), shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                           child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text("点击更换头像图", style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                  Text('tap_change_avatar'.tr, style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
@@ -360,32 +358,32 @@ class _ProfileEditViewState extends State<ProfileEditView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("基本资料", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+                  Text('basic_info'.tr, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
                   const SizedBox(height: 10),
                   // 🌟 核心改进：为“昵称”输入框传参 maxLength: 20，强制进行本地物理键盘输入字符限制
-                  _buildInputField(label: "昵称", controller: _nicknameController, icon: HugeIcons.strokeRoundedUser, maxLength: 20),
-                  _buildInputField(label: "用户名 (Username)", controller: _usernameController, icon: HugeIcons.strokeRoundedUserAccount),
-                  _buildInputField(label: "地理位置", controller: _locationController, icon: HugeIcons.strokeRoundedLocation01),
-                  _buildInputField(label: "个人/生活网站", controller: _websiteController, icon: HugeIcons.strokeRoundedGlobal),
-                  _buildInputField(label: "自述 / 简介", controller: _bioController, icon: HugeIcons.strokeRoundedBookOpen02, isMultiLine: true),
+                  _buildInputField(label: 'nickname'.tr, controller: _nicknameController, icon: HugeIcons.strokeRoundedUser, maxLength: 20),
+                  _buildInputField(label: 'username_label'.tr, controller: _usernameController, icon: HugeIcons.strokeRoundedUserAccount),
+                  _buildInputField(label: 'location_label'.tr, controller: _locationController, icon: HugeIcons.strokeRoundedLocation01),
+                  _buildInputField(label: 'website_label'.tr, controller: _websiteController, icon: HugeIcons.strokeRoundedGlobal),
+                  _buildInputField(label: 'bio_label'.tr, controller: _bioController, icon: HugeIcons.strokeRoundedBookOpen02, isMultiLine: true),
 
                   const SizedBox(height: 20),
-                  const Text("感兴趣的领域与生活类别", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+                  Text('interests_categories'.tr, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
                   const SizedBox(height: 12),
 
                   // 纯中文美化芯片选择区 (Topics)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 10,
                       children: _topicMap.keys.map((topicKey) {
-                        final chineseLabel = _topicMap[topicKey]!;
+                        final topicLabel = _topicMap[topicKey]!.tr;
                         final isSelected = _selectedTopics.contains(topicKey);
                         return FilterChip(
-                          label: Text(chineseLabel, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                          label: Text(topicLabel, style: TextStyle(color: isSelected ? Colors.white : AppColors.textPrimary, fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                           selected: isSelected,
                           selectedColor: themeColor,
                           backgroundColor: const Color(0xFFF3F4F6),
@@ -425,8 +423,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: TextField(
@@ -436,11 +433,11 @@ class _ProfileEditViewState extends State<ProfileEditView> {
         inputFormatters: maxLength != null
             ? [LengthLimitingTextInputFormatter(maxLength)]
             : null,
-        style: const TextStyle(fontSize: 14, color: Colors.black87),
+        style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(
-            color: Colors.grey.shade500,
+            color: AppColors.textSecondary,
             fontSize: 13,
           ),
           counterText: "", // 🌟 隐藏自带的 helper 计数，确保雅致的现代界面美学
@@ -448,7 +445,7 @@ class _ProfileEditViewState extends State<ProfileEditView> {
             padding: const EdgeInsets.all(12),
             child: HugeIcon(
               icon: icon,
-              color: Colors.grey.shade400,
+              color: AppColors.textHint,
               size: 20,
             ),
           ),
@@ -517,13 +514,13 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
       children: [
         Container(
           padding: const EdgeInsets.only(top: 12, bottom: 8),
-          color: Colors.white,
+          color: AppColors.surface,
           child: Center(
             child: Container(
               width: 40,
               height: 5,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: AppColors.border,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -539,8 +536,8 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
             style: const TextStyle(fontSize: 15, color: Color(0xFF2C3E50)),
             onSubmitted: (value) => _fetchGifs(value),
             decoration: InputDecoration(
-              hintText: '搜索有趣的 GIF...',
-              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+              hintText: 'search_gif_hint'.tr,
+              hintStyle: TextStyle(color: AppColors.textHint, fontSize: 14),
               prefixIcon: const Icon(Icons.search, size: 20, color: Colors.grey),
               filled: true,
               fillColor: const Color(0xFFF5F7FA),
@@ -566,7 +563,7 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
               children: [
                 const Icon(Icons.search, size: 48, color: Colors.grey),
                 const SizedBox(height: 12),
-                Text('没有找到相关 GIF', style: TextStyle(color: Colors.grey[400])),
+                Text('no_gif_found'.tr, style: TextStyle(color: AppColors.textHint)),
               ],
             ),
           )
@@ -583,7 +580,7 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
             itemBuilder: (context, index) {
               final url = _gifs[index];
               return Material(
-                color: Colors.grey[100],
+                color: AppColors.divider,
                 borderRadius: BorderRadius.circular(12),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(

@@ -1,3 +1,5 @@
+import 'package:get/get.dart';
+
 class ShopGoods {
   final String id;
   final String title;
@@ -26,11 +28,11 @@ class ShopGoods {
   factory ShopGoods.fromJson(Map<String, dynamic> json) {
     return ShopGoods(
       id: json['id']?.toString() ?? '',
-      title: json['title']?.toString() ?? '商品',
-      desc: json['desc']?.toString() ?? '无详细描述',
+      title: json['title']?.toString() ?? 'default_goods_title'.tr,
+      desc: json['desc']?.toString() ?? 'no_description'.tr,
       price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
       category: json['category']?.toString() ?? 'virtual',
-      tag: json['tag']?.toString() ?? '热卖',
+      tag: json['tag']?.toString() ?? 'hot_tag'.tr,
       imageUrl: json['image_url']?.toString() ?? '',
       isPurchased: json['is_purchased'] as bool? ?? false,
       targetId: json['target_id']?.toString() ?? '',

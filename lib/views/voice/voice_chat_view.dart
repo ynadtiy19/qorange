@@ -4,6 +4,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:lottie/lottie.dart';
+import 'package:qorange/theme.dart';
 import 'voice_chat_controller.dart';
 import 'select_agent_sheet.dart';
 
@@ -15,9 +16,9 @@ class VoiceChatView extends StatelessWidget {
     // 实例化 GetX 控制器
     final controller = Get.put(VoiceChatController());
 
-    final Color obsidianBg = const Color(0xFF0F172A); // 曜石黑
+    final Color obsidianBg = AppColors.primary; // 主题强调色（原曜石黑）
     final Color goldColor = const Color(0xFFE2B04E);  // 奢华金
-    final Color primaryTeal = const Color.fromRGBO(44, 123, 109, 1.0);
+    final Color primaryTeal = AppColors.primary;
 
     // 默认选用 Simone
     String currentCharacter = 'Maya';
@@ -55,20 +56,20 @@ class VoiceChatView extends StatelessWidget {
                                 onAgentSelected: (char, key) {
                                   currentCharacter = char;
                                   currentKey = key;
-                                  Fluttertoast.showToast(msg: "已选中角色: $char");
+                                  Fluttertoast.showToast(msg: 'agent_selected'.trParams({'name': char}));
                                 },
                               );
                             },
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.06),
+                          backgroundColor: AppColors.surface.withOpacity(0.06),
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
                         icon: HugeIcon(icon: HugeIcons.strokeRoundedLanguageSkill, color: goldColor, size: 14.0),
-                        label: const Text('选择助手', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                        label: Text('select_assistant'.tr, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -104,8 +105,7 @@ class VoiceChatView extends StatelessWidget {
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                         child: Container(
                           padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.06),
+                          decoration: BoxDecoration(color: AppColors.surface.withOpacity(0.06),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
                           ),
@@ -120,7 +120,7 @@ class VoiceChatView extends StatelessWidget {
                                     decoration: BoxDecoration(color: goldColor, shape: BoxShape.circle),
                                   ),
                                   const SizedBox(width: 8),
-                                  Text('LIVE CAPTIONS / 实时同传听写', style: TextStyle(color: goldColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                                  Text('live_captions'.tr, style: TextStyle(color: goldColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                                   const Spacer(),
                                   if (connecting)
                                     SizedBox(
@@ -136,7 +136,7 @@ class VoiceChatView extends StatelessWidget {
                                   reverse: true,
                                   physics: const BouncingScrollPhysics(),
                                   child: Text(
-                                    text.isEmpty ? (connecting ? '大模型翻译流通道创建中...' : '开始说话，译文将实时在此呈现...') : text,
+                                    text.isEmpty ? (connecting ? 'captions_connecting'.tr : 'captions_waiting'.tr) : text,
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: text.isEmpty ? Colors.grey : Colors.white,
@@ -206,11 +206,11 @@ class VoiceChatView extends StatelessWidget {
                     // 3. 登录请求/签名创单加载圈
                     Obx(() {
                       if (!controller.isConnecting.value) return const SizedBox.shrink();
-                      return const SizedBox(
+                      return SizedBox(
                         width: 300,
                         height: 300,
                         child: CircularProgressIndicator(
-                          color: Color.fromRGBO(44, 123, 109, 1.0),
+                          color: AppColors.primary,
                           strokeWidth: 2,
                         ),
                       );
@@ -246,7 +246,7 @@ class VoiceChatView extends StatelessWidget {
               // --- 状态文字与计时器 ---
               Obx(() => Text(
                 controller.statusText.value,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                style: TextStyle(fontSize: 14, color: AppColors.textHint, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                 textAlign: TextAlign.center,
               )),
               const SizedBox(height: 12),
@@ -258,8 +258,7 @@ class VoiceChatView extends StatelessWidget {
                 final s = (sec % 60).toString().padLeft(2, '0');
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.04),
+                  decoration: BoxDecoration(color: AppColors.surface.withOpacity(0.04),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white.withOpacity(0.08)),
                   ),
@@ -289,7 +288,7 @@ class VoiceChatView extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Row(
@@ -314,7 +313,7 @@ class VoiceChatView extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              muted ? '已静音' : '静音',
+                              muted ? 'muted'.tr : 'mute'.tr,
                               style: TextStyle(fontSize: 10, color: muted ? Colors.orange : Colors.grey, fontWeight: FontWeight.bold),
                             )
                           ],
@@ -339,9 +338,9 @@ class VoiceChatView extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 6),
-                            const Text(
-                              '挂断',
-                              style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                            Text(
+                              'hang_up'.tr,
+                              style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
                             )
                           ],
                         ),
@@ -372,7 +371,7 @@ class VoiceChatView extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              transActive ? '关闭转文本' : '开启转文本',
+                              transActive ? 'captions_off'.tr : 'captions_on'.tr,
                               style: TextStyle(
                                   fontSize: 10,
                                   color: transActive ? primaryTeal : Colors.grey,

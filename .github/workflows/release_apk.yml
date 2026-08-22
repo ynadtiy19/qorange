@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - main
-      - 'arena/**'                  # 匹配所有 arena/ 开头的分支（包含 01a004f0-qorange）
-  workflow_dispatch:                # 支持在 Actions 界面选择任意分支手动运行
+      - 'arena/**'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,18 +16,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出触发当前工作流的分支代码
+      # 1. 检出代码（完整拉取 Git 历史以准确读取 Commit Log）
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # 2. 清理本地代理配置，并将 8G 内存调整为适合云端 7G Runner 的 3.5G
-      - name: Sanitize gradle.properties
+      # 2. 深度优化 gradle.properties：清理代理 + 调整内存 + 开启并行与构建缓存
+      - name: Optimize gradle.properties
         run: |
           if [ -f "android/gradle.properties" ]; then
             sed -i '/systemProp\.http/d' android/gradle.properties
             sed -i '/systemProp\.https/d' android/gradle.properties
             sed -i 's/-Xmx[0-9]*[gG]/-Xmx3584m/g' android/gradle.properties
             sed -i 's/-XX:MaxMetaspaceSize=[0-9]*[gG]/-XX:MaxMetaspaceSize=512m/g' android/gradle.properties
+            echo "org.gradle.caching=true" >> android/gradle.properties
+            echo "org.gradle.parallel=true" >> android/gradle.properties
           fi
 
       # 3. 设置 JDK 17
@@ -37,7 +41,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 4. 设置 Flutter 环境并开启 SDK 缓存
+      # 4. 设置 Flutter 环境并自动缓存 SDK
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -45,54 +49,147 @@ jobs:
           cache: true
           cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
 
-      # 5. Gradle 缓存
+      # 5. 自动管理并持久化 Gradle 依赖与构建缓存
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
-      # 6. 获取依赖
+      # 6. 设置 C/C++ 编译缓存
+      - name: Setup ccache for C/C++ Native Code
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-ccache-${{ github.ref_name }}
+          max-size: 500M
+
+      # 7. 还原签名密钥
+      - name: Restore Keystore
+        run: |
+          mkdir -p android/app
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/qorange.jks
+          ls -l android/app/qorange.jks
+          keytool -list -keystore android/app/qorange.jks \
+            -storepass "${KEYSTORE_PASSWORD:-626262}" >/dev/null \
+            && echo "✅ keystore 校验通过" \
+            || { echo "❌ keystore 无效：请检查 KEYSTORE_BASE64 是否完整"; exit 1; }
+
+      # 8. 获取依赖
       - name: Install Dependencies
         run: flutter pub get
 
-      # 7. 打包 Release APK
-      - name: Build APK
-        run: flutter build apk --release
+      # 9. 构建正式版分包 APK (开启混淆与符号表剥离)
+      - name: Build Split APKs
+        run: |
+          flutter build apk --release \
+            --split-per-abi \
+            --obfuscate \
+            --split-debug-info=build/app/outputs/symbols
 
-      # 8. 格式化分支名称并重命名 APK（斜杠 / 转为 _ 防止路径错误）
-      - name: Prepare APK and Release metadata
+      # 10. 准备与重命名产物
+      - name: Prepare APKs
         id: meta
         run: |
           RAW_BRANCH="${GITHUB_REF_NAME}"
-          # 将分支名中的 "/" 替换为 "_"，例如 arena/01a004f0-qorange -> arena_01a004f0-qorange
           SAFE_BRANCH=$(echo "${RAW_BRANCH}" | sed 's/\//_/g')
+          OUTPUT_DIR="build/app/outputs/flutter-apk"
           
-          APK_NAME="qorange-${SAFE_BRANCH}.apk"
-          cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/${APK_NAME}"
-          
-          # 输出变量供后续步骤使用
-          echo "safe_branch=${SAFE_BRANCH}" >> $GITHUB_OUTPUT
-          echo "apk_name=${APK_NAME}" >> $GITHUB_OUTPUT
+          if [ -f "$OUTPUT_DIR/app-arm64-v8a-release.apk" ]; then
+            cp "$OUTPUT_DIR/app-arm64-v8a-release.apk" "$OUTPUT_DIR/qorange-${SAFE_BRANCH}-arm64-v8a.apk"
+          fi
+          if [ -f "$OUTPUT_DIR/app-armeabi-v7a-release.apk" ]; then
+            cp "$OUTPUT_DIR/app-armeabi-v7a-release.apk" "$OUTPUT_DIR/qorange-${SAFE_BRANCH}-armeabi-v7a.apk"
+          fi
+          if [ -f "$OUTPUT_DIR/app-x86_64-release.apk" ]; then
+            cp "$OUTPUT_DIR/app-x86_64-release.apk" "$OUTPUT_DIR/qorange-${SAFE_BRANCH}-x86_64.apk"
+          fi
 
-      # 9. 上传到当前分支的 Actions Artifacts
-      - name: Upload Artifact
+          echo "safe_branch=${SAFE_BRANCH}" >> $GITHUB_OUTPUT
+
+      # 11. 上传 Artifacts 备份
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: qorange-${{ steps.meta.outputs.safe_branch }}
-          path: build/app/outputs/flutter-apk/${{ steps.meta.outputs.apk_name }}
+          name: qorange-${{ steps.meta.outputs.safe_branch }}-apks
+          path: build/app/outputs/flutter-apk/qorange-${{ steps.meta.outputs.safe_branch }}-*.apk
 
-      # 10. 发布到 GitHub Releases（不同分支独立 Release）
-      - name: Create or Update Branch Release
-        uses: softprops/action-gh-release@v2
-        with:
-          # Tag 命名：每个分支对应独立的 Tag（如 release-main、release-arena_01a004f0-qorange）
-          tag_name: release-${{ steps.meta.outputs.safe_branch }}
-          target_commitish: ${{ github.sha }}
-          name: "Release [${{ github.ref_name }}]"
-          body: |
-            ### 构建信息
-            - **分支**: `${{ github.ref_name }}`
-            - **Commit**: `${{ github.sha }}`
-            - **构建时间**: ${{ github.event.head_commit.timestamp || 'Manual Trigger' }}
-          prerelease: ${{ github.ref_name != 'main' }} # 非 main 分支自动标记为 Pre-release
-          make_latest: ${{ github.ref_name == 'main' }} # 只有 main 分支才作为正式 Latest
-          files: |
-            build/app/outputs/flutter-apk/${{ steps.meta.outputs.apk_name }}
+      # 12. 发布到 GitHub Releases（官方原生 CLI 修正版）
+      - name: Publish Release via GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SAFE_BRANCH="${{ steps.meta.outputs.safe_branch }}"
+          TAG_NAME="release-${SAFE_BRANCH}"
+          TITLE="Release [${{ github.ref_name }}]"
+          
+          BODY="### 构建信息
+          - **分支**: \`${{ github.ref_name }}\`
+          - **Commit**: \`${{ github.sha }}\`
+          - **构建时间**: $(date '+%Y-%m-%d %H:%M:%S')
+          
+          ### 架构下载建议：
+          - **arm64-v8a**: 推荐大多数现代安卓手机下载（体积最小）
+          - **armeabi-v7a**: 适用于老旧 32 位手机
+          - **x86_64**: 适用于电脑模拟器"
+
+          echo "Publishing release for tag: $TAG_NAME ..."
+
+          # 检查 Release 是否已存在
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME exists. Updating release info and assets..."
+            gh release edit "$TAG_NAME" --title "$TITLE" --notes "$BODY" --target "${{ github.sha }}"
+            gh release upload "$TAG_NAME" build/app/outputs/flutter-apk/qorange-${SAFE_BRANCH}-*.apk --clobber
+          else
+            echo "Creating new release $TAG_NAME..."
+            # 🌟 修复：创建时去除 --clobber 参数
+            gh release create "$TAG_NAME" build/app/outputs/flutter-apk/qorange-${SAFE_BRANCH}-*.apk \
+              --title "$TITLE" \
+              --notes "$BODY" \
+              --target "${{ github.sha }}" \
+              --prerelease
+          fi
+      # 13. 打包发布成功后，精准提取 pubspec.yaml 版本号写入 MongoDB
+      - name: Sync Release to MongoDB
+        run: |
+          SAFE_BRANCH="${{ steps.meta.outputs.safe_branch }}"
+          APK_URL="https://github.com/ynadtiy19/qorange/releases/download/release-${SAFE_BRANCH}/qorange-${SAFE_BRANCH}-arm64-v8a.apk"
+          
+          # 🌟 核心修复：精准正则提取，100% 免疫缩进空格与换行符干扰
+          RAW_VERSION=$(grep -E '^\s*version:' pubspec.yaml | head -n1 | sed -E 's/^\s*version:\s*//' | tr -d '\r' | tr -d ' ')
+          
+          # 提取纯版本号 (如 1.9.0)
+          APP_VERSION=$(echo "$RAW_VERSION" | cut -d '+' -f1)
+          
+          # 提取构建号 (如 2)
+          BUILD_NUMBER=$(echo "$RAW_VERSION" | cut -s -d '+' -f2)
+          
+          # 兜底：如果没写加号构建号，自动使用流水线号
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER="${{ github.run_number }}"
+          fi
+
+          # 提取最后一次提交说明
+          COMMIT_MSG=$(git log -1 --pretty=%B | tr '\n' ' ' | sed 's/"/\\"/g')
+          if [ -z "$COMMIT_MSG" ]; then
+            COMMIT_MSG="升级至 v${APP_VERSION}，优化系统稳定性"
+          fi
+          
+          echo "=== 解析版本信息 ==="
+          echo "APP_VERSION: $APP_VERSION"
+          echo "BUILD_NUMBER: $BUILD_NUMBER"
+          echo "TAG_NAME: v$APP_VERSION"
+          echo "==================="
+          
+          # 同步至后端 MongoDB
+          curl -s -X POST "https://googlechat.zeabur.app/api/publish-release" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"secret\": \"qorange_ci_secret_2026\",
+              \"branch\": \"${{ github.ref_name }}\",
+              \"commit_sha\": \"${{ github.sha }}\",
+              \"tag_name\": \"v${APP_VERSION}\",
+              \"version\": \"${APP_VERSION}\",
+              \"build_number\": ${BUILD_NUMBER},
+              \"changelog\": \"$COMMIT_MSG\",
+              \"download_url\": \"${APK_URL}\",
+              \"arch\": \"arm64-v8a\"
+            }"

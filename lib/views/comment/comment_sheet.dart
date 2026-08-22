@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
+import 'package:qorange/theme.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../user_controller.dart';
@@ -20,7 +21,7 @@ class _CommentSheetState extends State<CommentSheet> {
   bool _isLoading = true;
   String? _parentCommentId;
   String? _replyToUserId;
-  String _hintText = "写下你的高见...";
+  String _hintText = 'comment_hint'.tr;
 
   @override
   void initState() {
@@ -50,7 +51,7 @@ class _CommentSheetState extends State<CommentSheet> {
 
   Future<void> _submitComment() async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: "请登录后评论");
+      Fluttertoast.showToast(msg: 'login_to_comment'.tr);
       return;
     }
     if (_commentController.text.trim().isEmpty) {
@@ -66,12 +67,12 @@ class _CommentSheetState extends State<CommentSheet> {
 
       final res = await HttpClient.instance.post('/api-posts/${widget.postId}/comments', data: body);
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "评论已同步");
+        Fluttertoast.showToast(msg: 'comment_posted'.tr);
         _commentController.clear();
         setState(() {
           _parentCommentId = null;
           _replyToUserId = null;
-          _hintText = "写下你的高见...";
+          _hintText = 'comment_hint'.tr;
         });
         _loadComments();
       }
@@ -79,7 +80,7 @@ class _CommentSheetState extends State<CommentSheet> {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "发布评论异常");
+        Fluttertoast.showToast(msg: 'comment_post_failed'.tr);
       }
     }
   }
@@ -88,17 +89,16 @@ class _CommentSheetState extends State<CommentSheet> {
     setState(() {
       _parentCommentId = parentId ?? comment['id'];
       _replyToUserId = comment['author']['id'];
-      _hintText = "回复 @${comment['author']['nickname']}:";
+      _hintText = 'reply_to_user_colon'.trParams({'nickname': '${comment['author']['nickname']}'});
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     return Container(
       height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -106,14 +106,14 @@ class _CommentSheetState extends State<CommentSheet> {
           Container(
             height: 50,
             alignment: Alignment.center,
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
-            child: const Text("全部高能讨论", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.divider))),
+            child: Text('all_discussions'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
           Expanded(
             child: _isLoading
                 ? Center(child: CircularProgressIndicator(color: themeColor))
                 : _comments.isEmpty
-                ? const Center(child: Text("暂无讨论，快来抢沙发"))
+                ? Center(child: Text('no_comments_be_first'.tr))
                 : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _comments.length,
@@ -130,16 +130,16 @@ class _CommentSheetState extends State<CommentSheet> {
               left: 16,
               right: 16,
             ),
-            decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey.shade100))),
+            decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.divider))),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
-                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(20)),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: TextField(
                       controller: _commentController,
-                      decoration: InputDecoration(hintText: _hintText, border: InputBorder.none, hintStyle: TextStyle(color: Colors.grey.shade400)),
+                      decoration: InputDecoration(hintText: _hintText, border: InputBorder.none, hintStyle: TextStyle(color: AppColors.textHint)),
                     ),
                   ),
                 ),
@@ -173,14 +173,14 @@ class _CommentSheetState extends State<CommentSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(author['nickname'] ?? '用户', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    Text(author['nickname'] ?? 'user'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     const SizedBox(height: 4),
                     RichText(
                       text: TextSpan(
-                        style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 13, height: 1.4),
                         children: [
                           if (comment['reply_to_user'] != null) ...[
-                            const TextSpan(text: "回复 "),
+                            TextSpan(text: 'reply_prefix'.tr),
                             TextSpan(
                               text: "@${comment['reply_to_user']['nickname']} ",
                               style: TextStyle(color: themeColor, fontWeight: FontWeight.bold),
@@ -195,12 +195,12 @@ class _CommentSheetState extends State<CommentSheet> {
                       children: [
                         Text(
                           comment['created_at'] != null ? comment['created_at'].toString().substring(11, 16) : '',
-                          style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                          style: TextStyle(fontSize: 10, color: AppColors.textHint),
                         ),
                         const SizedBox(width: 16),
                         GestureDetector(
                           onTap: () => _prepareReply(comment, isParent ? comment['id'] : comment['parent_comment_id']),
-                          child: const Text("回复", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                          child: Text('reply'.tr, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
                         ),
                       ],
                     ),

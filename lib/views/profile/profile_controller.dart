@@ -38,12 +38,12 @@ class ProfileController extends GetxController {
       // 4. 清除 UserController 用户信息全局缓存
       await UserController.to.clearUserInfo();
 
-      Fluttertoast.showToast(msg: "已退出登录");
+      Fluttertoast.showToast(msg: 'logged_out'.tr);
 
       // 5. 路由处理：回到主页
       Get.offAll(() => const MainNavView(), transition: Transition.fadeIn);
     } catch (e) {
-      Fluttertoast.showToast(msg: "退出登录失败，请重试");
+      Fluttertoast.showToast(msg: 'logout_failed_retry'.tr);
     } finally {
       isLoggingOut.value = false;
     }

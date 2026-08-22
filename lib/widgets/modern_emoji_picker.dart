@@ -1,8 +1,10 @@
+// lib/widgets/modern_emoji_picker.dart
 import 'dart:convert';
-import 'dart:ui';
-import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:qorange/theme.dart';
 
 /// 表情数据模型
 class EmojiItem {
@@ -14,9 +16,9 @@ class EmojiItem {
 
   factory EmojiItem.fromJson(Map<String, dynamic> json) {
     return EmojiItem(
-      emoji: json['emoji'] ?? '',
-      name: json['name'] ?? '',
-      slug: json['slug'] ?? '',
+      emoji: json['emoji']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      slug: json['slug']?.toString() ?? '',
     );
   }
 }
@@ -29,33 +31,39 @@ class EmojiCategory {
   EmojiCategory({required this.name, required this.slug, required this.emojis});
 
   factory EmojiCategory.fromJson(Map<String, dynamic> json) {
-    var list = json['emojis'] as List? ?? [];
-    List<EmojiItem> emojiList = list.map((e) => EmojiItem.fromJson(e)).toList();
+    final list = json['emojis'] as List? ?? [];
+    final List<EmojiItem> emojiList =
+    list.map((e) => EmojiItem.fromJson(e as Map<String, dynamic>)).toList();
     return EmojiCategory(
-      name: json['name'] ?? '',
-      slug: json['slug'] ?? '',
+      name: json['name']?.toString() ?? '',
+      slug: json['slug']?.toString() ?? '',
       emojis: emojiList,
     );
   }
 }
 
-/// 高颜值交互表情选择器
+/// 高颜值交互表情选择器（支持搜索时自适应横向两排流式候选与全屏浏览）
 class ModernEmojiPicker extends StatefulWidget {
   final Function(String emoji) onEmojiSelected;
+  final VoidCallback? onBackspacePressed;
 
-  const ModernEmojiPicker({super.key, required this.onEmojiSelected});
+  const ModernEmojiPicker({
+    super.key,
+    required this.onEmojiSelected,
+    this.onBackspacePressed,
+  });
 
   @override
   State<ModernEmojiPicker> createState() => _ModernEmojiPickerState();
 }
 
-class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTickerProviderStateMixin {
+class _ModernEmojiPickerState extends State<ModernEmojiPicker>
+    with SingleTickerProviderStateMixin {
   List<EmojiCategory> _categories = [];
   Map<String, dynamic> _keywordsMap = {};
   List<String> _recentEmojis = [];
   bool _isLoading = true;
 
-  // 搜索与分类控制
   late PageController _pageController;
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
@@ -63,13 +71,10 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
   List<EmojiItem> _searchResults = [];
   bool _isSearching = false;
 
-  // 配色定义 (经典森系复古绿美学)
-  final Color _primaryColor = const Color(0xFF2D6A4F); // 经典桉树深绿
-  final Color _accentColor = const Color(0xFF74C69D); // 柔和鼠尾草浅绿
-  final Color _backgroundColor = const Color(0xFFF4F9F5); // 极淡暖绿白底色
-  final Color _slateGrey = const Color(0xFF64748B); // 温暖石板灰字色
-  final Color _lightSlateGrey = const Color(0xFF94A3B8); // 辅助浅字色
-  final Color _emptyStateIconColor = const Color(0xFFCBD5E1); // 空状态图标灰色
+  Color get _primaryColor => AppColors.primary;
+  Color get _backgroundColor => AppColors.background;
+  Color get _slateGrey => AppColors.textPrimary;
+  Color get _lightSlateGrey => AppColors.textHint;
 
   @override
   void initState() {
@@ -87,270 +92,329 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
     super.dispose();
   }
 
-  /// 异步加载资产文件与最近常用
   Future<void> _loadData() async {
     try {
-      // 1. 加载分类文件
-      String categoriesStr = await rootBundle.loadString('assets/emojis-by-group.json');
-      List<dynamic> categoriesJson = jsonDecode(categoriesStr);
-      List<EmojiCategory> loadedCategories = categoriesJson.map((e) => EmojiCategory.fromJson(e)).toList();
+      final String categoriesStr =
+      await rootBundle.loadString('assets/emojis-by-group.json');
+      final List<dynamic> categoriesJson = jsonDecode(categoriesStr);
+      final List<EmojiCategory> loadedCategories = categoriesJson
+          .map((e) => EmojiCategory.fromJson(e as Map<String, dynamic>))
+          .toList();
 
-      // 2. 加载搜索关键词文件
-      String keywordsStr = await rootBundle.loadString('assets/emoji-keywords.json');
-      _keywordsMap = jsonDecode(keywordsStr);
+      final String keywordsStr =
+      await rootBundle.loadString('assets/emoji-keywords.json');
+      _keywordsMap = jsonDecode(keywordsStr) as Map<String, dynamic>;
 
-      // 3. 读取最近使用的表情
       final prefs = await SharedPreferences.getInstance();
       _recentEmojis = prefs.getStringList('recent_emojis') ?? [];
 
-      setState(() {
-        _categories = loadedCategories;
-        // 初始化 TabController (分类数 + 1个最近常用)
-        _tabController = TabController(length: _categories.length + 1, vsync: this);
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _categories = loadedCategories;
+          _tabController =
+              TabController(length: _categories.length + 1, vsync: this);
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      debugPrint("加载表情数据失败: $e");
+      debugPrint('加载表情数据失败: $e');
     }
   }
 
-  /// 保存常用表情逻辑
   Future<void> _saveRecentEmoji(String emoji) async {
     if (_recentEmojis.contains(emoji)) {
       _recentEmojis.remove(emoji);
     }
     _recentEmojis.insert(0, emoji);
     if (_recentEmojis.length > 28) {
-      _recentEmojis = _recentEmojis.sublist(0, 28); // 最多保留28个（大约4行）
+      _recentEmojis = _recentEmojis.sublist(0, 28);
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('recent_emojis', _recentEmojis);
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
-  /// 搜索本地过滤
   void _onSearchChanged(String query) {
-    if (query.trim().isEmpty) {
-      setState(() {
-        _isSearching = false;
-        _searchResults = [];
-      });
+    final cleanQuery = query.trim().toLowerCase();
+    if (cleanQuery.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+          _searchResults = [];
+        });
+      }
       return;
     }
 
-    List<EmojiItem> results = [];
-    String lowerQuery = query.toLowerCase();
+    final List<EmojiItem> results = [];
 
-    // 结合名字、slug 以及本地关联的关键字进行搜索
-    for (var category in _categories) {
-      for (var emojiItem in category.emojis) {
-        bool matchesName = emojiItem.name.toLowerCase().contains(lowerQuery);
-        bool matchesSlug = emojiItem.slug.toLowerCase().contains(lowerQuery);
+    for (final category in _categories) {
+      for (final emojiItem in category.emojis) {
+        final nameLower = emojiItem.name.toLowerCase();
+        final slugLower = emojiItem.slug.toLowerCase();
+        bool matches =
+            nameLower.contains(cleanQuery) || slugLower.contains(cleanQuery);
 
-        // 匹配关联关键字
-        bool matchesKeywords = false;
-        List<dynamic>? keywords = _keywordsMap[emojiItem.emoji];
-        if (keywords != null) {
-          matchesKeywords = keywords.any((kw) => kw.toString().toLowerCase().contains(lowerQuery));
+        if (!matches && _keywordsMap.containsKey(emojiItem.emoji)) {
+          final dynamic kw = _keywordsMap[emojiItem.emoji];
+          if (kw is List) {
+            matches = kw.any((k) =>
+                k.toString().toLowerCase().contains(cleanQuery));
+          } else if (kw is String) {
+            matches = kw.toLowerCase().contains(cleanQuery);
+          }
         }
 
-        if (matchesName || matchesSlug || matchesKeywords) {
-          if (!results.any((element) => element.emoji == emojiItem.emoji)) {
-            results.add(emojiItem);
-          }
+        if (matches && !results.any((e) => e.emoji == emojiItem.emoji)) {
+          results.add(emojiItem);
         }
       }
     }
 
-    setState(() {
-      _isSearching = true;
-      _searchResults = results;
-    });
+    if (mounted) {
+      setState(() {
+        _isSearching = true;
+        _searchResults = results;
+      });
+    }
+  }
+
+  /// 🌟 搜索状态下：横向单行平滑滚动的表情候选栏
+  Widget _buildHorizontalSearchResults() {
+    if (_searchResults.isEmpty) {
+      return Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.centerLeft,
+        child: Row(
+          children: [
+            Icon(Icons.sentiment_dissatisfied_rounded,
+                size: 18, color: _lightSlateGrey),
+            const SizedBox(width: 8),
+            Text(
+              'no_emoji_found'.tr,
+              style: TextStyle(color: _lightSlateGrey, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      height: 54,
+      color: _backgroundColor,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        itemCount: _searchResults.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final item = _searchResults[index];
+          return Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: _EmojiButton(
+              emojiItem: item,
+              onTap: (emoji) {
+                HapticFeedback.selectionClick();
+                widget.onEmojiSelected(emoji);
+                _saveRecentEmoji(emoji);
+              },
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Container(
-        height: 380,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: _backgroundColor,
+        child: Center(
+          child: CircularProgressIndicator(
+            color: _primaryColor,
+            strokeWidth: 2.5,
+          ),
         ),
-        child: Center(child: CircularProgressIndicator(color: _primaryColor)),
       );
     }
 
-    // 获取当前软键盘的高度
-    final double keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final double keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return AnimatedPadding(
-      padding: EdgeInsets.only(bottom: keyboardHeight),
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOutQuad,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), // 增强的高级毛玻璃模糊度
-        child: Container(
-          height: 410,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.90), // 微透乳绿暖白
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: _primaryColor.withOpacity(0.04),
-                blurRadius: 20,
-                offset: const Offset(0, -5),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
+    return Container(color: AppColors.surface,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 第一排：搜索框与退格键组合条
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+            child: Row(
               children: [
-                // 1. 顶部精致拖拽把手
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  width: 36,
-                  height: 4.5,
-                  decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(2.25),
-                  ),
-                ),
-
-                // 2. 交互式现代搜索框设计
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                Expanded(
                   child: Container(
-                    height: 42,
+                    height: 38,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: _searchFocusNode.hasFocus
-                          ? Colors.white
-                          : _primaryColor.withOpacity(0.03),
-                      borderRadius: BorderRadius.circular(14),
+                      color: AppColors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: _searchFocusNode.hasFocus
-                            ? _accentColor.withOpacity(0.7)
-                            : Colors.transparent,
-                        width: 1.5,
+                            ? _primaryColor.withOpacity(0.5)
+                            : AppColors.divider,
+                        width: 1.0,
                       ),
-                      boxShadow: _searchFocusNode.hasFocus
-                          ? [
-                        BoxShadow(
-                          color: _primaryColor.withOpacity(0.06),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        )
-                      ]
-                          : [],
                     ),
                     child: TextField(
                       controller: _searchController,
                       focusNode: _searchFocusNode,
+                      textAlignVertical: TextAlignVertical.center,
                       onChanged: _onSearchChanged,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _slateGrey),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _slateGrey,
+                      ),
                       decoration: InputDecoration(
-                        hintText: "搜索你想要的表情...",
+                        isDense: true,
+                        hintText: 'search_emoji_hint'.tr,
                         hintStyle: TextStyle(
                           color: _lightSlateGrey.withOpacity(0.8),
-                          fontSize: 13,
+                          fontSize: 12,
                         ),
                         prefixIcon: Icon(
                           Icons.search_rounded,
-                          color: _searchFocusNode.hasFocus ? _primaryColor : _lightSlateGrey,
-                          size: 20,
+                          color: _searchFocusNode.hasFocus
+                              ? _primaryColor
+                              : _lightSlateGrey,
+                          size: 18,
+                        ),
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
                         ),
                         suffixIcon: _searchController.text.isNotEmpty
                             ? GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () {
                             _searchController.clear();
-                            _onSearchChanged("");
+                            _onSearchChanged('');
                           },
                           child: Icon(
                             Icons.cancel_rounded,
                             color: _lightSlateGrey,
-                            size: 18,
+                            size: 16,
                           ),
                         )
                             : null,
+                        suffixIconConstraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 10),
-                const Divider(height: 1, color: Color(0xFFE6F0EA)),
-
-                // 3. 主体内容展示区域
-                Expanded(
-                  child: Container(
-                    color: _backgroundColor,
-                    child: _isSearching
-                        ? (_searchResults.isEmpty ? _buildEmptySearchState() : _buildGrid(_searchResults))
-                        : _buildPageView(),
-                  ),
-                ),
-
-                // 4. 底部联动胶囊导航栏
-                if (!_isSearching) ...[
-                  const Divider(height: 1, color: Color(0xFFE6F0EA)),
-                  Container(
-                    color: Colors.white,
-                    height: 52,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: TabBar(
-                      controller: _tabController,
-                      isScrollable: true,
-                      physics: const BouncingScrollPhysics(),
-                      // 胶囊式背景指示器
-                      indicator: BoxDecoration(
-                        color: _primaryColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(100),
+                if (widget.onBackspacePressed != null) ...[
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      widget.onBackspacePressed!();
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: 42,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.divider),
                       ),
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      labelColor: _primaryColor,
-                      unselectedLabelColor: _lightSlateGrey,
-                      onTap: (index) {
-                        _pageController.animateToPage(
-                          index,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOutCubic,
-                        );
-                      },
-                      tabs: [
-                        const Tab(
-                          height: 36,
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8.0),
-                            child: Icon(Icons.history_rounded, size: 20),
-                          ),
-                        ), // 最近常用
-                        ..._categories.map((cat) => Tab(
-                          height: 36,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                            child: Text(
-                              _getCategoryEmoji(cat.slug),
-                              style: const TextStyle(fontSize: 18, fontFamily: 'Apple Color Emoji'),
-                            ),
-                          ),
-                        )),
-                      ],
+                      child: Icon(
+                        Icons.backspace_outlined,
+                        color: _slateGrey,
+                        size: 17,
+                      ),
                     ),
                   ),
                 ],
               ],
             ),
           ),
-        ),
+          Divider(height: 1, color: AppColors.surfaceAlt),
+
+          // 🌟 核心切换：搜索状态下仅展示两排（横向候选条）；非搜索状态展示完整多分类网格
+          if (_isSearching)
+            _buildHorizontalSearchResults()
+          else ...[
+            Expanded(
+              child: Container(
+                color: _backgroundColor,
+                child: _buildPageView(),
+              ),
+            ),
+            Divider(height: 1, color: AppColors.surfaceAlt),
+            Container(color: AppColors.surface,
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                physics: const BouncingScrollPhysics(),
+                tabAlignment: TabAlignment.start,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicator: BoxDecoration(
+                  color: _primaryColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                labelColor: _primaryColor,
+                unselectedLabelColor: _lightSlateGrey,
+                dividerColor: Colors.transparent,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                onTap: (index) {
+                  _pageController.animateToPage(
+                    index,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeInOutCubic,
+                  );
+                },
+                tabs: [
+                  const Tab(
+                    height: 32,
+                    child: Icon(Icons.history_rounded, size: 18),
+                  ),
+                  ..._categories.map((cat) => Tab(
+                    height: 32,
+                    child: Text(
+                      _getCategoryEmoji(cat.slug),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontFamily: 'Apple Color Emoji',
+                      ),
+                    ),
+                  )),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 
-  /// 页面左右滑动承载器
   Widget _buildPageView() {
     return PageView.builder(
       controller: _pageController,
@@ -360,41 +424,46 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
       itemCount: _categories.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
-          // 最近常用虚拟页
           if (_recentEmojis.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history_rounded, size: 40, color: _emptyStateIconColor),
-                  const SizedBox(height: 8),
+                  Icon(Icons.history_rounded, size: 36, color: _lightSlateGrey),
+                  const SizedBox(height: 6),
                   Text(
-                    "暂无最近使用的表情",
-                    style: TextStyle(color: _lightSlateGrey, fontSize: 13, fontWeight: FontWeight.w500),
+                    'no_recent_emoji'.tr,
+                    style: TextStyle(
+                      color: _lightSlateGrey,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
             );
           }
-          return _buildGrid(_recentEmojis.map((e) => EmojiItem(emoji: e, name: '', slug: '')).toList());
+          return _buildGrid(
+            _recentEmojis
+                .map((e) => EmojiItem(emoji: e, name: '', slug: ''))
+                .toList(),
+          );
         } else {
-          // 常规分类页
-          var category = _categories[index - 1];
+          final category = _categories[index - 1];
           return _buildGrid(category.emojis);
         }
       },
     );
   }
 
-  /// 统一的表情网格布局
   Widget _buildGrid(List<EmojiItem> emojis) {
     return GridView.builder(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7, // 每行7个表情，黄金间距
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 10,
+        crossAxisCount: 7,
+        crossAxisSpacing: 6,
+        mainAxisSpacing: 6,
         childAspectRatio: 1.0,
       ),
       itemCount: emojis.length,
@@ -402,7 +471,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
         return _EmojiButton(
           emojiItem: emojis[index],
           onTap: (emoji) {
-            HapticFeedback.lightImpact(); // 轻微震动交互回馈
+            HapticFeedback.selectionClick();
             widget.onEmojiSelected(emoji);
             _saveRecentEmoji(emoji);
           },
@@ -411,36 +480,6 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
     );
   }
 
-  /// 搜索无结果时的空状态设计
-  Widget _buildEmptySearchState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off_rounded, size: 48, color: _emptyStateIconColor),
-          const SizedBox(height: 8),
-          Text(
-            "未找到相关表情",
-            style: TextStyle(
-              color: _slateGrey,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "试着换个词搜搜看吧",
-            style: TextStyle(
-              color: _lightSlateGrey,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 依据大类 slug 匹配直观的展示表情符号
   String _getCategoryEmoji(String slug) {
     switch (slug) {
       case 'smileys_people':
@@ -465,7 +504,6 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker> with SingleTicker
   }
 }
 
-/// 单个表情弹性缩放动画微交互按钮
 class _EmojiButton extends StatefulWidget {
   final EmojiItem emojiItem;
   final Function(String emoji) onTap;
@@ -476,7 +514,8 @@ class _EmojiButton extends StatefulWidget {
   State<_EmojiButton> createState() => _EmojiButtonState();
 }
 
-class _EmojiButtonState extends State<_EmojiButton> with SingleTickerProviderStateMixin {
+class _EmojiButtonState extends State<_EmojiButton>
+    with SingleTickerProviderStateMixin {
   double _scale = 1.0;
   late AnimationController _controller;
 
@@ -485,9 +524,9 @@ class _EmojiButtonState extends State<_EmojiButton> with SingleTickerProviderSta
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 90),
+      duration: const Duration(milliseconds: 70),
       lowerBound: 0.0,
-      upperBound: 0.16, // 轻微缩放增强打击感
+      upperBound: 0.18,
     )..addListener(() {
       setState(() {
         _scale = 1.0 - _controller.value;
@@ -516,12 +555,12 @@ class _EmojiButtonState extends State<_EmojiButton> with SingleTickerProviderSta
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
             widget.emojiItem.emoji,
             style: const TextStyle(
-              fontSize: 28, // 放大字号更易看清
+              fontSize: 26,
               fontFamily: 'Apple Color Emoji',
             ),
           ),

@@ -1,11 +1,16 @@
 // lib/views/search/search_view.dart
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 🌟 引入共享首选项用于本地游客数据持久化
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:qorange/theme.dart';
+
+import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
-import '../../user_controller.dart'; // 🌟 引入用户状态管理器
+import '../../user_controller.dart';
 import '../post_detail/post_detail_view.dart';
+import '../profile/profile_view.dart';
 
 class SearchView extends StatefulWidget {
   const SearchView({super.key});
@@ -14,27 +19,51 @@ class SearchView extends StatefulWidget {
   State<SearchView> createState() => _SearchViewState();
 }
 
-class _SearchViewState extends State<SearchView> with SingleTickerProviderStateMixin {
+class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
-  // 动画控制器，用于舒适的页面初始化入场动效
   late AnimationController _animationController;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
+  late TabController _tabController;
 
-  List<dynamic> _searchResults = [];
+  // 帖子搜索状态与分页
+  final List<dynamic> _postResults = [];
+  int _postPage = 1;
+  final int _postPageSize = 15;
+  bool _hasMorePosts = true;
+  bool _isLoadingPosts = false;
+  bool _isLoadingMorePosts = false;
+
+  // 用户搜索状态与分页
+  final List<dynamic> _userResults = [];
+  int _userPage = 1;
+  final int _userPageSize = 15;
+  bool _hasMoreUsers = true;
+  bool _isLoadingUsers = false;
+  bool _isLoadingMoreUsers = false;
+
   List<String> _searchHistory = [];
   final List<String> _trendingTags = [];
 
-  bool _isSearching = false;
+  List<String> get _defaultSearchHistory => [
+    'default_search_1'.tr,
+    'default_search_2'.tr,
+    'default_search_3'.tr,
+    'default_search_4'.tr,
+    'default_search_5'.tr,
+  ];
+
   bool _hasSearched = false;
+  String _currentKeyword = '';
+
+  Color get _primaryColor => AppColors.primary;
 
   @override
   void initState() {
     super.initState();
 
-    // 初始化入场精细物理微动作动画
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -51,21 +80,20 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
       curve: Curves.easeIn,
     );
 
-    // 监听输入框焦点变动，实时驱动微动效边框与柔和微光阴影
+    _tabController = TabController(length: 2, vsync: this);
+
     _focusNode.addListener(() {
       setState(() {});
     });
 
     _loadSearchTrends();
 
-    // 自动聚焦搜索框以提供更舒适的入场微动作
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) {
         _focusNode.requestFocus();
       }
     });
 
-    // 启动动画入场
     _animationController.forward();
   }
 
@@ -74,10 +102,10 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
     _searchController.dispose();
     _focusNode.dispose();
     _animationController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
-  // 自适应加载历史搜索：用户走网络云同步，游客走本地磁盘持久化
   Future<void> _loadSearchTrends() async {
     final bool isLoggedIn = UserController.to.isLoggedIn;
 
@@ -87,8 +115,10 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
           '/api-posts/search-trends',
         );
         if (res.datas != null) {
-          final List<dynamic> history = res.datas!['search_history'] as List? ?? [];
-          final List<dynamic> trends = res.datas!['trending_tags'] as List? ?? [];
+          final List<dynamic> history =
+              res.datas!['search_history'] as List? ?? [];
+          final List<dynamic> trends =
+              res.datas!['trending_tags'] as List? ?? [];
           setState(() {
             _searchHistory = history.cast<String>();
             _trendingTags.clear();
@@ -96,48 +126,40 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
           });
           return;
         }
-      } catch (e) {
-        // 网络请求故障，安全降级到本地加载
-      }
+      } catch (_) {}
     }
 
-    // 游客模式或网络故障：读取本地设备磁盘数据
     await _loadLocalHistory();
   }
 
-  // 游客模式加载设备本地历史记录
   Future<void> _loadLocalHistory() async {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final List<String>? localHistory = prefs.getStringList('guest_search_history');
+      final List<String>? localHistory =
+      prefs.getStringList('guest_search_history');
       setState(() {
-        _searchHistory = localHistory ?? ["学术", "说说", "投票", "设计", "青橙"];
+        _searchHistory = localHistory ?? _defaultSearchHistory;
       });
     } catch (_) {
       setState(() {
-        _searchHistory = ["学术", "说说", "投票", "设计", "青橙"];
+        _searchHistory = _defaultSearchHistory;
       });
     }
   }
 
-  // 游客模式写入/重排本地历史数据
   Future<void> _saveLocalHistory(String keyword) async {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-
-      // 先移出已有重合，重新压入首部实现 LRU 时效重拍
       _searchHistory.remove(keyword);
       _searchHistory.insert(0, keyword);
       if (_searchHistory.length > 8) {
         _searchHistory.removeLast();
       }
-
       await prefs.setStringList('guest_search_history', _searchHistory);
       setState(() {});
     } catch (_) {}
   }
 
-  // 🌟 清空搜索历史（自适应处理）
   Future<void> _clearHistory() async {
     setState(() {
       _searchHistory.clear();
@@ -150,33 +172,35 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
         await prefs.remove('guest_search_history');
       } catch (_) {}
     } else {
-      // 🌟 登录用户：发起 DELETE 请求，清除云端的搜索历史记录
       try {
-        await HttpClient.instance.delete(
-          '/api-posts/search-trends',
-        );
-      } catch (_) {
-        // 容错捕获
-      }
+        await HttpClient.instance.delete('/api-posts/search-trends');
+      } catch (_) {}
     }
   }
 
-  // 执行搜索并与后端对齐强检索约束逻辑
+  // 🌟 统一触发搜索：并发开启帖子与用户的第 1 页拉取
   Future<void> _performSearch(String keyword) async {
     final trimmed = keyword.trim();
     if (trimmed.isEmpty) return;
 
     _searchController.text = trimmed;
+    _currentKeyword = trimmed;
     _focusNode.unfocus();
 
     setState(() {
-      _isSearching = true;
       _hasSearched = true;
+      _postPage = 1;
+      _userPage = 1;
+      _hasMorePosts = true;
+      _hasMoreUsers = true;
+      _postResults.clear();
+      _userResults.clear();
+      _isLoadingPosts = true;
+      _isLoadingUsers = true;
     });
 
     final bool isLoggedIn = UserController.to.isLoggedIn;
     if (isLoggedIn) {
-      // 登录用户：更新内存历史（后端会在请求 api-posts 自动完成云同步记录）
       if (!_searchHistory.contains(trimmed)) {
         setState(() {
           _searchHistory.insert(0, trimmed);
@@ -186,43 +210,157 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
         });
       }
     } else {
-      // 游客用户：调用 SharedPreferences 本地落盘
       await _saveLocalHistory(trimmed);
+    }
+
+    await Future.wait([
+      _fetchPosts(isRefresh: true),
+      _fetchUsers(isRefresh: true),
+    ]);
+  }
+
+  // 🌟 帖子分页加载
+  Future<void> _fetchPosts({bool isRefresh = false}) async {
+    if (_currentKeyword.isEmpty) return;
+    if (!isRefresh && (!_hasMorePosts || _isLoadingMorePosts)) return;
+
+    if (isRefresh) {
+      _postPage = 1;
+      _hasMorePosts = true;
+      setState(() => _isLoadingPosts = true);
+    } else {
+      setState(() => _isLoadingMorePosts = true);
     }
 
     try {
       final res = await HttpClient.instance.get<Map<String, dynamic>>(
         '/api-posts',
         queryParameters: {
-          'keyword': trimmed,
-          'page': 1,
-          'pageSize': 50, // 约束搜集下尽可能全量拉取
+          'keyword': _currentKeyword,
+          'page': _postPage,
+          'pageSize': _postPageSize,
         },
       );
+
       if (res.datas != null) {
         final List<dynamic> posts = res.datas!['posts'] as List? ?? [];
         setState(() {
-          _searchResults = posts;
-          _isSearching = false;
+          if (isRefresh) {
+            _postResults.assignAll(posts);
+          } else {
+            _postResults.addAll(posts);
+          }
+          _hasMorePosts = posts.length >= _postPageSize;
+          if (_hasMorePosts) _postPage++;
         });
-      } else {
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) {
         setState(() {
-          _searchResults = [];
-          _isSearching = false;
+          _isLoadingPosts = false;
+          _isLoadingMorePosts = false;
+        });
+      }
+    }
+  }
+
+  // 🌟 用户分页加载
+  Future<void> _fetchUsers({bool isRefresh = false}) async {
+    if (_currentKeyword.isEmpty) return;
+    if (!isRefresh && (!_hasMoreUsers || _isLoadingMoreUsers)) return;
+
+    if (isRefresh) {
+      _userPage = 1;
+      _hasMoreUsers = true;
+      setState(() => _isLoadingUsers = true);
+    } else {
+      setState(() => _isLoadingMoreUsers = true);
+    }
+
+    try {
+      final res = await HttpClient.instance.get<Map<String, dynamic>>(
+        '/api-users/search',
+        queryParameters: {
+          'keyword': _currentKeyword,
+          'page': _userPage,
+          'limit': _userPageSize,
+        },
+      );
+
+      if (res.datas != null) {
+        final List<dynamic> users = res.datas!['users'] as List? ?? [];
+        final bool hasMoreFromServer =
+            res.datas!['has_more'] as bool? ?? (users.length >= _userPageSize);
+
+        setState(() {
+          if (isRefresh) {
+            _userResults.assignAll(users);
+          } else {
+            _userResults.addAll(users);
+          }
+          _hasMoreUsers = hasMoreFromServer;
+          if (_hasMoreUsers) _userPage++;
+        });
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingUsers = false;
+          _isLoadingMoreUsers = false;
+        });
+      }
+    }
+  }
+
+  // 🌟 关注/取关实时交互处理
+  Future<void> _toggleFollowUser(Map<String, dynamic> user, int index) async {
+    if (!UserController.to.isLoggedIn) {
+      Fluttertoast.showToast(msg: 'search_login_to_follow'.tr);
+      return;
+    }
+
+    final String targetUserId = user['id']?.toString() ?? '';
+    if (targetUserId.isEmpty) return;
+
+    final bool currentFollowStatus = user['is_following'] == true;
+
+    // 先做本地乐观更新
+    setState(() {
+      user['is_following'] = !currentFollowStatus;
+      final int followers = user['followers_count'] as int? ?? 0;
+      user['followers_count'] =
+      currentFollowStatus ? (followers - 1).clamp(0, 999999) : followers + 1;
+    });
+
+    try {
+      final res = await HttpClient.instance.post<Map<String, dynamic>>(
+        '/api-users/follow',
+        data: {'target_user_id': targetUserId},
+      );
+      if (res.respCode != 0) {
+        // 接口失败回滚
+        setState(() {
+          user['is_following'] = currentFollowStatus;
         });
       }
     } catch (e) {
       setState(() {
-        _searchResults = [];
-        _isSearching = false;
+        user['is_following'] = currentFollowStatus;
       });
+      if (e is ApiException) {
+        Fluttertoast.showToast(msg: e.message);
+      }
     }
   }
 
   void _clearSearch() {
     _searchController.clear();
+    _currentKeyword = '';
     setState(() {
-      _searchResults = [];
+      _postResults.clear();
+      _userResults.clear();
       _hasSearched = false;
     });
     _focusNode.requestFocus();
@@ -230,11 +368,10 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
@@ -244,26 +381,30 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
             children: [
               IconButton(
                 onPressed: () => Get.back(),
-                icon: const HugeIcon(
+                icon: HugeIcon(
                   icon: HugeIcons.strokeRoundedArrowLeft01,
-                  color: Colors.black87,
+                  color: AppColors.textPrimary,
                 ),
               ),
               Expanded(
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  height: 46, // 稍微拉高高度，视觉上更显宽松舒适
+                  height: 46,
                   decoration: BoxDecoration(
-                    color: _focusNode.hasFocus ? Colors.white : Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(23), // 完美的圆角胶囊造型
+                    color: _focusNode.hasFocus
+                        ? Colors.white
+                        : AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(23),
                     border: Border.all(
-                      color: _focusNode.hasFocus ? themeColor : Colors.grey.shade200,
+                      color: _focusNode.hasFocus
+                          ? _primaryColor
+                          : AppColors.divider,
                       width: _focusNode.hasFocus ? 1.5 : 1.0,
                     ),
                     boxShadow: [
                       if (_focusNode.hasFocus)
                         BoxShadow(
-                          color: themeColor.withOpacity(0.08),
+                          color: _primaryColor.withOpacity(0.08),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         )
@@ -272,35 +413,34 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // 左侧搜索图标
                       const SizedBox(width: 14),
                       HugeIcon(
-                        icon: HugeIcons.strokeRoundedSearch01, // 与返回按钮风格统一的线性图标
-                        color: _focusNode.hasFocus ? themeColor : Colors.grey.shade400,
+                        icon: HugeIcons.strokeRoundedSearch01,
+                        color: _focusNode.hasFocus
+                            ? _primaryColor
+                            : AppColors.textHint,
                         size: 18,
                       ),
                       const SizedBox(width: 10),
-
-                      // 中间输入框区域
                       Expanded(
                         child: TextField(
                           controller: _searchController,
                           focusNode: _focusNode,
                           onSubmitted: _performSearch,
                           textInputAction: TextInputAction.search,
-                          textAlign: TextAlign.start, // 🌟 完美对齐：确保输入文本、Hint 及光标指示全靠左对齐 [1]
-                          style: const TextStyle(fontSize: 14, color: Colors.black87),
+                          textAlign: TextAlign.start,
+                          style: TextStyle(
+                              fontSize: 14, color: AppColors.textPrimary),
                           decoration: InputDecoration(
-                            hintText: "搜索感兴趣的高能知识与说说...",
-                            hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                            hintText: 'search_hint'.tr,
+                            hintStyle: TextStyle(
+                                fontSize: 13, color: AppColors.textHint),
                             border: InputBorder.none,
                             isDense: true,
                             contentPadding: EdgeInsets.zero,
                           ),
                         ),
                       ),
-
-                      // 右侧清空按钮 (同样固定占宽 42，与左侧对称，确保 TextField 始终处于精确几何中心)
                       ValueListenableBuilder<TextEditingValue>(
                         valueListenable: _searchController,
                         builder: (context, value, child) {
@@ -311,7 +451,8 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                               child: AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 150),
                                 transitionBuilder: (child, animation) {
-                                  return ScaleTransition(scale: animation, child: child);
+                                  return ScaleTransition(
+                                      scale: animation, child: child);
                                 },
                                 child: hasText
                                     ? GestureDetector(
@@ -321,17 +462,18 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                                   child: Container(
                                     padding: const EdgeInsets.all(5),
                                     decoration: BoxDecoration(
-                                      color: Colors.grey.shade100,
+                                      color: AppColors.divider,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
                                       Icons.close_rounded,
                                       size: 13,
-                                      color: Colors.grey.shade500,
+                                      color: AppColors.textSecondary,
                                     ),
                                   ),
                                 )
-                                    : const SizedBox.shrink(key: ValueKey('emptyPlaceholder')),
+                                    : const SizedBox.shrink(
+                                    key: ValueKey('emptyPlaceholder')),
                               ),
                             ),
                           );
@@ -344,53 +486,348 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
             ],
           ),
         ),
+        bottom: _hasSearched
+            ? PreferredSize(
+          preferredSize: const Size.fromHeight(44),
+          child: Container(color: AppColors.surface,
+            alignment: Alignment.centerLeft,
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicatorColor: _primaryColor,
+              indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.label,
+              labelColor: _primaryColor,
+              unselectedLabelColor: AppColors.textHint,
+              labelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 13),
+              unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600, fontSize: 13),
+              tabs: [
+                Tab(text: 'tab_posts'.tr),
+                Tab(text: 'tab_users'.tr),
+              ],
+            ),
+          ),
+        )
+            : null,
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
-        child: _buildSearchBody(themeColor),
+        child: _hasSearched ? _buildSearchResultsBody() : _buildHistoryAndTrendsBody(),
       ),
     );
   }
 
-  Widget _buildSearchBody(Color themeColor) {
-    if (_isSearching) {
+  // 🌟 搜索结果展示区（支持帖子与用户各自的分页滚动监听）
+  Widget _buildSearchResultsBody() {
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        // Tab 1: 帖子搜索结果流
+        _buildPostsSearchResultTab(),
+        // Tab 2: 用户搜索结果流
+        _buildUsersSearchResultTab(),
+      ],
+    );
+  }
+
+  Widget _buildPostsSearchResultTab() {
+    if (_isLoadingPosts) {
       return Center(
-        child: CircularProgressIndicator(
-          color: themeColor,
-          strokeWidth: 2,
+        child: CircularProgressIndicator(color: _primaryColor, strokeWidth: 2.5),
+      );
+    }
+
+    if (_postResults.isEmpty) {
+      return _buildEmptyStateView('search_no_articles'.tr);
+    }
+
+    return RefreshIndicator(
+      color: _primaryColor,
+      onRefresh: () => _fetchPosts(isRefresh: true),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (ScrollNotification scrollInfo) {
+          if (scrollInfo.metrics.pixels >=
+              scrollInfo.metrics.maxScrollExtent - 200) {
+            _fetchPosts(isRefresh: false);
+          }
+          return false;
+        },
+        child: ListView.separated(
+          padding: const EdgeInsets.only(top: 8, bottom: 20),
+          itemCount: _postResults.length + 1,
+          separatorBuilder: (context, index) => const SizedBox(height: 4),
+          itemBuilder: (context, index) {
+            if (index == _postResults.length) {
+              return _buildPaginationLoader(_isLoadingMorePosts, _hasMorePosts);
+            }
+            final post = _postResults[index];
+            return _buildAestheticPostItem(post);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUsersSearchResultTab() {
+    if (_isLoadingUsers) {
+      return Center(
+        child: CircularProgressIndicator(color: _primaryColor, strokeWidth: 2.5),
+      );
+    }
+
+    if (_userResults.isEmpty) {
+      return _buildEmptyStateView('search_no_users'.tr);
+    }
+
+    return RefreshIndicator(
+      color: _primaryColor,
+      onRefresh: () => _fetchUsers(isRefresh: true),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (ScrollNotification scrollInfo) {
+          if (scrollInfo.metrics.pixels >=
+              scrollInfo.metrics.maxScrollExtent - 200) {
+            _fetchUsers(isRefresh: false);
+          }
+          return false;
+        },
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          itemCount: _userResults.length + 1,
+          separatorBuilder: (context, index) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            if (index == _userResults.length) {
+              return _buildPaginationLoader(_isLoadingMoreUsers, _hasMoreUsers);
+            }
+            final user = _userResults[index];
+            return _buildUserSearchCard(user, index);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaginationLoader(bool isLoadingMore, bool hasMore) {
+    if (isLoadingMore) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(color: _primaryColor, strokeWidth: 2),
+          ),
         ),
       );
     }
-
-    if (_hasSearched) {
-      if (_searchResults.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade200),
-              const SizedBox(height: 14),
-              Text(
-                "没有搜到匹配的结果，换个词试试吧",
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-              ),
-            ],
+    if (!hasMore) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            'search_loaded_all'.tr,
+            style: TextStyle(fontSize: 11, color: AppColors.textHint),
           ),
-        );
-      }
-
-      return ListView.separated(
-        padding: const EdgeInsets.only(top: 8, bottom: 20),
-        itemCount: _searchResults.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 4),
-        itemBuilder: (context, index) {
-          final post = _searchResults[index];
-          return _buildAestheticPostItem(post);
-        },
+        ),
       );
     }
+    return const SizedBox.shrink();
+  }
 
-    // 🌟 采用呼吸感淡入与缓升（Slide & Fade）效果进行舒适入场包装
+  Widget _buildEmptyStateView(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off_rounded, size: 64, color: AppColors.divider),
+          const SizedBox(height: 14),
+          Text(
+            message,
+            style: TextStyle(color: AppColors.textHint, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🌟 高质感用户卡片（包含头像、个性账号、Bio与实时关注操作按钮）
+  Widget _buildUserSearchCard(Map<String, dynamic> user, int index) {
+    final String userId = user['id']?.toString() ?? '';
+    final String nickname = user['nickname']?.toString() ?? 'user'.tr;
+    final String username = user['username']?.toString() ?? '';
+    final String avatar = user['avatar']?.toString() ?? '';
+    final String bio = user['bio']?.toString().trim() ?? '';
+    final bool isFollowing = user['is_following'] == true;
+    final bool isMe = user['is_me'] == true;
+    final int followersCount = user['followers_count'] as int? ?? 0;
+    final List<dynamic> topics = user['topics'] as List? ?? [];
+
+    return Container(
+      decoration: BoxDecoration(color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.015),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            if (userId.isNotEmpty) {
+              Get.to(() => ProfileView(profileId: userId));
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.network(
+                    avatar.isNotEmpty
+                        ? avatar
+                        : 'https://api.dicebear.com/7.x/micah/png?seed=${userId.hashCode}',
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 48,
+                      height: 48,
+                      color: AppColors.divider,
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedUser,
+                        size: 24,
+                        color: AppColors.textHint,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              nickname,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (username.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '@$username',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textHint,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (bio.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          bio,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            height: 1.35,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            'search_followers_count'.trParams({'count': followersCount.toString()}),
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: AppColors.textHint,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (topics.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: _primaryColor.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                topics.first.toString().toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: _primaryColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isMe) ...[
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () => _toggleFollowUser(user, index),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isFollowing
+                          ? AppColors.surfaceAlt
+                          : _primaryColor,
+                      foregroundColor: isFollowing
+                          ? AppColors.textSecondary
+                          : Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      minimumSize: const Size(60, 32),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      isFollowing ? 'following_state'.tr : 'follow'.tr,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 历史记录与热门推荐视图
+  Widget _buildHistoryAndTrendsBody() {
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SlideTransition(
@@ -400,22 +837,30 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 搜索历史
               if (_searchHistory.isNotEmpty) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "最近搜索",
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+                    Text(
+                      'recent_searches'.tr,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     GestureDetector(
                       onTap: _clearHistory,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         child: Text(
-                          "清空",
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade400, fontWeight: FontWeight.w600),
+                          'clear_all'.tr,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textHint,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -432,15 +877,21 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                         onTap: () => _performSearch(history),
                         borderRadius: BorderRadius.circular(16),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: AppColors.surfaceAlt,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey.shade100, width: 0.8),
+                            border: Border.all(
+                                color: AppColors.divider, width: 0.8),
                           ),
                           child: Text(
                             history,
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ),
@@ -449,11 +900,13 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                 ),
                 const SizedBox(height: 32),
               ],
-
-              // 热门探索
-              const Text(
-                "热门推荐分类",
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+              Text(
+                'trending_categories'.tr,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -464,14 +917,21 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                     onPressed: () => _performSearch(tag),
                     label: Text(
                       tag.toUpperCase(),
-                      style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    backgroundColor: themeColor.withOpacity(0.06),
+                    backgroundColor: _primaryColor.withOpacity(0.06),
                     elevation: 0,
                     shadowColor: Colors.transparent,
                     pressElevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   );
                 }).toList(),
               ),
@@ -482,14 +942,12 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
     );
   }
 
-  // 🌟 与主页视觉高度统一的学术卡片组件
   Widget _buildAestheticPostItem(dynamic post) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
     if (post == null || post['id'] == null) return const SizedBox.shrink();
 
     final author = post['author'] ?? {};
     final authorAvatar = author['avatar'] ?? '';
-    final authorNickname = author['nickname'] ?? '用户';
+    final authorNickname = author['nickname'] ?? 'user'.tr;
 
     final title = post['title'] ?? '';
     final contentMin = post['content_min'] ?? '';
@@ -512,10 +970,9 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100, width: 0.8),
+        border: Border.all(color: AppColors.divider, width: 0.8),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.015),
@@ -539,27 +996,36 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                     children: [
                       CircleAvatar(
                         radius: 12,
-                        backgroundImage: authorAvatar.isNotEmpty ? NetworkImage(authorAvatar) : null,
-                        backgroundColor: Colors.grey.shade100,
-                        child: authorAvatar.isEmpty ? const Icon(Icons.person, size: 12, color: Colors.grey) : null,
+                        backgroundImage: authorAvatar.isNotEmpty
+                            ? NetworkImage(authorAvatar)
+                            : null,
+                        backgroundColor: AppColors.divider,
+                        child: authorAvatar.isEmpty
+                            ? const Icon(Icons.person,
+                            size: 12, color: Colors.grey)
+                            : null,
                       ),
                       const SizedBox(width: 8),
                       Text(
                         authorNickname,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary),
                       ),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: themeColor.withOpacity(0.08),
+                          color: _primaryColor.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           category.toUpperCase(),
                           style: TextStyle(
                             fontSize: 9,
-                            color: themeColor,
+                            color: _primaryColor,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5,
                           ),
@@ -594,7 +1060,7 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade500,
+                                  color: AppColors.textSecondary,
                                   height: 1.35,
                                 ),
                               ),
@@ -628,7 +1094,8 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                       const SizedBox(width: 4),
                       Text(
                         timestamp,
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                        style: TextStyle(
+                            fontSize: 10, color: AppColors.textHint),
                       ),
                       const Spacer(),
                       const HugeIcon(
@@ -639,12 +1106,16 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                       const SizedBox(width: 4),
                       Text(
                         '$viewsCount',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textHint,
+                            fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 14),
                       HugeIcon(
                         icon: HugeIcons.strokeRoundedFavourite,
-                        color: isLiked ? Colors.redAccent : Colors.grey.shade400,
+                        color:
+                        isLiked ? Colors.redAccent : AppColors.textHint,
                         size: 13,
                       ),
                       const SizedBox(width: 4),
@@ -652,14 +1123,18 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                         '$likesCount',
                         style: TextStyle(
                           fontSize: 10,
-                          color: isLiked ? Colors.redAccent : Colors.grey.shade400,
+                          color: isLiked
+                              ? Colors.redAccent
+                              : AppColors.textHint,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(width: 14),
                       HugeIcon(
                         icon: HugeIcons.strokeRoundedBookmark01,
-                        color: isCollected ? Colors.orangeAccent : Colors.grey.shade400,
+                        color: isCollected
+                            ? Colors.orangeAccent
+                            : AppColors.textHint,
                         size: 13,
                       ),
                       const SizedBox(width: 4),
@@ -667,7 +1142,9 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                         '$collectsCount',
                         style: TextStyle(
                           fontSize: 10,
-                          color: isCollected ? Colors.orangeAccent : Colors.grey.shade400,
+                          color: isCollected
+                              ? Colors.orangeAccent
+                              : AppColors.textHint,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -680,7 +1157,10 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                       const SizedBox(width: 4),
                       Text(
                         '$repostsCount',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textHint,
+                            fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),

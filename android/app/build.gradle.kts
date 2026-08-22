@@ -53,6 +53,15 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
+            // 强制使用 Flutter 定义的基础版本号，覆盖 ABI 偏移
+            output.versionCodeOverride = variant.versionCode
+        }
+    }
 }
 
 flutter {

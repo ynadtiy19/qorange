@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:qorange/theme.dart';
 import '../../network/http_client.dart';
 import 'applicant_model.dart';
 import 'community_space_controller.dart'; // 🌟 用于联动更新小红点
@@ -12,7 +13,7 @@ class CommunityApprovalController extends GetxController {
   final RxList<ApplicantModel> applicants = <ApplicantModel>[].obs;
   final RxBool isLoading = true.obs;
 
-  final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
+  Color get primaryColor => AppColors.primary;
 
   @override
   void onInit() {
@@ -36,10 +37,10 @@ class CommunityApprovalController extends GetxController {
     }
   }
 
-  /// 🌟 批准通过学者申请加入
+  /// 🌟 批准通过申请加入
   Future<void> approveApplicant(String applicantUserId) async {
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      Center(child: CircularProgressIndicator(color: AppColors.primary)),
       barrierDismissible: false,
     );
 
@@ -49,14 +50,14 @@ class CommunityApprovalController extends GetxController {
         data: {
           'userId': applicantUserId,
           'action': 'approve',
-          'reason': '同意加入',
+          'reason': 'approve_reason_default'.tr,
         },
       );
 
       Get.back(); // 关掉加载狂
 
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "已批准该学者加入社群！");
+        Fluttertoast.showToast(msg: 'approve_success'.tr);
 
         // 🌟 核心：从本地 Observable 列表中移除该成员，无缝淡出回显
         applicants.removeWhere((element) => element.userId == applicantUserId);
@@ -64,18 +65,18 @@ class CommunityApprovalController extends GetxController {
         // 🌟 核心：通知空间主控制器，同步扣减并更新小红点气泡
         _syncPendingCountToSpaceHeader();
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? "审批失败");
+        Fluttertoast.showToast(msg: res.respMsg);
       }
     } catch (e) {
       Get.back();
-      Fluttertoast.showToast(msg: "网络审批故障: $e");
+      Fluttertoast.showToast(msg: 'approve_network_error'.trParams({'error': '$e'}));
     }
   }
 
   /// 🌟 拒绝/驳回学者加入申请
   Future<void> rejectApplicant(String applicantUserId, String reason) async {
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      Center(child: CircularProgressIndicator(color: AppColors.primary)),
       barrierDismissible: false,
     );
 
@@ -92,15 +93,15 @@ class CommunityApprovalController extends GetxController {
       Get.back();
 
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "已驳回该学者的入群申请");
+        Fluttertoast.showToast(msg: 'reject_success'.tr);
         applicants.removeWhere((element) => element.userId == applicantUserId);
         _syncPendingCountToSpaceHeader();
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? "审批失败");
+        Fluttertoast.showToast(msg: res.respMsg);
       }
     } catch (e) {
       Get.back();
-      Fluttertoast.showToast(msg: "网络审批故障: $e");
+      Fluttertoast.showToast(msg: 'approve_network_error'.trParams({'error': '$e'}));
     }
   }
 

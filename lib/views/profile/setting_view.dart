@@ -3,14 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../services/language_service.dart';
+import '../../services/theme_service.dart';
 
-/// 🌟 MVC 控制器：专门负责实名认证数据的加载、校验与安全提交 [2]
+/// 🌟 MVC 控制器：专门负责用户实名认证与安全邮箱数据的加载、校验与安全提交
 class SettingController extends GetxController {
   final RxString realName = ''.obs;
   final RxString realPhone = ''.obs;
+  final RxString email = ''.obs; // 🌟 响应式邮箱属性
   final RxBool isLoading = true.obs;
   final RxBool isSubmitting = false.obs;
 
@@ -20,7 +23,7 @@ class SettingController extends GetxController {
     loadVerificationData();
   }
 
-  /// 🌟 自动反查回显学者当前在云端的实名认证信息 [2]
+  /// 🌟 自动反查回显用户当前在云端的实名与邮箱绑定信息
   Future<void> loadVerificationData() async {
     isLoading.value = true;
     try {
@@ -28,6 +31,7 @@ class SettingController extends GetxController {
       if (res.respCode == 0 && res.datas != null) {
         realName.value = res.datas!['real_name']?.toString() ?? '';
         realPhone.value = res.datas!['real_phone']?.toString() ?? '';
+        email.value = res.datas!['email']?.toString() ?? '';
       }
     } catch (_) {
       isLoading.value = false;
@@ -36,8 +40,8 @@ class SettingController extends GetxController {
     }
   }
 
-  /// 🌟 安全保存学者实名及手机号修改 [2]
-  Future<bool> saveVerificationData(String name, String phone) async {
+  /// 🌟 安全保存用户实名、手机号与联系邮箱修改
+  Future<bool> saveVerificationData(String name, String phone, String emailText) async {
     if (isSubmitting.value) return false;
     isSubmitting.value = true;
 
@@ -47,6 +51,7 @@ class SettingController extends GetxController {
         data: {
           'real_name': name,
           'real_phone': phone,
+          'email': emailText,
         },
       );
 
@@ -56,9 +61,10 @@ class SettingController extends GetxController {
         Fluttertoast.showToast(msg: 'save_success'.tr);
         realName.value = name;
         realPhone.value = phone;
+        email.value = emailText;
         return true;
       } else {
-        Fluttertoast.showToast(msg: res.respMsg ?? 'save_fail'.tr);
+        Fluttertoast.showToast(msg: res.respMsg);
         return false;
       }
     } catch (e) {
@@ -77,12 +83,106 @@ class SettingController extends GetxController {
 class SettingView extends StatelessWidget {
   const SettingView({super.key});
 
+  /// 🌟 白天/黑夜主题切换大卡片
+  Widget _buildThemeModeCard() {
+    final bool isDark = ThemeService.to.isDark;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.brightness_6_rounded, color: AppColors.primary, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('appearance_theme'.tr, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(
+                    isDark ? 'theme_dark'.tr : 'theme_light'.tr,
+                    style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                  ),
+                ],
+              ),
+            ),
+            // 白天 / 黑夜 二选一切换按钮
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildThemeOption(
+                    selected: !isDark,
+                    icon: Icons.light_mode_rounded,
+                    label: 'theme_light'.tr,
+                    onTap: () => ThemeService.to.setMode(ThemeMode.light),
+                  ),
+                  _buildThemeOption(
+                    selected: isDark,
+                    icon: Icons.dark_mode_rounded,
+                    label: 'theme_dark'.tr,
+                    onTap: () => ThemeService.to.setMode(ThemeMode.dark),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeOption({
+    required bool selected,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: selected ? Colors.white : AppColors.textSecondary),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showLanguageSelector(BuildContext context, Color primaryColor) {
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -106,7 +206,7 @@ class SettingView extends StatelessWidget {
                   nameKey.tr,
                   style: TextStyle(
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? primaryColor : Colors.black87,
+                    color: isSelected ? primaryColor : AppColors.textPrimary,
                   ),
                 ),
                 trailing: isSelected ? Icon(Icons.check_circle_rounded, color: primaryColor) : null,
@@ -125,30 +225,33 @@ class SettingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(SettingController());
-    final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0); // 柔绿
-    final Color obsidianBg = const Color(0xFF0F172A); // 曜石黑
+    final Color primaryColor = AppColors.primary; // 柔绿
+    final Color obsidianBg = AppColors.primary; // 主题强调色（原曜石黑）
 
     final TextEditingController nameC = TextEditingController();
     final TextEditingController phoneC = TextEditingController();
+    final TextEditingController emailC = TextEditingController();
 
     // 🌟 通过监听回显自动填入
     ever(controller.realName, (name) => nameC.text = name);
     ever(controller.realPhone, (phone) => phoneC.text = phone);
+    ever(controller.email, (em) => emailC.text = em);
 
     // 首次载入补位
     nameC.text = controller.realName.value;
     phoneC.text = controller.realPhone.value;
+    emailC.text = controller.email.value;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('settings'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+        title: Text('settings'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
         ),
       ),
       body: Obx(() {
@@ -161,10 +264,13 @@ class SettingView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 0. 多语言切换入口大卡片
+              // 0. 白天/黑夜主题切换大卡片
+              _buildThemeModeCard(),
+              const SizedBox(height: 24),
+
+              // 0.5 多语言切换入口大卡片
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
@@ -178,15 +284,15 @@ class SettingView extends StatelessWidget {
                           (l) => (l['locale'] as Locale).languageCode == LanguageService.to.currentLocale.languageCode,
                       orElse: () => LanguageService.to.supportedLanguages.first,
                     )['nameKey'].toString().tr,
-                    style: const TextStyle(fontSize: 12, color: Colors.black45),
+                    style: TextStyle(fontSize: 12, color: AppColors.textHint),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.black38),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textHint),
                   onTap: () => _showLanguageSelector(context, primaryColor),
                 ),
               ),
               const SizedBox(height: 24),
 
-              // 1. 系统级实名认证安全告知大卡
+              // 1. 系统级实名认证与安全邮箱告知大卡
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -205,9 +311,9 @@ class SettingView extends StatelessWidget {
                         children: [
                           Text('realname_binding'.tr, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryColor)),
                           const SizedBox(height: 6),
-                          const Text(
-                            '为了保障平台与创作者之间提现对账的绝对准确，手艺人请在此绑定您的支付宝实名信息。此信息仅用于财务核销平账审计使用，不对任何其他第三方学者透露！',
-                            style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
+                          Text(
+                            'realname_notice'.tr,
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.5),
                           )
                         ],
                       ),
@@ -218,11 +324,10 @@ class SettingView extends StatelessWidget {
               const SizedBox(height: 32),
 
               // 2. 实名录入
-              const Text('支付宝真实实名', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
+              Text('alipay_real_name'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
               const SizedBox(height: 10),
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
@@ -232,8 +337,8 @@ class SettingView extends StatelessWidget {
                   controller: nameC,
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: "请输入您的支付宝真实姓名",
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    hintText: 'alipay_real_name_hint'.tr,
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                     prefixIcon: Icon(Icons.person_pin_rounded, color: primaryColor, size: 18),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -243,11 +348,10 @@ class SettingView extends StatelessWidget {
               const SizedBox(height: 24),
 
               // 3. 收款手机号录入
-              const Text('支付宝收款绑定手机号', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
+              Text('alipay_phone'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
               const SizedBox(height: 10),
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
@@ -257,14 +361,39 @@ class SettingView extends StatelessWidget {
                   controller: phoneC,
                   keyboardType: TextInputType.phone,
                   inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly, // 强限制纯数字录入
-                    LengthLimitingTextInputFormatter(11), // 强限制 11 位长度
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(11),
                   ],
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: "请输入绑定的11位支付宝手机号",
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    hintText: 'alipay_phone_hint'.tr,
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                     prefixIcon: Icon(Icons.phone_iphone_rounded, color: primaryColor, size: 18),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 🌟 4. 新增：安全联系邮箱录入（用于接收邮件分享与系统通知）
+              Text('security_email'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)), // 或 '联系与接收邮箱'
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
+                  ],
+                ),
+                child: TextField(
+                  controller: emailC,
+                  keyboardType: TextInputType.emailAddress,
+                  style: const TextStyle(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'security_email_hint'.tr, // 或 '输入邮箱以开启站内好友邮件分享接收'
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
+                    prefixIcon: Icon(Icons.alternate_email_rounded, color: primaryColor, size: 18),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
@@ -272,7 +401,7 @@ class SettingView extends StatelessWidget {
               ),
               const SizedBox(height: 40),
 
-              // 4. 一键提交核销绑定
+              // 5. 一键提交核销绑定
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -282,15 +411,25 @@ class SettingView extends StatelessWidget {
                       : () async {
                     final name = nameC.text.trim();
                     final phone = phoneC.text.trim();
+                    final emailText = emailC.text.trim();
 
                     if (name.isEmpty || phone.isEmpty) {
-                      Fluttertoast.showToast(msg: "请将姓名和手机号数据填写完整");
+                      Fluttertoast.showToast(msg: 'fill_name_and_phone'.tr);
                       return;
                     }
 
-                    final success = await controller.saveVerificationData(name, phone);
+                    // 邮箱非空时进行格式强校验
+                    if (emailText.isNotEmpty) {
+                      final emailRegExp = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                      if (!emailRegExp.hasMatch(emailText)) {
+                        Fluttertoast.showToast(msg: 'invalid_email_format'.tr); // 或 '邮箱格式不正确'
+                        return;
+                      }
+                    }
+
+                    final success = await controller.saveVerificationData(name, phone, emailText);
                     if (success) {
-                      Get.back(); // 🌟 保存成功，自动退回主页，then(_) 闭包会自动静默刷新
+                      Get.back();
                     }
                   },
                   style: ElevatedButton.styleFrom(

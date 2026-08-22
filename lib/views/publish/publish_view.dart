@@ -1,6 +1,7 @@
-// GET /api-posts & POST /api-posts (Zhihu风格极简 bleed-to-edge 完全体发布流)
+// lib/views/publish/publish_view.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -9,12 +10,15 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:qorange/theme.dart';
 
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
+import '../../services/api_service.dart';
+import '../../user_controller.dart';
 import '../../widgets/modern_emoji_picker.dart';
 import '../../widgets/quill_custom_divider.dart';
-import '../../services/api_service.dart';
+import '../../widgets/quill_custom_video.dart';
 
 class PublishView extends StatefulWidget {
   const PublishView({super.key});
@@ -23,34 +27,44 @@ class PublishView extends StatefulWidget {
   State<PublishView> createState() => _PublishViewState();
 }
 
-class _PublishViewState extends State<PublishView> with SingleTickerProviderStateMixin {
-  int _activeFormIndex = 2; // 0: 深度文章, 1: 投票发布, 2: 图文说说 (默认聚焦于图文说说写想法)
+class _PublishViewState extends State<PublishView> with TickerProviderStateMixin {
+  // 0: 深度文章, 1: 投票发布, 2: 图文说说 (默认聚焦于写想法)
+  int _activeFormIndex = 2;
 
+  // 键盘与表情面板无缝协同
+  bool _isEmojiPanelVisible = false;
+  // 🌟 核心：持久化健康键盘高度（默认 336），绝不在键盘关闭时塌陷或被覆盖为小值
+  double _stableKeyboardHeight = 336.0;
 
-  // 🌟 追加：Quill 深度文章特有的付费价格控制器
-  final TextEditingController _quillPriceController = TextEditingController();
+  // 视频上传与进度状态
+  bool _isUploadingVideo = false;
+  double _videoUploadProgress = 0.0;
 
   // Quill 深度文章表单
   final TextEditingController _quillTitleController = TextEditingController();
+  final TextEditingController _quillPriceController = TextEditingController();
   final quill.QuillController _quillController = quill.QuillController.basic();
-  final ScrollController _editorScrollC = ScrollController();
+  final ScrollController _quillScrollController = ScrollController();
   final TextEditingController _quillTagsController = TextEditingController();
-  String _quillCategory = "technology";
-  String _quillStatus = "published";
+  final FocusNode _quillEditorFocusNode = FocusNode();
+  String _quillCategory = 'technology';
+  String _quillStatus = 'published';
 
   // 投票发布表单
   final TextEditingController _pollQuestionController = TextEditingController();
+  final FocusNode _pollFocusNode = FocusNode();
   final List<TextEditingController> _pollOptionControllers = [
-    TextEditingController(text: "支持"),
-    TextEditingController(text: "反对"),
+    TextEditingController(text: 'poll_option_yes'.tr),
+    TextEditingController(text: 'poll_option_no'.tr),
   ];
-  String _pollStatus = "published";
+  String _pollStatus = 'published';
 
-  // 图文说说多图表单
+  // 图文说说表单
   final TextEditingController _shortContentController = TextEditingController();
   final TextEditingController _shortTagsController = TextEditingController();
+  final FocusNode _shortFocusNode = FocusNode();
   final List<String> _shortImages = [];
-  String _shortStatus = "published";
+  String _shortStatus = 'published';
 
   final List<String> _categories = [
     'aviation', 'blockchain', 'business', 'car', 'cryptocurrency',
@@ -58,103 +72,254 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     'restaurant', 'trading', 'technology', 'traveler', 'news'
   ];
 
-  // 目标领域映射中文词组
-  final Map<String, String> _categoryChineseNames = {
-    'aviation': '航空航天',
-    'blockchain': '区块链',
-    'business': '商业经营',
-    'car': '汽车出行',
-    'cryptocurrency': '加密货币',
-    'data_science': '数据科学',
-    'education': '教育学术',
-    'finance': '金融理财',
-    'gamer': '游戏电竞',
-    'style': '时尚潮流',
-    'restaurant': '美食餐饮',
-    'trading': '量化交易',
-    'technology': '前沿科技',
-    'traveler': '旅游出行',
-    'news': '时政新闻',
-    'general': '综合日常',
+  final Map<String, String> _categoryNameKeys = {
+    'aviation': 'topic_aviation',
+    'blockchain': 'topic_blockchain',
+    'business': 'topic_business',
+    'car': 'topic_car',
+    'cryptocurrency': 'topic_cryptocurrency',
+    'data_science': 'topic_data_science',
+    'education': 'topic_education',
+    'finance': 'topic_finance',
+    'gamer': 'topic_gamer',
+    'style': 'topic_style',
+    'restaurant': 'topic_restaurant',
+    'trading': 'topic_trading',
+    'technology': 'topic_technology',
+    'traveler': 'topic_traveler',
+    'news': 'topic_news',
+    'general': 'topic_general',
   };
 
-  final Map<String, String> _statusChineseNames = {
-    'published': '立即公开',
-    'draft': '存入草稿箱',
-    'unlisted': '私密/未列入名单',
+  final Map<String, String> _statusNameKeys = {
+    'published': 'status_published',
+    'draft': 'status_draft',
+    'unlisted': 'status_unlisted',
   };
 
   bool _isPublishing = false;
+  Color get _primaryTeal => AppColors.primary;
 
-  final FocusNode _editorFocusNode = FocusNode();
+  @override
+  void initState() {
+    super.initState();
+    _quillEditorFocusNode.addListener(_onFocusChanged);
+    _shortFocusNode.addListener(_onFocusChanged);
+    _pollFocusNode.addListener(_onFocusChanged);
+  }
+
+  // 🌟 修复：移除插入 Emoji 时程序化更新光标导致的误关闭，支持用户连续多次点选 Emoji
+  void _onFocusChanged() {
+    // 空实现或仅保留基础状态，不再在获得光标时强行关闭 Emoji 面板
+  }
 
   @override
   void dispose() {
     _quillTitleController.dispose();
+    _quillPriceController.dispose();
     _quillController.dispose();
-    _editorScrollC.dispose();
+    _quillScrollController.dispose();
     _quillTagsController.dispose();
+    _quillEditorFocusNode.dispose();
+
     _pollQuestionController.dispose();
-    for (var controller in _pollOptionControllers) {
+    _pollFocusNode.dispose();
+    for (final controller in _pollOptionControllers) {
       controller.dispose();
     }
+
     _shortContentController.dispose();
     _shortTagsController.dispose();
+    _shortFocusNode.dispose();
     super.dispose();
   }
 
-  void _openEmojiPicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return ModernEmojiPicker(
-          onEmojiSelected: (emoji) {
-            Navigator.pop(context);
-            _insertEmoji(emoji);
-          },
-        );
-      },
-    );
+  // 🌟 无感切换键盘与表情面板：高度恒定锁定，绝不跳动塌陷
+  void _toggleEmojiPanel() {
+    HapticFeedback.lightImpact();
+    if (_isEmojiPanelVisible) {
+      setState(() => _isEmojiPanelVisible = false);
+      _requestActiveFocus();
+    } else {
+      FocusManager.instance.primaryFocus?.unfocus();
+      setState(() => _isEmojiPanelVisible = true);
+    }
+  }
+
+  void _requestActiveFocus() {
+    if (_activeFormIndex == 0) {
+      _quillEditorFocusNode.requestFocus();
+    } else if (_activeFormIndex == 1) {
+      _pollFocusNode.requestFocus();
+    } else {
+      _shortFocusNode.requestFocus();
+    }
   }
 
   void _insertEmoji(String emoji) {
     if (_activeFormIndex == 0) {
-      // 👉 Quill 编辑器
       final index = _quillController.selection.baseOffset;
       final length = _quillController.selection.extentOffset - index;
-
-      _quillController.replaceText(index, length, emoji, null);
+      final safeIndex = index < 0 ? _quillController.document.length - 1 : index;
+      _quillController.replaceText(safeIndex, math.max(0, length), emoji, null);
       _quillController.updateSelection(
-        TextSelection.collapsed(offset: index + emoji.length),
+        TextSelection.collapsed(offset: safeIndex + emoji.length),
         quill.ChangeSource.local,
       );
     } else if (_activeFormIndex == 2) {
-      // 👉 short content
       final text = _shortContentController.text;
       final selection = _shortContentController.selection;
-
-      final newText = text.replaceRange(
-        selection.start,
-        selection.end,
-        emoji,
-      );
-
-      _shortContentController.text = newText;
-      _shortContentController.selection = TextSelection.collapsed(
-        offset: selection.start + emoji.length,
-      );
+      if (selection.start >= 0 && selection.end >= selection.start) {
+        final newText = text.replaceRange(selection.start, selection.end, emoji);
+        _shortContentController.text = newText;
+        _shortContentController.selection =
+            TextSelection.collapsed(offset: selection.start + emoji.length);
+      } else {
+        _shortContentController.text += emoji;
+        _shortContentController.selection = TextSelection.collapsed(
+            offset: _shortContentController.text.length);
+      }
     } else if (_activeFormIndex == 1) {
-      // 👉 poll question
-      final text = _pollQuestionController.text;
-      _pollQuestionController.text = text + emoji;
+      _pollQuestionController.text += emoji;
     }
+  }
+
+  void _handleBackspace() {
+    HapticFeedback.lightImpact();
+    if (_activeFormIndex == 0) {
+      _safeDeleteQuillCharacter();
+    } else if (_activeFormIndex == 2) {
+      _safeDeleteTextCharacter(_shortContentController);
+    } else if (_activeFormIndex == 1) {
+      _safeDeleteTextCharacter(_pollQuestionController);
+    }
+  }
+
+  void _safeDeleteTextCharacter(TextEditingController controller) {
+    final text = controller.text;
+    if (text.isEmpty) return;
+
+    final selection = controller.selection;
+    if (selection.isValid && selection.start != selection.end) {
+      final start = math.min(selection.start, selection.end);
+      final end = math.max(selection.start, selection.end);
+      final newText = text.replaceRange(start, end, '');
+      controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: start),
+      );
+      return;
+    }
+
+    final cursorOffset = (selection.isValid && selection.start >= 0)
+        ? selection.start
+        : text.length;
+
+    if (cursorOffset <= 0) return;
+
+    final textBefore = text.substring(0, cursorOffset);
+    final textAfter = text.substring(cursorOffset);
+
+    final charsBefore = textBefore.characters;
+    if (charsBefore.isEmpty) return;
+
+    final newTextBefore = charsBefore.skipLast(1).string;
+    final newText = newTextBefore + textAfter;
+
+    controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newTextBefore.length),
+    );
+  }
+
+  void _safeDeleteQuillCharacter() {
+    final selection = _quillController.selection;
+    if (!selection.isValid) return;
+
+    if (selection.start != selection.end) {
+      final start = math.min(selection.start, selection.end);
+      final length = (selection.end - selection.start).abs();
+      _quillController.replaceText(start, length, '', null);
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: start),
+        quill.ChangeSource.local,
+      );
+      return;
+    }
+
+    final index = selection.baseOffset;
+    if (index <= 0) return;
+
+    final plainText = _quillController.document.toPlainText();
+    final safeIndex = math.min(index, plainText.length);
+    final textBefore = plainText.substring(0, safeIndex);
+
+    final charsBefore = textBefore.characters;
+    if (charsBefore.isEmpty) return;
+
+    final lastGrapheme = charsBefore.last;
+    final deleteLength = lastGrapheme.length;
+    final startDeleteIndex = index - deleteLength;
+
+    if (startDeleteIndex >= 0) {
+      _quillController.replaceText(startDeleteIndex, deleteLength, '', null);
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: startDeleteIndex),
+        quill.ChangeSource.local,
+      );
+    }
+  }
+
+  void _insertHashtag() {
+    HapticFeedback.lightImpact();
+    if (_activeFormIndex == 0) {
+      final index = _quillController.selection.baseOffset;
+      final safeIndex = index < 0 ? _quillController.document.length - 1 : index;
+      _quillController.replaceText(safeIndex, 0, '#', null);
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: safeIndex + 1),
+        quill.ChangeSource.local,
+      );
+    } else if (_activeFormIndex == 2) {
+      _shortContentController.text += '#';
+    }
+  }
+
+  void _insertNewlineAndAutoScroll() {
+    HapticFeedback.lightImpact();
+    if (_activeFormIndex == 0) {
+      final index = _quillController.selection.baseOffset;
+      final safeIndex = index < 0 ? _quillController.document.length - 1 : index;
+      _quillController.replaceText(safeIndex, 0, '\n', null);
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: safeIndex + 1),
+        quill.ChangeSource.local,
+      );
+      Future.delayed(const Duration(milliseconds: 60), () {
+        if (_quillScrollController.hasClients) {
+          _quillScrollController.animateTo(
+            _quillScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
+    } else if (_activeFormIndex == 2) {
+      _shortContentController.text += '\n';
+    }
+  }
+
+  void _unfocusEditor() {
+    HapticFeedback.lightImpact();
+    FocusScope.of(context).unfocus();
+    setState(() => _isEmojiPanelVisible = false);
   }
 
   void _insertDivider() {
     var index = _quillController.selection.baseOffset;
-    final length = _quillController.selection.extentOffset - index;
+    final length = math.max(0, _quillController.selection.extentOffset - index);
+    if (index < 0) index = _quillController.document.length - 1;
+
     bool prependNewline = false;
     if (index > 0) {
       final plainText = _quillController.document.toPlainText();
@@ -166,23 +331,22 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     if (prependNewline) {
       _quillController.replaceText(index, length, '\n', null);
       index++;
-      _quillController.replaceText(index, 0, quill.BlockEmbed.custom(const DividerBlockEmbed()), null);
-      _quillController.replaceText(index + 1, 0, '\n', null);
-      _quillController.updateSelection(TextSelection.collapsed(offset: index + 2), quill.ChangeSource.local);
-    } else {
-      _quillController.replaceText(index, length, quill.BlockEmbed.custom(const DividerBlockEmbed()), null);
-      _quillController.replaceText(index + 1, 0, '\n', null);
-      _quillController.updateSelection(TextSelection.collapsed(offset: index + 2), quill.ChangeSource.local);
     }
+    _quillController.replaceText(
+        index, length, quill.BlockEmbed.custom(const DividerBlockEmbed()), null);
+    _quillController.replaceText(index + 1, 0, '\n', null);
+    _quillController.updateSelection(
+        TextSelection.collapsed(offset: index + 2), quill.ChangeSource.local);
   }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final xFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final xFile =
+    await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (xFile == null) return;
 
     if (!mounted) return;
-    Fluttertoast.showToast(msg: "正在上传本地图片...");
+    Fluttertoast.showToast(msg: 'uploading_local_image'.tr);
 
     final url = await ApiService.uploadImage(File(xFile.path));
     if (url != null) {
@@ -194,20 +358,22 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
         });
       }
     } else {
-      Fluttertoast.showToast(msg: "图片上传失败");
+      Fluttertoast.showToast(msg: 'image_upload_failed'.tr);
     }
   }
 
   void _insertImageToEditor(String url) {
-    final index = _quillController.selection.baseOffset;
-    final length = _quillController.selection.extentOffset - index;
+    var index = _quillController.selection.baseOffset;
+    final length = math.max(0, _quillController.selection.extentOffset - index);
+    if (index < 0) index = _quillController.document.length - 1;
     _quillController.replaceText(index, length, quill.BlockEmbed.image(url), null);
     _quillController.replaceText(index + 1, 0, '\n', null);
-    _quillController.updateSelection(TextSelection.collapsed(offset: index + 2), quill.ChangeSource.local);
+    _quillController.updateSelection(
+        TextSelection.collapsed(offset: index + 2), quill.ChangeSource.local);
   }
 
   void _pickGif() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -220,8 +386,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
           expand: false,
           builder: (context, scrollController) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: ClipRRect(
@@ -247,21 +412,19 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     );
   }
 
-  // 升起精美的目标领域底层交互选择器代替下拉菜单
   void _showCategorySelector() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: EdgeInsets.only(
             top: 16,
-            bottom: MediaQuery.of(context).padding.bottom + 24,
+            bottom: MediaQuery.of(context).padding.bottom + 20,
             left: 20,
             right: 20,
           ),
@@ -269,13 +432,21 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40,
+                width: 36,
                 height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2)),
               ),
-              const SizedBox(height: 20),
-              const Text("选择发布的目标圈子", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
+              Text(
+                'select_target_circle'.tr,
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 16),
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -288,7 +459,9 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                 itemCount: _categories.length,
                 itemBuilder: (context, index) {
                   final key = _categories[index];
-                  final name = _categoryChineseNames[key] ?? key;
+                  final name = _categoryNameKeys.containsKey(key)
+                      ? _categoryNameKeys[key]!.tr
+                      : key;
                   final isSelected = _quillCategory == key;
                   return GestureDetector(
                     onTap: () {
@@ -298,10 +471,12 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                     child: Container(
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFE3F2FD) : const Color(0xFFF5F7FA),
+                        color: isSelected
+                            ? _primaryTeal.withOpacity(0.1)
+                            : AppColors.surfaceAlt,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isSelected ? const Color(0xFF0066FF) : Colors.transparent,
+                          color: isSelected ? _primaryTeal : Colors.transparent,
                           width: 1.5,
                         ),
                       ),
@@ -309,8 +484,10 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                         name,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? const Color(0xFF0066FF) : Colors.black87,
+                          fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                          color:
+                          isSelected ? _primaryTeal : AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -324,35 +501,60 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     );
   }
 
-  // 状态发布选择器弹窗列表
   void _showStatusSelector() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          padding: const EdgeInsets.only(top: 16, bottom: 40, left: 24, right: 24),
+          padding: EdgeInsets.only(
+            top: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 24,
+            left: 24,
+            right: 24,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40,
+                width: 36,
                 height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2)),
               ),
-              const SizedBox(height: 24),
-              const Text("设置发布状态选项", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
-              const SizedBox(height: 16),
-              ..._statusChineseNames.entries.map((entry) {
-                final currentStatus = _activeFormIndex == 0 ? _quillStatus : (_activeFormIndex == 1 ? _pollStatus : _shortStatus);
+              const SizedBox(height: 20),
+              Text(
+                'set_publish_status'.tr,
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 14),
+              ..._statusNameKeys.entries.map((entry) {
+                final currentStatus = _activeFormIndex == 0
+                    ? _quillStatus
+                    : (_activeFormIndex == 1 ? _pollStatus : _shortStatus);
                 final isSelected = currentStatus == entry.key;
                 return ListTile(
-                  title: Text(entry.value, style: TextStyle(color: isSelected ? const Color(0xFF0066FF) : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                  trailing: isSelected ? const Icon(Icons.check, color: Color(0xFF0066FF)) : null,
+                  title: Text(
+                    entry.value.tr,
+                    style: TextStyle(
+                      color: isSelected ? _primaryTeal : AppColors.textPrimary,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? Icon(Icons.check_circle_rounded,
+                      color: _primaryTeal, size: 20)
+                      : null,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   onTap: () {
                     setState(() {
                       if (_activeFormIndex == 0) {
@@ -366,110 +568,9 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
                     Navigator.pop(context);
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
-        );
-      },
-    );
-  }
-
-  void _showShortImageSourcePicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.only(top: 12, bottom: 30, left: 24, right: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-              ),
-              const SizedBox(height: 24),
-              const Text("添加图片", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: Colors.black87),
-                title: const Text("从相册选取"),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickShortLocalImage();
-                },
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.gif_box_outlined, color: Colors.black87),
-                title: const Text("选取趣味 GIF"),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickShortGifImage();
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _pickShortLocalImage() async {
-    final picker = ImagePicker();
-    final xFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (xFile == null) return;
-
-    Fluttertoast.showToast(msg: "正在上传说说图片...");
-    final url = await ApiService.uploadImage(File(xFile.path));
-    if (url != null) {
-      setState(() {
-        _shortImages.add(url);
-      });
-      Fluttertoast.showToast(msg: "图片已添加");
-    } else {
-      Fluttertoast.showToast(msg: "图片上传失败");
-    }
-  }
-
-  void _pickShortGifImage() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.95,
-          expand: false,
-          builder: (context, scrollController) {
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                child: _GifSearchSheet(
-                  scrollController: scrollController,
-                  onGifSelected: (url) {
-                    Navigator.pop(context);
-                    setState(() {
-                      _shortImages.add(url);
-                    });
-                    Fluttertoast.showToast(msg: "GIF 已添加");
-                  },
-                ),
-              ),
-            );
-          },
         );
       },
     );
@@ -496,6 +597,9 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
   }
 
   void _handlePublishSubmit() {
+    FocusScope.of(context).unfocus();
+    setState(() => _isEmojiPanelVisible = false);
+
     if (_activeFormIndex == 0) {
       _submitQuill();
     } else if (_activeFormIndex == 1) {
@@ -505,10 +609,139 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     }
   }
 
-  // 1. 📂 quill（深度富文本文章）参数构建
+  Future<bool> _showExitConfirmDialog() async {
+    final bool hasContent = _quillTitleController.text.isNotEmpty ||
+        _quillController.document.length > 1 ||
+        _shortContentController.text.isNotEmpty ||
+        _shortImages.isNotEmpty ||
+        _pollQuestionController.text.isNotEmpty;
+
+    if (!_isUploadingVideo && !hasContent && !_isPublishing) {
+      return true;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            _isUploadingVideo ? 'publish_exit_title_uploading'.tr : 'publish_exit_title_draft'.tr,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+          ),
+          content: Text(
+            _isUploadingVideo
+                ? 'publish_exit_desc_uploading'.tr
+                : 'publish_exit_desc_draft'.tr,
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('publish_continue_editing'.tr, style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text('publish_confirm_exit'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  Future<void> _pickAndUploadVideo() async {
+    final picker = ImagePicker();
+    final xFile = await picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(minutes: 10),
+    );
+    if (xFile == null) return;
+
+    setState(() {
+      _isUploadingVideo = true;
+      _videoUploadProgress = 0.0;
+    });
+
+    try {
+      final fileBytes = await File(xFile.path).readAsBytes();
+
+      final response = await HttpClient.instance.postBinary<Map<String, dynamic>>(
+        '/api-system/upload-image',
+        data: fileBytes,
+        queryParameters: {
+          'ext': 'mp4',
+          'tag': 'quill_article',
+        },
+        onSendProgress: (int sent, int total) {
+          if (total > 0 && mounted) {
+            setState(() {
+              _videoUploadProgress = sent / total;
+            });
+          }
+        },
+        sendTimeout: const Duration(minutes: 5),
+        receiveTimeout: const Duration(minutes: 5),
+      );
+
+      final datas = response.datas;
+      if (response.isSuccess && datas != null) {
+        final String videoId = datas['id']?.toString() ?? '';
+        final String videoUrl = datas['url']?.toString() ?? '';
+        final String thumbnailUrl = datas['thumbnail_url']?.toString() ?? '';
+        final user = UserController.to.user.value;
+
+        var index = _quillController.selection.baseOffset;
+        final length = math.max(0, _quillController.selection.extentOffset - index);
+        if (index < 0) index = _quillController.document.length - 1;
+
+        final videoData = {
+          'id': videoId,
+          'video_url': videoUrl,
+          'thumbnail_url': thumbnailUrl,
+          'caption': '',
+          'author_id': user?.id ?? '',
+          'author_nickname': user?.nickname ?? 'video_author_default'.tr,
+          'author_avatar': user?.avatar ?? '',
+          'duration_sec': 0,
+        };
+
+        _quillController.replaceText(
+          index,
+          length,
+          quill.BlockEmbed.custom(VideoBlockEmbed(videoData)),
+          null,
+        );
+        _quillController.replaceText(index + 1, 0, '\n', null);
+        _quillController.updateSelection(
+          TextSelection.collapsed(offset: index + 2),
+          quill.ChangeSource.local,
+        );
+
+        Fluttertoast.showToast(msg: "publish_video_added".tr);
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "publish_video_upload_error".trParams({"error": e.toString()}));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingVideo = false;
+          _videoUploadProgress = 0.0;
+        });
+      }
+    }
+  }
+
   Future<void> _submitQuill() async {
     if (_quillTitleController.text.trim().isEmpty) {
-      Fluttertoast.showToast(msg: "请填写标题");
+      Fluttertoast.showToast(msg: 'please_enter_title'.tr);
       return;
     }
 
@@ -516,9 +749,8 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     final jsonContent = jsonEncode(delta.toJson());
     final plainText = extractPureText(_quillController.document);
 
-    // 扫描 Delta，抓取其中第一张含有 "image" 属性的 Cloudinary 链接
     String? firstImage;
-    for (var op in delta.toList()) {
+    for (final op in delta.toList()) {
       if (op.isInsert && op.data is Map) {
         final map = op.data as Map;
         if (map.containsKey('image')) {
@@ -528,7 +760,6 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
       }
     }
 
-    // 🌟 自动格式化机制：提交时强制限制合法范围并自动保留两位小数点
     final priceRaw = _quillPriceController.text.trim();
     double priceValue = 0.0;
     if (priceRaw.isNotEmpty) {
@@ -544,63 +775,67 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
       content: jsonContent,
       plainText: plainText,
       tags: _parseTags(_quillTagsController.text),
-      category: _quillCategory, // 用户选中的专业领域分类
-      thumbnail: firstImage ?? '', // 如果没有插图，传空字符串
+      category: _quillCategory,
+      thumbnail: firstImage ?? '',
       status: _quillStatus,
-      price: formattedPrice, // 🌟 传入文章付费价格参数
+      price: formattedPrice,
     );
   }
 
-  // 3. 📂 poll（学术/日常投票）参数构建
   Future<void> _submitPoll() async {
-    if (_pollQuestionController.text.isEmpty) {
-      Fluttertoast.showToast(msg: "请填写投票主题");
+    if (_pollQuestionController.text.trim().isEmpty) {
+      Fluttertoast.showToast(msg: 'please_enter_poll_question'.tr);
       return;
     }
     final List<String> options = [];
-    for (var c in _pollOptionControllers) {
-      if (c.text.isNotEmpty) {
-        options.add(c.text);
+    for (final c in _pollOptionControllers) {
+      if (c.text.trim().isNotEmpty) {
+        options.add(c.text.trim());
       }
     }
     if (options.length < 2) {
-      Fluttertoast.showToast(msg: "至少需要2个非空投票选项");
+      Fluttertoast.showToast(msg: 'need_two_poll_options'.tr);
       return;
     }
     _submitPost(
       postType: 'poll',
-      title: _pollQuestionController.text, // 用户书写的投票议题作为 title
-      content: "请参与投票：${_pollQuestionController.text}", // 固定拼装提示文本
-      plainText: "请参与投票：${_pollQuestionController.text}",
-      pollQuestion: _pollQuestionController.text, // poll_question 与 title 一致
-      pollOptions: options, // 选项数组
-      category: 'news', // 固定归类为 "news"
+      title: _pollQuestionController.text.trim(),
+      content: 'poll_invite_text'
+          .trParams({'question': _pollQuestionController.text.trim()}),
+      plainText: 'poll_invite_text'
+          .trParams({'question': _pollQuestionController.text.trim()}),
+      pollQuestion: _pollQuestionController.text.trim(),
+      pollOptions: options,
+      category: 'news',
       status: _pollStatus,
     );
   }
 
-  // 2. 📂 short_post（图文说说）参数构建
   Future<void> _submitShort() async {
-    if (_shortContentController.text.isEmpty && _shortImages.isEmpty) {
-      Fluttertoast.showToast(msg: "说点什么或者添加图片吧...");
+    if (_shortContentController.text.trim().isEmpty && _shortImages.isEmpty) {
+      Fluttertoast.showToast(msg: 'say_something_or_image'.tr);
       return;
     }
     _submitPost(
       postType: 'short_post',
-      title: '', // 说说无标题框，固定传空字符串 ""
-      content: _shortContentController.text, // 说说正文内容
-      plainText: _shortContentController.text,
+      title: '',
+      content: _shortContentController.text.trim(),
+      plainText: _shortContentController.text.trim(),
       tags: _parseTags(_shortTagsController.text),
-      category: 'general', // 固定归类为 "general"
+      category: 'general',
       status: _shortStatus,
-      thumbnail: _shortImages.isNotEmpty ? _shortImages.first : '', // 如果 images 不为空，抓取 images[0] 作为缩略图
-      images: _shortImages, // 高清大图 URL 数组
+      thumbnail: _shortImages.isNotEmpty ? _shortImages.first : '',
+      images: _shortImages,
     );
   }
 
   List<String> _parseTags(String raw) {
     if (raw.isEmpty) return [];
-    return raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    return raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   Future<void> _submitPost({
@@ -615,7 +850,7 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     String? pollQuestion,
     List<String>? pollOptions,
     List<String>? images,
-    String? price, // 🌟 新增支持价格
+    String? price,
   }) async {
     setState(() => _isPublishing = true);
     try {
@@ -631,302 +866,507 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
         if (pollQuestion != null) 'poll_question': pollQuestion,
         if (pollOptions != null) 'poll_options': pollOptions,
         if (images != null) 'images': images,
-        if (price != null && price.isNotEmpty) 'price': price, // 🌟 仅在价格非空时提交
+        if (price != null && price.isNotEmpty) 'price': price,
       };
 
       final res = await HttpClient.instance.post('/api-posts', data: body);
       if (res.respCode == 0) {
-        Fluttertoast.showToast(msg: "发布成功");
+        Fluttertoast.showToast(msg: 'publish_success'.tr);
         Get.back(result: true);
       }
     } catch (e) {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: "发布异常");
+        Fluttertoast.showToast(msg: 'publish_error'.tr);
       }
     } finally {
-      setState(() => _isPublishing = false);
+      if (mounted) setState(() => _isPublishing = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Get.back(),
-          icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, color: Colors.grey, size: 24.0),
-        ),
-        title: Row(
-          children: [
-            if (_activeFormIndex == 0)
+    final activeStatusKey = _activeFormIndex == 0
+        ? _quillStatus
+        : (_activeFormIndex == 1 ? _pollStatus : _shortStatus);
+
+    // 🌟 1. 精准捕获键盘真实弹起高度并持久化锁定
+    final double currentKeyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    if (currentKeyboardHeight > 180.0 && currentKeyboardHeight > _stableKeyboardHeight) {
+      _stableKeyboardHeight = currentKeyboardHeight;
+    }
+
+    // 🌟 2. 预设两排紧凑搜索栏高度（搜索框 38px + 内外边距与分割线 + 横向候选条 54px ≈ 112px）
+    const double compactSearchHeight = 112.0;
+
+    // 🌟 3. 动态计算底栏高度：
+    // - 当展开 Emoji 且键盘弹起（正在搜索 Emoji）时：高度 = 键盘高度 + 112px（刚好露出紧凑的两排搜索条）；
+    // - 当展开 Emoji 且键盘收起（正常翻页浏览）时：高度 = _stableKeyboardHeight（完整多行大面板）；
+    // - 当关闭 Emoji 时：高度 = currentKeyboardHeight（为文章正文输入法让位）。
+    final double bottomPanelHeight = _isEmojiPanelVisible
+        ? (currentKeyboardHeight > 180.0
+        ? (currentKeyboardHeight + compactSearchHeight)
+        : _stableKeyboardHeight)
+        : currentKeyboardHeight;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldLeave = await _showExitConfirmDialog();
+        if (shouldLeave && context.mounted) {
+          Get.back();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.surface,
+        resizeToAvoidBottomInset: false, // 🌟 避免页面双重挤压抽搐
+        appBar: AppBar(
+          backgroundColor: AppColors.surface,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            onPressed: () async {
+              final shouldLeave = await _showExitConfirmDialog();
+              if (shouldLeave && context.mounted) {
+                Get.back();
+              }
+            },
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedCancel01,
+              color: AppColors.textSecondary,
+              size: 22.0,
+            ),
+          ),
+          title: Row(
+            children: [
+              if (_activeFormIndex == 0)
+                GestureDetector(
+                  onTap: _showCategorySelector,
+                  child: Container(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _primaryTeal.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _categoryNameKeys[_quillCategory]?.tr ?? 'select_topic'.tr,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _primaryTeal,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedArrowDown01,
+                          color: _primaryTeal,
+                          size: 12.0,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const Spacer(),
               GestureDetector(
-                onTap: _showCategorySelector,
+                onTap: _showStatusSelector,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF5F7FA),
-                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.divider),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        _categoryChineseNames[_quillCategory] ?? "选择领域",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const HugeIcon(
-                        icon: HugeIcons.strokeRoundedArrowDown01,
-                        color: Colors.grey,
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedView,
+                        color: AppColors.textSecondary,
                         size: 12.0,
                       ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: _handlePublishSubmit,
-            child: const Text("发布", style: TextStyle(color: Color(0xFF0066FF), fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _isPublishing
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF0066FF)))
-                : _buildActiveFormBody(),
-          ),
-          _buildBottomActionToolbar(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActiveFormBody() {
-    if (_activeFormIndex == 0) {
-      return _buildQuillForm();
-    } else if (_activeFormIndex == 1) {
-      return _buildPollForm();
-    } else {
-      return _buildShortForm();
-    }
-  }
-
-  // 1. 深度文章：无容器 Padding 阻碍，两端完全贴合设计
-  Widget _buildQuillForm() {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-                child: TextField(
-                  controller: _quillTitleController,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1F2937), letterSpacing: -0.5),
-                  decoration: const InputDecoration(
-                    hintText: "标题",
-                    hintStyle: TextStyle(color: Color(0xFFD1D5DB)),
-                    border: InputBorder.none,
-                  ),
-                ),
-              ),
-              const Divider(height: 1, color: Color(0xFFF3F4F6)),
-              // 🌟 重点核心：无任何容器 Padding 限制，内容两端完美贴合
-              Container(
-                height: 350,
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-                child: quill.QuillEditor(
-                  controller: _quillController,
-                  scrollController: _editorScrollC,
-                  focusNode: _editorFocusNode,
-                  config: quill.QuillEditorConfig(
-                    placeholder: '分享你此刻的想法...',
-                    autoFocus: false,
-                    checkBoxReadOnly: false,
-                    padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 0),
-                    expands: true,
-                    customStyles: const quill.DefaultStyles(
-                      paragraph: quill.DefaultTextBlockStyle(
-                        TextStyle(fontSize: 17.0, color: Colors.black87, height: 1.6, fontFamily: 'ShantellSans'),
-                        quill.HorizontalSpacing(0, 0),
-                        quill.VerticalSpacing(0, 0),
-                        quill.VerticalSpacing(0, 0),
-                        null,
+                      const SizedBox(width: 4),
+                      Text(
+                        _statusNameKeys[activeStatusKey]?.tr ?? 'status_published'.tr,
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                       ),
-                      placeHolder: quill.DefaultTextBlockStyle(
-                        TextStyle(fontSize: 17.0, color: Color(0xFF9CA3AF), height: 1.6, fontFamily: 'ShantellSans'),
-                        quill.HorizontalSpacing(0, 0),
-                        quill.VerticalSpacing(0, 0),
-                        quill.VerticalSpacing(0, 0),
-                        null,
-                      ),
-                    ),
-                    embedBuilders: [
-                      DividerEmbedBuilder(),
-                      ...FlutterQuillEmbeds.editorBuilders(),
                     ],
-                  ),
-                ),
-              ),
-              const Divider(height: 1, color: Color(0xFFF3F4F6)),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: TextField(
-                  controller: _quillTagsController,
-                  style: const TextStyle(fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: "添加检索标签 (以英文逗号分割，如: tech, ai)",
-                    hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                ),
-              ),
-              // 🌟 新增：付费阅读价格输入（仅在深度文章表单中展示，带限制与自动纠偏机制）
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-                child: TextField(
-                  controller: _quillPriceController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')), // 限制只能输入数字且最多两位小数
-                  ],
-                  style: const TextStyle(fontSize: 14),
-                  onChanged: (value) {
-                    if (value.isEmpty) return;
-                    final double? parsed = double.tryParse(value);
-                    if (parsed != null) {
-                      if (parsed > 50.0) {
-                        _quillPriceController.text = "50.00";
-                        // 保持光标定位在文本最后一位
-                        _quillPriceController.selection = TextSelection.fromPosition(
-                          TextPosition(offset: _quillPriceController.text.length),
-                        );
-                        Fluttertoast.showToast(msg: "付费价格最大限制为 50.00 元");
-                      } else if (parsed < 0.0) {
-                        _quillPriceController.text = "0.00";
-                        _quillPriceController.selection = TextSelection.fromPosition(
-                          TextPosition(offset: _quillPriceController.text.length),
-                        );
-                      }
-                    }
-                  },
-                  decoration: InputDecoration(
-                    hintText: "设置付费阅读价格 (最大 50.00 元，留空或 0 代表免费)",
-                    hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
-                    prefixIcon: const Icon(Icons.attach_money_rounded, color: Color(0xFF0066FF), size: 18),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),
               ),
             ],
           ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 14.0, left: 6),
+              child: ElevatedButton(
+                onPressed: _isPublishing ? null : _handlePublishSubmit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryTeal,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _isPublishing
+                    ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2),
+                )
+                    : Text(
+                  'publish'.tr,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              ),
+            ),
+          ],
         ),
-        _EnhancedToolbar(
-          controller: _quillController,
-          onImageTap: _pickImage,
-          onGifTap: _pickGif,
-          onDividerTap: _insertDivider,
-          onToggle: _toggleAttribute,
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              // 视频上传进度提示条
+              if (_isUploadingVideo)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _primaryTeal.withOpacity(0.08),
+                    border: Border.all(color: _primaryTeal.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          value: _videoUploadProgress > 0 ? _videoUploadProgress : null,
+                          color: _primaryTeal,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        _videoUploadProgress < 1.0
+                            ? 'publish_uploading_video'.trParams({'percent': (_videoUploadProgress * 100).toInt().toString()})
+                            : 'publish_transcoding'.tr,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _primaryTeal,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // 编辑器主视口
+              Expanded(
+                child: _isPublishing
+                    ? Center(
+                  child: CircularProgressIndicator(
+                    color: _primaryTeal,
+                    strokeWidth: 2.5,
+                  ),
+                )
+                    : _buildActiveFormBody(),
+              ),
+
+              // 底部工具条
+              _buildBottomActionToolbar(),
+
+              // 🌟 固化高度底栏：无缝嵌入 Emoji 选择器
+              SizedBox(
+                height: bottomPanelHeight,
+                child: _isEmojiPanelVisible
+                    ? ModernEmojiPicker(
+                  onEmojiSelected: _insertEmoji,
+                  onBackspacePressed: _handleBackspace,
+                )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveFormBody() {
+    switch (_activeFormIndex) {
+      case 0:
+        return _buildQuillForm();
+      case 1:
+        return _buildPollForm();
+      case 2:
+      default:
+        return _buildShortForm();
+    }
+  }
+
+  Widget _buildQuillForm() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 6),
+          child: TextField(
+            controller: _quillTitleController,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.5,
+            ),
+            decoration: InputDecoration(
+              hintText: 'title'.tr,
+              hintStyle: TextStyle(
+                color: AppColors.border,
+                fontWeight: FontWeight.w700,
+              ),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+        Divider(height: 1, color: AppColors.surfaceAlt),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
+            child: quill.QuillEditor(
+              controller: _quillController,
+              scrollController: _quillScrollController,
+              focusNode: _quillEditorFocusNode,
+              config: quill.QuillEditorConfig(
+                placeholder: 'share_moment_hint'.tr,
+                autoFocus: false,
+                checkBoxReadOnly: false,
+                padding: EdgeInsets.zero,
+                expands: true,
+                customStyles: quill.DefaultStyles(
+                  paragraph: quill.DefaultTextBlockStyle(
+                    TextStyle(
+                      fontSize: 16.5,
+                      color: AppColors.textPrimary,
+                      height: 1.65,
+                      fontFamily: 'ShantellSans',
+                    ),
+                    quill.HorizontalSpacing(0, 0),
+                    quill.VerticalSpacing(0, 0),
+                    quill.VerticalSpacing(0, 0),
+                    null,
+                  ),
+                  placeHolder: quill.DefaultTextBlockStyle(
+                    TextStyle(
+                      fontSize: 16.5,
+                      color: AppColors.textHint,
+                      height: 1.65,
+                      fontFamily: 'ShantellSans',
+                    ),
+                    quill.HorizontalSpacing(0, 0),
+                    quill.VerticalSpacing(0, 0),
+                    quill.VerticalSpacing(0, 0),
+                    null,
+                  ),
+                ),
+                embedBuilders: [
+                  DividerEmbedBuilder(),
+                  VideoEmbedBuilder(),
+                  ...FlutterQuillEmbeds.editorBuilders(),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            border: Border(top: BorderSide(color: AppColors.surfaceAlt)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _quillTagsController,
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'tags_hint_tech'.tr,
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 11),
+                    border: InputBorder.none,
+                    isDense: true,
+                    prefixIcon: Icon(Icons.tag_rounded, size: 14, color: AppColors.textHint),
+                    prefixIconConstraints: const BoxConstraints(minWidth: 20),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 110,
+                height: 30,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: TextField(
+                  controller: _quillPriceController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                  ],
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    hintText: 'price_hint'.tr,
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 10),
+                    border: InputBorder.none,
+                    isDense: true,
+                    prefixText: '¥ ',
+                    prefixStyle: TextStyle(
+                      color: _primaryTeal,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                  ),
+                  onChanged: (val) {
+                    final p = double.tryParse(val) ?? 0.0;
+                    if (p > 50.0) {
+                      _quillPriceController.text = '50.00';
+                      Fluttertoast.showToast(msg: 'price_limit_notice'.tr);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  // 2. 投票发布表单
   Widget _buildPollForm() {
-    final themeColor = const Color(0xFF0066FF);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-          child: TextField(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
             controller: _pollQuestionController,
-            maxLines: 2,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            decoration: const InputDecoration(
-              hintText: "发起投票：写下你的议题...",
-              hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 16, fontWeight: FontWeight.normal),
+            focusNode: _pollFocusNode,
+            maxLines: 3,
+            minLines: 1,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            decoration: InputDecoration(
+              hintText: 'poll_question_hint'.tr,
+              hintStyle: TextStyle(color: AppColors.textHint, fontSize: 15),
               border: InputBorder.none,
             ),
           ),
-        ),
-        const Divider(height: 1, color: Color(0xFFF3F4F6)),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+          Divider(height: 20, color: AppColors.surfaceAlt),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: _pollOptionControllers.length + 1,
             itemBuilder: (context, index) {
               if (index == _pollOptionControllers.length) {
                 return Padding(
                   padding: const EdgeInsets.only(top: 8.0),
-                  child: TextButton.icon(
+                  child: OutlinedButton.icon(
                     onPressed: () {
+                      if (_pollOptionControllers.length >= 6) {
+                        Fluttertoast.showToast(msg: 'publish_max_options'.tr);
+                        return;
+                      }
                       setState(() {
                         _pollOptionControllers.add(TextEditingController());
                       });
                     },
-                    icon: HugeIcon(icon: HugeIcons.strokeRoundedPlusSignCircle, color: themeColor, size: 20.0),
-                    label: Text("添加投票选项", style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)),
+                    icon: HugeIcon(
+                      icon: HugeIcons.strokeRoundedPlusSignCircle,
+                      color: _primaryTeal,
+                      size: 16.0,
+                    ),
+                    label: Text(
+                      'add_poll_option'.tr,
+                      style: TextStyle(
+                        color: _primaryTeal,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: _primaryTeal.withOpacity(0.3)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
                   ),
                 );
               }
               return Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
+                padding: const EdgeInsets.only(bottom: 10.0),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundColor: themeColor.withOpacity(0.1),
-                      child: Text("${index + 1}", style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold)),
+                    Container(
+                      width: 26,
+                      height: 26,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _primaryTeal.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _primaryTeal,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF5F7FA),
+                          color: AppColors.background,
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.divider),
                         ),
                         child: TextField(
                           controller: _pollOptionControllers[index],
-                          decoration: const InputDecoration(
-                            hintText: "选项内容...",
-                            hintStyle: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
+                          style: const TextStyle(fontSize: 13.5),
+                          decoration: InputDecoration(
+                            hintText: 'poll_option_hint'.tr,
+                            hintStyle: TextStyle(
+                                fontSize: 12, color: AppColors.textHint),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
                           ),
                         ),
                       ),
                     ),
                     if (_pollOptionControllers.length > 2) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       IconButton(
                         onPressed: () {
                           setState(() {
                             _pollOptionControllers.removeAt(index);
                           });
                         },
-                        icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                        icon: const Icon(Icons.remove_circle_outline,
+                            color: Colors.redAccent, size: 20),
                       ),
                     ],
                   ],
@@ -934,249 +1374,348 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
               );
             },
           ),
-        )
-      ],
+        ],
+      ),
     );
   }
 
-  // 3. 图文说说表单：图片添加区像素级还原图示
   Widget _buildShortForm() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-                child: TextField(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
                   controller: _shortContentController,
-                  maxLines: 6,
-                  style: const TextStyle(fontSize: 16, height: 1.5),
-                  decoration: const InputDecoration(
-                    hintText: "分享你此刻的想法...",
-                    hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
+                  focusNode: _shortFocusNode,
+                  maxLines: 8,
+                  minLines: 3,
+                  style: TextStyle(
+                    fontSize: 16.5,
+                    height: 1.6,
+                    color: AppColors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'share_moment_hint'.tr,
+                    hintStyle: TextStyle(
+                      color: AppColors.textHint,
+                      fontSize: 15,
+                    ),
                     border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    ..._shortImages.asMap().entries.map((entry) {
-                      final idx = entry.key;
-                      final url = entry.value;
-                      return Stack(
-                        alignment: Alignment.topRight,
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(url, width: 90, height: 90, fit: BoxFit.cover),
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _shortImages.removeAt(idx);
-                              });
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
-                              padding: const EdgeInsets.all(3),
-                              child: const Icon(Icons.close, size: 12, color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-
-                    // 🌟 像素级还原图示添加图片卡片
-                    GestureDetector(
-                      onTap: _showShortImageSourcePicker,
-                      child: Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F7FA),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                const SizedBox(height: 12),
+                if (_shortImages.isNotEmpty)
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      ..._shortImages.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final url = entry.value;
+                        return Stack(
+                          alignment: Alignment.topRight,
                           children: [
-                            HugeIcon(icon: HugeIcons.strokeRoundedPlusSign, color: Color(0xFF9CA3AF), size: 24.0),
-                            SizedBox(height: 8),
-                            Text("图片/视频", style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                            Container(
+                              width: 86,
+                              height: 86,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: AppColors.divider),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.network(url, fit: BoxFit.cover),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _shortImages.removeAt(idx);
+                                });
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.textSecondary,
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(3),
+                                child: const Icon(Icons.close,
+                                    size: 11, color: Colors.white),
+                              ),
+                            ),
                           ],
+                        );
+                      }),
+                      if (_shortImages.length < 9)
+                        GestureDetector(
+                          onTap: _pickImage,
+                          child: Container(
+                            width: 86,
+                            height: 86,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceAlt,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                  color: AppColors.divider,
+                                  style: BorderStyle.solid),
+                            ),
+                            child: Icon(
+                              Icons.add_photo_alternate_outlined,
+                              color: AppColors.textHint,
+                              size: 24,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            border: Border(top: BorderSide(color: AppColors.surfaceAlt)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.tag_rounded, size: 16, color: AppColors.textHint),
+              const SizedBox(width: 6),
+              Expanded(
                 child: TextField(
                   controller: _shortTagsController,
+                  style: const TextStyle(fontSize: 12.5),
                   decoration: InputDecoration(
-                    hintText: "添加检索标签 (以英文逗号分割，如: news, chat)",
-                    hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    hintText: 'tags_hint_news'.tr,
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 11.5),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ),
             ],
           ),
-        )
+        ),
       ],
     );
   }
 
-  // 🌟 参考图配色交互底栏完全体设计（拼色药丸指示器联动）
   Widget _buildBottomActionToolbar() {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade100, width: 1)),
+      decoration: BoxDecoration(color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+        border: Border(top: BorderSide(color: AppColors.surfaceAlt)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4),
             child: Row(
               children: [
-                // 1. 使用 Expanded 让滚动区域占据剩余空间，保持右侧状态按钮固定
                 if (_activeFormIndex == 0)
                   Expanded(
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(), // 增加横向滚动的物理回弹效果
+                      physics: const BouncingScrollPhysics(),
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedHashtag, color: Color(0xFF9CA3AF), size: 22.0),
-                            onPressed: () {
-                              if (_activeFormIndex == 0) {
-                                _quillController.replaceText(_quillController.selection.baseOffset, 0, '#', null);
-                              } else if (_activeFormIndex == 2) {
-                                _shortContentController.text += '#';
-                              }
-                            },
+                            tooltip: 'pub_tooltip_hash'.tr,
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedHashtag,
+                              color: AppColors.textSecondary,
+                              size: 19.0,
+                            ),
+                            onPressed: _insertHashtag,
                           ),
                           IconButton(
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_linebreak'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedSquareArrowMoveDownLeft,
-                              color: Color(0xFF9CA3AF),
-                              size: 22,
+                              color: AppColors.textSecondary,
+                              size: 19.0,
                             ),
-                            onPressed: () {
-                              if (_activeFormIndex == 0) {
-                                final index = _quillController.selection.baseOffset;
-                                _quillController.replaceText(index, 0, '\n', null);
-                                _quillController.updateSelection(
-                                  TextSelection.collapsed(offset: index + 1),
-                                  quill.ChangeSource.local,
-                                );
-                              } else if (_activeFormIndex == 2) {
-                                _shortContentController.text += '\n';
-                              }
-                            },
+                            onPressed: _insertNewlineAndAutoScroll,
                           ),
                           IconButton(
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_unfocus'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedCancelCircle,
-                              color: Color(0xFF9CA3AF),
-                              size: 22,
+                              color: AppColors.textSecondary,
+                              size: 19.0,
                             ),
-                            onPressed: () {
-                              FocusScope.of(context).unfocus();
-                              _editorFocusNode.unfocus();
-                            },
+                            onPressed: _unfocusEditor,
+                          ),
+                          _vDivider(),
+                          _buildFormatBtn(
+                            icon: HugeIcons.strokeRoundedTextBold,
+                            attr: quill.Attribute.bold,
+                          ),
+                          _buildFormatBtn(
+                            icon: HugeIcons.strokeRoundedTextItalic,
+                            attr: quill.Attribute.italic,
+                          ),
+                          _buildFormatBtn(
+                            icon: HugeIcons.strokeRoundedHeading01,
+                            attr: quill.Attribute.h1,
+                          ),
+                          _buildFormatBtn(
+                            icon: HugeIcons.strokeRoundedHeading02,
+                            attr: quill.Attribute.h2,
+                          ),
+                          _buildFormatBtn(
+                            icon: HugeIcons.strokeRoundedQuoteUp,
+                            attr: quill.Attribute.blockQuote,
+                          ),
+                          _buildFormatBtn(
+                            icon: HugeIcons.strokeRoundedLeftToRightListBullet,
+                            attr: quill.Attribute.ul,
+                          ),
+                          _buildFormatBtn(
+                            icon: HugeIcons.strokeRoundedLeftToRightListNumber,
+                            attr: quill.Attribute.ol,
+                          ),
+                          _buildFormatBtn(
+                            icon: HugeIcons.strokeRoundedTextAlignCenter,
+                            attr: quill.Attribute.centerAlignment,
+                          ),
+                          _vDivider(),
+                          IconButton(
+                            tooltip: 'pub_tooltip_video'.tr,
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedVideo01,
+                              color: AppColors.textSecondary,
+                              size: 19.0,
+                            ),
+                            onPressed: _pickAndUploadVideo,
                           ),
                           IconButton(
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedChatQuestion, color: Color(0xFF9CA3AF), size: 22.0),
-                            onPressed: () => setState(() => _activeFormIndex = 1),
+                            tooltip: 'pub_tooltip_image'.tr,
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedImage01,
+                              color: AppColors.textSecondary,
+                              size: 19.0,
+                            ),
+                            onPressed: _pickImage,
                           ),
                           IconButton(
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedInLove, color: Color(0xFF9CA3AF), size: 22.0),
-                            onPressed: _openEmojiPicker,
+                            tooltip: 'pub_tooltip_gif'.tr,
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedGif01,
+                              color: AppColors.textSecondary,
+                              size: 19.0,
+                            ),
+                            onPressed: _pickGif,
                           ),
                           IconButton(
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedMenuSquare, color: Color(0xFF9CA3AF), size: 22.0),
-                            onPressed: _showStatusSelector,
+                            tooltip: 'pub_tooltip_divider'.tr,
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedMenu04,
+                              color: AppColors.textSecondary,
+                              size: 19.0,
+                            ),
+                            onPressed: _insertDivider,
                           ),
                         ],
                       ),
                     ),
+                  )
+                else if (_activeFormIndex == 2) ...[
+                  IconButton(
+                    tooltip: 'pub_tooltip_add_image'.tr,
+                    icon: HugeIcon(
+                      icon: HugeIcons.strokeRoundedImage01,
+                      color: AppColors.textSecondary,
+                      size: 20.0,
+                    ),
+                    onPressed: _pickImage,
                   ),
-                if (_activeFormIndex == 0) ...[const SizedBox(width: 8), // 2. 替换掉原本的 Spacer，用固定间距隔开左右两边
-                  GestureDetector(
-                    onTap: _showStatusSelector,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF5F7FA),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const HugeIcon(icon: HugeIcons.strokeRoundedSettings01, color: Colors.grey, size: 12.0),
-                          const SizedBox(width: 4),
-                          Text(
-                            _statusChineseNames[_activeFormIndex == 0 ? _quillStatus : (_activeFormIndex == 1 ? _pollStatus : _shortStatus)] ?? "公开",
-                            style: const TextStyle(fontSize: 11, color: Colors.grey),
-                          ),
-                        ],
-                      ),
+                  IconButton(
+                    tooltip: 'pub_tooltip_add_gif'.tr,
+                    icon: HugeIcon(
+                      icon: HugeIcons.strokeRoundedGif01,
+                      color: AppColors.textSecondary,
+                      size: 20.0,
                     ),
-                  )],
+                    onPressed: _pickGif,
+                  ),
+                  IconButton(
+                    tooltip: 'pub_tooltip_hash'.tr,
+                    icon: HugeIcon(
+                      icon: HugeIcons.strokeRoundedHashtag,
+                      color: AppColors.textSecondary,
+                      size: 20.0,
+                    ),
+                    onPressed: _insertHashtag,
+                  ),
+                  const Spacer(),
+                ] else ...[
+                  const Spacer(),
+                ],
 
+                // 表情面板呼出键
+                IconButton(
+                  tooltip: 'pub_tooltip_emoji'.tr,
+                  icon: HugeIcon(
+                    icon: _isEmojiPanelVisible
+                        ? HugeIcons.strokeRoundedKeyboard
+                        : HugeIcons.strokeRoundedInLove,
+                    color: _isEmojiPanelVisible
+                        ? _primaryTeal
+                        : AppColors.textSecondary,
+                    size: 21.0,
+                  ),
+                  onPressed: _toggleEmojiPanel,
+                ),
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          Divider(height: 1, color: AppColors.surfaceAlt),
+
+          // 模式切换胶囊栏
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // 提问题 (Pill 1) -> 指向投票
-                _buildPillButton(
-                  index: 1,
-                  icon: HugeIcons.strokeRoundedChatQuestion,
-                  text: "提问题",
-                  bgColor: const Color(0xFFE8F5E9),
-                  textColor: const Color(0xFF2E7D32),
-                ),
-                // 写回答/想法 (Pill 2) -> 指向图文说说
                 _buildPillButton(
                   index: 2,
                   icon: HugeIcons.strokeRoundedPencilEdit02,
-                  text: "写想法",
-                  bgColor: const Color(0xFFE3F2FD),
-                  textColor: const Color(0xFF1565C0),
+                  text: 'tab_moment'.tr,
+                  bgColor: const Color(0xFFE0F2FE),
+                  textColor: const Color(0xFF0369A1),
                 ),
-                // 发文章 (Pill 3) -> 指向深度富文本
+                const SizedBox(width: 8),
                 _buildPillButton(
                   index: 0,
                   icon: HugeIcons.strokeRoundedNote01,
-                  text: "发文章",
-                  bgColor: const Color(0xFFFFF3E0),
-                  textColor: const Color(0xFFE65100),
+                  text: 'tab_article'.tr,
+                  bgColor: const Color(0xFFFEF3C7),
+                  textColor: const Color(0xFFB45309),
+                ),
+                const SizedBox(width: 8),
+                _buildPillButton(
+                  index: 1,
+                  icon: HugeIcons.strokeRoundedChatQuestion,
+                  text: 'tab_ask'.tr,
+                  bgColor: const Color(0xFFDCFCE7),
+                  textColor: const Color(0xFF15803D),
                 ),
               ],
             ),
@@ -1186,43 +1725,84 @@ class _PublishViewState extends State<PublishView> with SingleTickerProviderStat
     );
   }
 
+  Widget _buildFormatBtn({
+    required dynamic icon,
+    required quill.Attribute attr,
+  }) {
+    return ListenableBuilder(
+      listenable: _quillController,
+      builder: (context, _) {
+        final style = _quillController.getSelectionStyle();
+        final isApplied = style.attributes.containsKey(attr.key) &&
+            style.attributes[attr.key]!.value == attr.value;
+        return IconButton(
+          icon: HugeIcon(
+            icon: icon,
+            color: isApplied ? _primaryTeal : AppColors.textSecondary,
+            size: 19,
+          ),
+          onPressed: () => _toggleAttribute(attr),
+        );
+      },
+    );
+  }
+
+  Widget _vDivider() => VerticalDivider(
+    indent: 14,
+    endIndent: 14,
+    width: 16,
+    color: AppColors.divider,
+  );
+
   Widget _buildPillButton({
     required int index,
-    required dynamic icon, // 使用 dynamic 保持与不同版本 HugeIcons 传参类型的最高兼容度
+    required dynamic icon,
     required String text,
     required Color bgColor,
     required Color textColor,
   }) {
     final isSelected = _activeFormIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _activeFormIndex = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? bgColor : const Color(0xFFF5F7FA),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? textColor.withOpacity(0.3) : Colors.transparent,
-            width: 1.5,
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() {
+            _activeFormIndex = index;
+            _isEmojiPanelVisible = false;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? bgColor : AppColors.background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? textColor.withOpacity(0.35)
+                  : AppColors.divider,
+              width: isSelected ? 1.5 : 1.0,
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            HugeIcon(
-              icon: icon,
-              color: isSelected ? textColor : Colors.grey.shade600,
-              size: 16,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              text,
-              style: TextStyle(
-                color: isSelected ? textColor : Colors.grey.shade700,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              HugeIcon(
+                icon: icon,
+                color: isSelected ? textColor : AppColors.textSecondary,
+                size: 15,
               ),
-            ),
-          ],
+              const SizedBox(width: 5),
+              Text(
+                text,
+                style: TextStyle(
+                  color: isSelected ? textColor : AppColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1279,40 +1859,42 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
       children: [
         Container(
           padding: const EdgeInsets.only(top: 12, bottom: 8),
-          color: Colors.white,
+          color: AppColors.surface,
           child: Center(
             child: Container(
-              width: 40,
-              height: 5,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: AppColors.border,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
           child: TextField(
             controller: _searchC,
             focusNode: _searchFocus,
             textInputAction: TextInputAction.search,
-            cursorColor: Colors.blueAccent,
-            style: const TextStyle(fontSize: 15, color: Color(0xFF2C3E50)),
+            cursorColor: AppColors.primary,
+            style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
             onSubmitted: (value) => _fetchGifs(value),
             decoration: InputDecoration(
-              hintText: '搜索有趣的 GIF...',
-              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-              prefixIcon: const Icon(Icons.search, size: 20, color: Colors.grey),
+              hintText: 'search_gif_hint'.tr,
+              hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
+              prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
               filled: true,
-              fillColor: const Color(0xFFF5F7FA),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+              fillColor: AppColors.surfaceAlt,
+              contentPadding:
+              const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
               suffixIcon: IconButton(
-                icon: const Icon(Icons.arrow_forward, color: Colors.blueAccent, size: 22),
+                icon: Icon(Icons.arrow_forward_rounded,
+                    color: AppColors.primary, size: 20),
                 onPressed: () => _fetchGifs(_searchC.text),
               ),
             ),
@@ -1320,58 +1902,41 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator(strokeWidth: 3, color: Colors.blueAccent))
+              ? Center(
+            child: CircularProgressIndicator(
+                strokeWidth: 2.5, color: AppColors.primary),
+          )
               : _gifs.isEmpty
               ? Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.search, size: 48, color: Colors.grey),
-                const SizedBox(height: 12),
-                Text('没有找到相关 GIF', style: TextStyle(color: Colors.grey[400])),
-              ],
-            ),
+            child: Text('no_gif_found'.tr,
+                style: TextStyle(color: AppColors.textHint)),
           )
               : GridView.builder(
             controller: widget.scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            gridDelegate:
+            const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
               childAspectRatio: 1.0,
             ),
             itemCount: _gifs.length,
             itemBuilder: (context, index) {
               final url = _gifs[index];
               return Material(
-                color: Colors.grey[100],
+                color: AppColors.divider,
                 borderRadius: BorderRadius.circular(12),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: () => widget.onGifSelected(url),
-                  splashColor: Colors.blueAccent.withOpacity(0.1),
                   child: Image.network(
                     url,
                     fit: BoxFit.cover,
-                    loadingBuilder: (ctx, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                : null,
-                            color: Colors.blueAccent.withOpacity(0.5),
-                          ),
-                        ),
-                      );
-                    },
                     errorBuilder: (ctx, err, stack) => const Center(
-                      child: Icon(Icons.broken_image_rounded, color: Colors.grey, size: 30),
+                      child: Icon(Icons.broken_image_rounded,
+                          color: Colors.grey, size: 28),
                     ),
                   ),
                 ),
@@ -1380,105 +1945,6 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _EnhancedToolbar extends StatelessWidget {
-  final quill.QuillController controller;
-  final VoidCallback onImageTap;
-  final VoidCallback onGifTap;
-  final VoidCallback onDividerTap;
-  final Function(quill.Attribute) onToggle;
-
-  const _EnhancedToolbar({
-    required this.controller,
-    required this.onImageTap,
-    required this.onGifTap,
-    required this.onDividerTap,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 54,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ListenableBuilder(
-        listenable: controller,
-        builder: (context, child) {
-          return ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: [
-              _toolBtn(HugeIcons.strokeRoundedImage01, null, isAction: true, onTap: onImageTap),
-              _toolBtn(HugeIcons.strokeRoundedGif01, null, isAction: true, onTap: onGifTap),
-              _vDivider(),
-              _toolBtn(HugeIcons.strokeRoundedMenu04, null, isAction: true, onTap: onDividerTap),
-              _vDivider(),
-              _toolBtn(HugeIcons.strokeRoundedTextBold, quill.Attribute.bold),
-              _toolBtn(HugeIcons.strokeRoundedTextItalic, quill.Attribute.italic),
-              _toolBtn(HugeIcons.strokeRoundedTextUnderline, quill.Attribute.underline),
-              _vDivider(),
-              _toolBtn(HugeIcons.strokeRoundedHeading01, quill.Attribute.h1),
-              _toolBtn(HugeIcons.strokeRoundedHeading02, quill.Attribute.h2),
-              _toolBtn(HugeIcons.strokeRoundedQuoteUp, quill.Attribute.blockQuote),
-              _vDivider(),
-              _toolBtn(HugeIcons.strokeRoundedLeftToRightListBullet, quill.Attribute.ul),
-              _toolBtn(HugeIcons.strokeRoundedLeftToRightListNumber, quill.Attribute.ol),
-              _toolBtn(HugeIcons.strokeRoundedTextAlignCenter, quill.Attribute.centerAlignment),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _vDivider() => const VerticalDivider(
-    indent: 14,
-    endIndent: 14,
-    width: 24,
-    color: Color(0xFFF0F0F0),
-  );
-
-  Widget _toolBtn(
-      dynamic icon,
-      quill.Attribute? attr, {
-        bool isAction = false,
-        VoidCallback? onTap,
-      }) {
-    bool isActive = false;
-
-    if (attr != null && !isAction) {
-      final style = controller.getSelectionStyle();
-      final currentAttr = style.attributes[attr.key];
-
-      if (currentAttr != null) {
-        isActive = currentAttr.value == attr.value;
-      }
-    }
-
-    return IconButton(
-      onPressed: isAction
-          ? onTap
-          : (attr != null ? () => onToggle(attr) : null),
-      icon: HugeIcon(
-        icon: icon,
-        color: isActive
-            ? const Color(0xFF0066FF)
-            : const Color(0xFF6B7280),
-        size: 22,
-      ),
     );
   }
 }

@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:qorange/theme.dart';
 
 class WithdrawalReceiptView extends StatefulWidget {
   final Map<String, dynamic> detail;
@@ -32,7 +33,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
     if (_isCapturing) return;
     setState(() => _isCapturing = true);
 
-    Fluttertoast.showToast(msg: "正在生成高清对账单快照...");
+    Fluttertoast.showToast(msg: 'generating_snapshot'.tr);
 
     try {
       await Future.delayed(const Duration(milliseconds: 300));
@@ -53,25 +54,25 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
 
       await Share.shareXFiles(
         [XFile(filePath)],
-        text: '学者提现申请对账平账单，单号: ${widget.detail['outBizNo']}',
+        text: 'receipt_share_text'.trParams({'no': '${widget.detail['outBizNo']}'}),
       );
 
     } catch (e) {
       setState(() => _isCapturing = false);
-      Fluttertoast.showToast(msg: "生成快照失败，请重试: $e");
+      Fluttertoast.showToast(msg: 'snapshot_failed'.trParams({'error': '$e'}));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final String nickname = widget.detail['nickname'] ?? '学者';
+    final String nickname = widget.detail['nickname'] ?? 'scholar'.tr;
     final String handle = '@${widget.detail['username'] ?? ''}';
     final String outBizNo = widget.detail['outBizNo'] ?? '';
     final String account = widget.detail['account'] ?? '';
     final String realName = widget.detail['name'] ?? '';
 
     // 🌟 从详情里提取绑定的手机号 [1]
-    final String realPhone = widget.detail['real_phone'] ?? '未绑定';
+    final String realPhone = widget.detail['real_phone'] ?? 'not_bound'.tr;
 
     final String amount = double.tryParse(widget.detail['amount']?.toString() ?? '0')?.toStringAsFixed(2) ?? '0.00';
     final String taxDeducted = double.tryParse(widget.detail['tax_deducted']?.toString() ?? '0')?.toStringAsFixed(2) ?? '0.00';
@@ -81,11 +82,11 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
         : '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9), // 浅灰背景，更衬托票据纸张纯净感
+      backgroundColor: AppColors.surfaceAlt, // 浅灰背景，更衬托票据纸张纯净感
       appBar: AppBar(
-        title: const Text('提现申请平账对账单', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+        title: Text('withdrawal_statement'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Get.back(),
@@ -99,8 +100,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
             RepaintBoundary(
               key: _repaintKey,
               child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -131,7 +131,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                             children: [
                               Text('QORANGE PLATFORM RECEIPT', style: TextStyle(color: premiumAmber, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                               const SizedBox(height: 4),
-                              const Text('平台创作者出账结算平账凭证', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                              Text('statement_voucher_title'.tr, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
                             ],
                           )
                         ],
@@ -149,7 +149,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(nickname, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                                  Text(nickname, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
                                   const SizedBox(height: 2),
                                   Text(handle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                                 ],
@@ -158,30 +158,30 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
-                                child: Text('财务审核中', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                                child: Text('finance_reviewing'.tr, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
                               )
                             ],
                           ),
                           const SizedBox(height: 24),
-                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                          Divider(height: 1, color: AppColors.surfaceAlt),
                           const SizedBox(height: 20),
 
-                          _buildReceiptItem('提现申请流水号', outBizNo),
-                          _buildReceiptItem('收款支付宝实名', realName),
-                          _buildReceiptItem('收款支付宝账号', account),
+                          _buildReceiptItem('receipt_ref_no'.tr, outBizNo),
+                          _buildReceiptItem('receipt_alipay_name'.tr, realName),
+                          _buildReceiptItem('receipt_alipay_account'.tr, account),
                           // 🌟 追加展示学者的账户绑定电话，方便核算
-                          _buildReceiptItem('安全绑定手机号', realPhone),
-                          _buildReceiptItem('申请提现总额', '¥$amount'),
-                          _buildReceiptItem('综合所得税 (10%)', '- ¥$taxDeducted', textColor: Colors.redAccent),
+                          _buildReceiptItem('receipt_phone'.tr, realPhone),
+                          _buildReceiptItem('receipt_total'.tr, '¥$amount'),
+                          _buildReceiptItem('receipt_tax'.tr, '- ¥$taxDeducted', textColor: Colors.redAccent),
 
                           const SizedBox(height: 16),
-                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                          Divider(height: 1, color: AppColors.surfaceAlt),
                           const SizedBox(height: 20),
 
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('财务应付款净额', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Colors.black87)),
+                              Text('receipt_net'.tr, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.textPrimary)),
                               Text(
                                 '¥$actualPayout',
                                 style: TextStyle(color: premiumBg, fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: -0.5),
@@ -191,7 +191,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                           const SizedBox(height: 8),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: Text('提现申请发起时间: $createTime', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+                            child: Text('receipt_created_at'.trParams({'time': '$createTime'}), style: TextStyle(fontSize: 9, color: AppColors.textHint)),
                           ),
 
                           const SizedBox(height: 32),
@@ -225,7 +225,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                                   child: Transform.rotate(
                                     angle: -0.2,
                                     child: Text(
-                                      '对账专用\n平台财务',
+                                      'receipt_stamp'.tr,
                                       textAlign: TextAlign.center,
                                       style: TextStyle(color: Colors.redAccent.withOpacity(0.7), fontSize: 10, fontWeight: FontWeight.bold),
                                     ),
@@ -254,11 +254,11 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                   shadowColor: premiumBg.withOpacity(0.3),
                 ),
                 icon: HugeIcon(icon: HugeIcons.strokeRoundedShare01, color: premiumAmber, size: 20),
-                label: Text('生成并发送提现平账单', style: TextStyle(color: premiumAmber, fontWeight: FontWeight.bold, fontSize: 14)),
+                label: Text('generate_and_send'.tr, style: TextStyle(color: premiumAmber, fontWeight: FontWeight.bold, fontSize: 14)),
               ),
             ),
             const SizedBox(height: 12),
-            Text('生成的平账单会自动保存至您的手机，点击可直接发送至微信/支付宝客服对账出款', style: TextStyle(color: Colors.grey.shade500, fontSize: 10), textAlign: TextAlign.center),
+            Text('statement_saved_notice'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 10), textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -271,8 +271,8 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 13, fontWeight: FontWeight.w500)),
-          Text(value, style: TextStyle(color: textColor ?? Colors.black87, fontSize: 13, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(value, style: TextStyle(color: textColor ?? AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold)),
         ],
       ),
     );
