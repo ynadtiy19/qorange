@@ -130,8 +130,8 @@ class _CelebrationPainter extends CustomPainter {
 class ConfettiCelebrationOverlay {
   static void show(
       BuildContext context, {
-        String title = 'shop_unlocked_title'.tr,
-        String subtitle = 'shop_unlocked_account'.tr,
+        String title = '',
+        String subtitle = '',
         VoidCallback? onFinished,
       }) {
     final overlayState = Overlay.of(context, rootOverlay: true);
@@ -139,8 +139,8 @@ class ConfettiCelebrationOverlay {
 
     overlayEntry = OverlayEntry(
       builder: (context) => _CelebrationWidget(
-        title: title,
-        subtitle: subtitle,
+        title: title.isEmpty ? 'shop_unlocked_title'.tr : title,
+        subtitle: subtitle.isEmpty ? 'shop_unlocked_account'.tr : subtitle,
         onDismiss: () {
           overlayEntry.remove();
           if (onFinished != null) onFinished();

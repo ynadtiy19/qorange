@@ -1152,7 +1152,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 checkBoxReadOnly: false,
                 padding: EdgeInsets.zero,
                 expands: true,
-                customStyles: const quill.DefaultStyles(
+                customStyles: quill.DefaultStyles(
                   paragraph: quill.DefaultTextBlockStyle(
                     TextStyle(
                       fontSize: 16.5,

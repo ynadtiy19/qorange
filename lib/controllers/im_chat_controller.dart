@@ -426,7 +426,7 @@ class ImChatController extends GetxController {
   }
 
   /// 🌟 发送青橙币直接转账
-  Future<void> sendTokenTransfer({required double tokens, String remark = 'im_default_remark_coffee'.tr}) async {
+  Future<void> sendTokenTransfer({required double tokens, String remark = ''}) async {
     if (tokens <= 0) return;
     await sendMessage(
       msgType: 'token_transfer',
@@ -438,7 +438,7 @@ class ImChatController extends GetxController {
   }
 
   /// 🌟 发起青橙币请款单
-  Future<void> sendTokenRequest({required double tokens, String remark = 'im_payment_settled'.tr}) async {
+  Future<void> sendTokenRequest({required double tokens, String remark = ''}) async {
     if (tokens <= 0) return;
     await sendMessage(
       msgType: 'token_request',

@@ -1197,7 +1197,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                         child: quill.QuillEditor.basic(
                           controller: _quillController!,
                           config: quill.QuillEditorConfig(
-                            customStyles: const quill.DefaultStyles(
+                            customStyles: quill.DefaultStyles(
                               paragraph: quill.DefaultTextBlockStyle(
                                 TextStyle(fontSize: 18.0, color: AppColors.textPrimary, height: 1.5, fontFamily: 'ShantellSans'),
                                 quill.HorizontalSpacing(0, 0),
@@ -1859,17 +1859,18 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     required IconData icon,
     required String title,
     required VoidCallback onTap,
-    Color textColor = AppColors.textPrimary,
+    Color? textColor,
   }) {
+    final Color resolvedColor = textColor ?? AppColors.textPrimary;
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: textColor == Colors.redAccent ? Colors.redAccent : Colors.grey),
+            Icon(icon, size: 20, color: resolvedColor == Colors.redAccent ? Colors.redAccent : Colors.grey),
             const SizedBox(width: 12),
-            Text(title, style: TextStyle(fontSize: 15, color: textColor, fontWeight: FontWeight.w500)),
+            Text(title, style: TextStyle(fontSize: 15, color: resolvedColor, fontWeight: FontWeight.w500)),
             const Spacer(),
             const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
           ],
@@ -2602,17 +2603,18 @@ class PostSubCommentSheet extends StatelessWidget {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
-    Color textColor = AppColors.textPrimary,
+    Color? textColor,
   }) {
+    final Color resolvedColor = textColor ?? AppColors.textPrimary;
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: textColor == Colors.redAccent ? Colors.redAccent : Colors.grey),
+            Icon(icon, size: 20, color: resolvedColor == Colors.redAccent ? Colors.redAccent : Colors.grey),
             const SizedBox(width: 12),
-            Text(title, style: TextStyle(fontSize: 15, color: textColor, fontWeight: FontWeight.w500)),
+            Text(title, style: TextStyle(fontSize: 15, color: resolvedColor, fontWeight: FontWeight.w500)),
             const Spacer(),
             const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
           ],
