@@ -4,6 +4,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:lottie/lottie.dart';
+import 'package:qorange/theme.dart';
 import 'voice_chat_controller.dart';
 import 'select_agent_sheet.dart';
 
@@ -15,9 +16,9 @@ class VoiceChatView extends StatelessWidget {
     // 实例化 GetX 控制器
     final controller = Get.put(VoiceChatController());
 
-    final Color obsidianBg = const Color(0xFF0F172A); // 曜石黑
+    final Color obsidianBg = AppColors.primary; // 主题强调色（原曜石黑）
     final Color goldColor = const Color(0xFFE2B04E);  // 奢华金
-    final Color primaryTeal = const Color.fromRGBO(44, 123, 109, 1.0);
+    final Color primaryTeal = AppColors.primary;
 
     // 默认选用 Simone
     String currentCharacter = 'Maya';
@@ -62,7 +63,7 @@ class VoiceChatView extends StatelessWidget {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.06),
+                          backgroundColor: AppColors.surface.withOpacity(0.06),
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -104,8 +105,7 @@ class VoiceChatView extends StatelessWidget {
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                         child: Container(
                           padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.06),
+                          decoration: BoxDecoration(color: AppColors.surface.withOpacity(0.06),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
                           ),
@@ -206,11 +206,11 @@ class VoiceChatView extends StatelessWidget {
                     // 3. 登录请求/签名创单加载圈
                     Obx(() {
                       if (!controller.isConnecting.value) return const SizedBox.shrink();
-                      return const SizedBox(
+                      return SizedBox(
                         width: 300,
                         height: 300,
                         child: CircularProgressIndicator(
-                          color: Color.fromRGBO(44, 123, 109, 1.0),
+                          color: AppColors.primary,
                           strokeWidth: 2,
                         ),
                       );
@@ -246,7 +246,7 @@ class VoiceChatView extends StatelessWidget {
               // --- 状态文字与计时器 ---
               Obx(() => Text(
                 controller.statusText.value,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                style: TextStyle(fontSize: 14, color: AppColors.textHint, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                 textAlign: TextAlign.center,
               )),
               const SizedBox(height: 12),
@@ -258,8 +258,7 @@ class VoiceChatView extends StatelessWidget {
                 final s = (sec % 60).toString().padLeft(2, '0');
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.04),
+                  decoration: BoxDecoration(color: AppColors.surface.withOpacity(0.04),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white.withOpacity(0.08)),
                   ),
@@ -289,7 +288,7 @@ class VoiceChatView extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Row(

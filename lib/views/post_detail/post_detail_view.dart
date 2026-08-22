@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:qorange/theme.dart';
 
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
@@ -129,7 +130,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
         return _AnimatedEmailContactSheet(
           postId: widget.postId,
           postType: postType,
-          themeColor: const Color.fromRGBO(44, 123, 109, 1.0),
+          themeColor: AppColors.primary,
         );
       },
     );
@@ -237,8 +238,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
         insetPadding: const EdgeInsets.symmetric(horizontal: 28),
         child: Container(
           padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
@@ -436,7 +436,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
       return;
     }
 
-    const themeColor = Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
 
     // 🌟 核心优化：复用极简的 /api-im/contacts 接口，秒级拉取关注与私聊去重好友
     List<dynamic> contacts = [];
@@ -449,15 +449,14 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
     // 拼接需要分享的外部链接
     final String shareUrl = "https://posts.zeabur.app/?id=${widget.postId}";
-    final String currentTitle = _post?['title']?.toString() ?? '文章分享';
+    final String currentTitle = _post?['title']?.toString() ?? 'post_share_title'.tr;
     final String currentThumbnail = _post?['thumbnail']?.toString() ?? '';
     final String currentCategory = _post?['category']?.toString() ?? 'general';
 
     // 2. 唤起现代化二级分享面板
     Get.bottomSheet(
       Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
@@ -478,7 +477,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
+                  color: AppColors.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -489,10 +488,10 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 children: [
                   Text(
                     'share_to'.tr,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: Colors.black87,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   IconButton(
@@ -517,7 +516,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey[500],
+                    color: AppColors.textSecondary,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -530,22 +529,22 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                     ? Container(
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: Colors.grey[50],
+                    color: AppColors.surfaceAlt,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[100]!),
+                    border: Border.all(color: AppColors.divider),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       HugeIcon(
                         icon: HugeIcons.strokeRoundedUserGroup,
-                        color: Colors.grey[400]!,
+                        color: AppColors.textHint,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
                       Text(
                         'no_following_yet'.tr,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
                     ],
                   ),
@@ -585,7 +584,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                               children: [
                                 CircleAvatar(
                                   radius: 24,
-                                  backgroundColor: Colors.grey[100],
+                                  backgroundColor: AppColors.divider,
                                   backgroundImage: avatarUrl.isNotEmpty
                                       ? NetworkImage(avatarUrl)
                                       : null,
@@ -602,7 +601,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                                   nickname,
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.grey[800],
+                                    color: AppColors.textPrimary,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -620,7 +619,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Divider(color: Colors.grey[100], thickness: 1, height: 1),
+                child: Divider(color: AppColors.divider, thickness: 1, height: 1),
               ),
 
               // ================== 第二层：微操作单元 (支持水平滚动) ==================
@@ -631,7 +630,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey[500],
+                    color: AppColors.textSecondary,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -651,7 +650,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                         color: themeColor,
                         size: 22,
                       ),
-                      label: '私信转发',
+                      label: 'post_share_dm'.tr,
                       onTap: () {
                         Get.back(); // 关闭外层主面板
                         Get.bottomSheet(
@@ -686,9 +685,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
                     // 3. 复制外部链接
                     _buildShareOption(
-                      icon: const HugeIcon(
+                      icon: HugeIcon(
                         icon: HugeIcons.strokeRoundedCopy01,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                         size: 22,
                       ),
                       label: 'copy_link'.tr,
@@ -702,9 +701,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
                     // 4. 浏览器打开
                     _buildShareOption(
-                      icon: const HugeIcon(
+                      icon: HugeIcon(
                         icon: HugeIcons.strokeRoundedGlobal,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                         size: 22,
                       ),
                       label: 'open_in_browser'.tr,
@@ -722,9 +721,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
                     // 5. 系统原生分享
                     _buildShareOption(
-                      icon: const HugeIcon(
+                      icon: HugeIcon(
                         icon: HugeIcons.strokeRoundedShare01,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                         size: 22,
                       ),
                       label: 'system_share'.tr,
@@ -767,9 +766,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  color: AppColors.surfaceAlt,
                   borderRadius: BorderRadius.circular(16), // 使用圆角矩形(Squircle)代替纯圆圈
-                  border: Border.all(color: Colors.grey[100]!, width: 1.5),
+                  border: Border.all(color: AppColors.divider, width: 1.5),
                 ),
                 child: Center(child: icon),
               ),
@@ -778,7 +777,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: Colors.grey[700],
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -826,7 +825,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           replyToNickname: replyToNickname,
           replyToAvatar: replyToAvatar,
           replyToContent: replyToContent,
-          themeColor: const Color.fromRGBO(44, 123, 109, 1.0),
+          themeColor: AppColors.primary,
           onSuccess: () {
             _resetReplyState();
             _loadComments();
@@ -922,9 +921,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           padding: const EdgeInsets.only(bottom: 30),
           child: Text(
             previewText,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 17.0,
-              color: Colors.black87,
+              color: AppColors.textPrimary,
               height: 1.6,
               fontFamily: 'ShantellSans',
             ),
@@ -959,9 +958,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const HugeIcon(
+                HugeIcon(
                   icon: HugeIcons.strokeRoundedLockPassword,
-                  color: Color.fromRGBO(44, 123, 109, 1.0),
+                  color: AppColors.primary,
                   size: 26.0,
                 ),
                 const SizedBox(height: 8),
@@ -1001,10 +1000,10 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
   Widget _buildTranslateButton() {
     if (isTranslating) {
-      return const SizedBox(
+      return SizedBox(
         width: 20,
         height: 20,
-        child: CircularProgressIndicator(strokeWidth: 2, color: Color.fromRGBO(44, 123, 109, 1.0)),
+        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
       );
     }
     return IconButton(
@@ -1012,7 +1011,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
       tooltip: isShowingTranslation ? 'show_original'.tr : 'translate_article'.tr,
       icon: Icon(
         isShowingTranslation ? Icons.g_translate : Icons.translate_rounded,
-        color: isShowingTranslation ? const Color.fromRGBO(44, 123, 109, 1.0) : Colors.black54,
+        color: isShowingTranslation ? AppColors.primary : AppColors.textSecondary,
       ),
     );
   }
@@ -1025,18 +1024,18 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     if (_isLoadingPost) {
       return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+        backgroundColor: AppColors.surface,
+        appBar: AppBar(backgroundColor: AppColors.surface, elevation: 0),
         body: Center(child: CircularProgressIndicator(color: themeColor, strokeWidth: 2)),
       );
     }
     if (_post == null) {
       return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+        backgroundColor: AppColors.surface,
+        appBar: AppBar(backgroundColor: AppColors.surface, elevation: 0),
         body: Center(child: Text('content_not_found'.tr)),
       );
     }
@@ -1053,9 +1052,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     _post?['author'] is Map ? Map<String, dynamic>.from(_post!['author']) : {};
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         centerTitle: true, // 确保中部组件强制居中
         leading: IconButton(
@@ -1067,9 +1066,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: AppColors.surfaceAlt,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey.shade100, width: 0.5),
+              border: Border.all(color: AppColors.divider, width: 0.5),
             ),
 // 限制中部胶囊的最大宽度，防止挤压右侧图标
             constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.35),
@@ -1082,7 +1081,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 Flexible(
                   child: Text(
                     author['nickname'] ?? 'unknown_nickname'.tr,
-                    style: const TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
@@ -1137,14 +1136,14 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   if (type != 'short_post' && title.isNotEmpty) ...[
                     SelectableText(
                       title,
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.black87, height: 1.3),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textPrimary, height: 1.3),
                     ),
                     const SizedBox(height: 10),
                   ],
 
                   Row(
                     children: [
-                      Text('posted_on_views'.trParams({'time': '$timestamp', 'count': '$viewsCount'}), style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                      Text('posted_on_views'.trParams({'time': '$timestamp', 'count': '$viewsCount'}), style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                       if (type == 'quill' && isShowingTranslation) ...[
                         const SizedBox(width: 10),
                         Container(
@@ -1200,7 +1199,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                           config: quill.QuillEditorConfig(
                             customStyles: const quill.DefaultStyles(
                               paragraph: quill.DefaultTextBlockStyle(
-                                TextStyle(fontSize: 18.0, color: Colors.black87, height: 1.5, fontFamily: 'ShantellSans'),
+                                TextStyle(fontSize: 18.0, color: AppColors.textPrimary, height: 1.5, fontFamily: 'ShantellSans'),
                                 quill.HorizontalSpacing(0, 0),
                                 quill.VerticalSpacing(0, 0),
                                 quill.VerticalSpacing(0, 0),
@@ -1228,7 +1227,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                                           final vMap = VideoBlockEmbed.parseData(map['custom_video']);
                                           // 绑定文章作者属性
                                           vMap['author_id'] = currentPostAuthor['id'] ?? '';
-                                          vMap['author_nickname'] = currentPostAuthor['nickname'] ?? '学者';
+                                          vMap['author_nickname'] = currentPostAuthor['nickname'] ?? 'video_author_fallback'.tr;
                                           vMap['author_avatar'] = currentPostAuthor['avatar'] ?? '';
                                           videoList.add(vMap);
                                         }
@@ -1284,7 +1283,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1309,11 +1308,11 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: _selectedOptionId == optionId ? themeColor : Colors.grey.shade200,
+                        color: _selectedOptionId == optionId ? themeColor : AppColors.divider,
                         width: _selectedOptionId == optionId ? 2 : 1,
                       ),
                       borderRadius: BorderRadius.circular(8),
-                      color: Colors.white,
+                      color: AppColors.surface,
                     ),
                     child: Row(
                       children: [
@@ -1323,7 +1322,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                             children: [
                               Text(text, style: const TextStyle(fontSize: 13)),
                               const SizedBox(height: 4),
-                              LinearProgressIndicator(value: ratio, color: themeColor, backgroundColor: Colors.grey.shade100),
+                              LinearProgressIndicator(value: ratio, color: themeColor, backgroundColor: AppColors.divider),
                             ],
                           ),
                         ),
@@ -1359,7 +1358,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: isLiked ? themeColor.withOpacity(0.1) : Colors.grey.shade100,
+              color: isLiked ? themeColor.withOpacity(0.1) : AppColors.divider,
               borderRadius: BorderRadius.circular(30),
               border: Border.all(color: isLiked ? themeColor.withOpacity(0.3) : Colors.transparent),
             ),
@@ -1373,7 +1372,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 const SizedBox(width: 6),
                 Text(
                   "$likeCount",
-                  style: TextStyle(color: isLiked ? themeColor : Colors.grey[700], fontWeight: FontWeight.bold),
+                  style: TextStyle(color: isLiked ? themeColor : AppColors.textPrimary, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -1415,7 +1414,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   const SizedBox(height: 4),
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final style = TextStyle(fontSize: 12, color: Colors.grey.shade500);
+                      final style = TextStyle(fontSize: 12, color: AppColors.textSecondary);
                       final span = TextSpan(text: bio, style: style);
                       final tp = TextPainter(
                         text: span,
@@ -1479,7 +1478,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: isFollowing ? Colors.grey.shade100 : themeColor,
+              backgroundColor: isFollowing ? AppColors.divider : themeColor,
               foregroundColor: isFollowing ? Colors.black : Colors.white,
               elevation: 0,
             ),
@@ -1493,7 +1492,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1526,7 +1525,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                   child: SingleChildScrollView(
                     child: Text(
                       bio,
-                      style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.5),
+                      style: TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.5),
                     ),
                   ),
                 ),
@@ -1562,10 +1561,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 child: Container(
                   width: 200,
                   margin: const EdgeInsets.only(right: 14, bottom: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200, width: 0.8),
+                    border: Border.all(color: AppColors.divider, width: 0.8),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.02),
@@ -1601,7 +1599,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                                   title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
                                 ),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1664,7 +1662,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                             onTap: () => Get.to(() => ProfileView(profileId: comment.author.id)),
                             child: Text(
                               comment.author.nickname,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
                             ),
                           ),
                           if (isCommentMe)
@@ -1678,7 +1676,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                       const SizedBox(height: 4),
                       RichText(
                         text: TextSpan(
-                          style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.4),
+                          style: TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.4),
                           children: [
                             if (comment.replyToUser != null) ...[
                               TextSpan(text: 'reply_prefix'.tr),
@@ -1800,7 +1798,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
             children: [
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
                 child: Column(
                   children: [
                     _buildIOSActionItem(
@@ -1827,7 +1825,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
               if (isCommentMe)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
                   child: _buildIOSActionItem(
                     icon: Icons.delete_outline,
                     title: 'delete_this_comment'.tr,
@@ -1844,9 +1842,9 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 14),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
                   alignment: Alignment.center,
-                  child: Text('cancel'.tr, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  child: Text('cancel'.tr, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1861,7 +1859,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
     required IconData icon,
     required String title,
     required VoidCallback onTap,
-    Color textColor = Colors.black87,
+    Color textColor = AppColors.textPrimary,
   }) {
     return InkWell(
       onTap: onTap,
@@ -1883,8 +1881,7 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
 // 美化设计的底部占位评论输入框触发栏
   Widget _buildBottomInputArea(Color themeColor) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -1910,11 +1907,11 @@ class _PostDetailViewState extends State<PostDetailView> with TickerProviderStat
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.edit_outlined, size: 16, color: Colors.grey[500]),
+                        Icon(Icons.edit_outlined, size: 16, color: AppColors.textSecondary),
                         const SizedBox(width: 8),
                         Text(
                           'write_your_thoughts'.tr,
-                          style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ],
                     ),
@@ -2057,8 +2054,7 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.72,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: SafeArea(
@@ -2072,7 +2068,7 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
                 height: 4,
                 margin: const EdgeInsets.only(top: 12, bottom: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
+                  color: AppColors.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2098,23 +2094,23 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
                       children: [
                         Text(
                           'select_email_recipient'.tr, // 或 '邮件直投分享'
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16.5,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
+                            color: AppColors.textPrimary,
                             letterSpacing: -0.3,
                           ),
                         ),
                         Text(
                           'select_email_recipient_desc'.tr, // 或 '通过官方安全专线将排版投递至对方邮箱'
-                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                          style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 22),
+                    icon: Icon(Icons.close_rounded, color: AppColors.textHint, size: 22),
                   ),
                 ],
               ),
@@ -2127,22 +2123,22 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
                 height: 44,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: AppColors.divider),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 18),
+                    Icon(Icons.search_rounded, color: AppColors.textHint, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
                         onChanged: _onSearchChanged,
-                        style: const TextStyle(fontSize: 13.5, color: Color(0xFF1E293B)),
+                        style: TextStyle(fontSize: 13.5, color: AppColors.textPrimary),
                         decoration: InputDecoration(
                           hintText: 'search_recipient_hint'.tr, // 或 '搜索用户名、昵称或邮箱...'
-                          hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                          hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                           border: InputBorder.none,
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
@@ -2155,14 +2151,14 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
                           _searchController.clear();
                           _onSearchChanged('');
                         },
-                        child: const Icon(Icons.cancel, color: Color(0xFFCBD5E1), size: 16),
+                        child: Icon(Icons.cancel, color: AppColors.border, size: 16),
                       ),
                   ],
                 ),
               ),
             ),
 
-            const Divider(height: 16, thickness: 0.8, color: Color(0xFFF1F5F9)),
+            Divider(height: 16, thickness: 0.8, color: AppColors.surfaceAlt),
 
             // 列表内容区
             Expanded(
@@ -2229,7 +2225,7 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
   Widget _buildContactCard(dynamic user) {
     final userId = user['user_id']?.toString() ?? '';
     final avatar = user['avatar']?.toString() ?? '';
-    final nickname = user['nickname']?.toString() ?? '用户';
+    final nickname = user['nickname']?.toString() ?? 'user'.tr;
     final username = user['username']?.toString() ?? '';
     final email = user['email']?.toString() ?? '';
     final isThisSending = _sendingUserId == userId;
@@ -2237,10 +2233,9 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AppColors.surfaceAlt),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.015),
@@ -2272,10 +2267,10 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
                     Flexible(
                       child: Text(
                         nickname,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E293B),
+                          color: AppColors.textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -2285,7 +2280,7 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
                       const SizedBox(width: 4),
                       Text(
                         '@$username',
-                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                        style: TextStyle(fontSize: 11.5, color: AppColors.textHint),
                       ),
                     ],
                   ],
@@ -2293,7 +2288,7 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
                 const SizedBox(height: 2),
                 Text(
                   email,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -2341,27 +2336,27 @@ class _AnimatedEmailContactSheetState extends State<_AnimatedEmailContactSheet>
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: AppColors.background,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: AppColors.divider),
               ),
-              child: const Icon(Icons.person_search_rounded, color: Color(0xFF94A3B8), size: 26),
+              child: Icon(Icons.person_search_rounded, color: AppColors.textHint, size: 26),
             ),
             const SizedBox(height: 14),
             Text(
               _searchController.text.isEmpty
                   ? 'no_email_contacts'.tr // 或 '暂无已绑定邮箱的联系人'
                   : 'no_search_results'.tr, // 或 '未找到匹配的联系人'
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               'email_binding_tip'.tr, // 或 '好友在“设置 - 绑定邮箱”后将在此处呈现'
-              style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+              style: TextStyle(fontSize: 11.5, color: AppColors.textHint),
               textAlign: TextAlign.center,
             ),
           ],
@@ -2395,8 +2390,7 @@ class PostSubCommentSheet extends StatelessWidget {
       maxChildSize: 0.95,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
           ),
           child: Column(
@@ -2453,8 +2447,7 @@ class PostSubCommentSheet extends StatelessWidget {
               ),
               Container(
                 padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 12, top: 10, left: 16, right: 16),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   border: Border(top: BorderSide(color: Color(0xFFF3F4F6), width: 0.5)),
                 ),
                 child: GestureDetector(
@@ -2548,7 +2541,7 @@ class PostSubCommentSheet extends StatelessWidget {
             children: [
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
                 child: Column(
                   children: [
                     _buildSubSheetActionItem(
@@ -2575,7 +2568,7 @@ class PostSubCommentSheet extends StatelessWidget {
               if (isMe)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
                   child: _buildSubSheetActionItem(
                     icon: Icons.delete_outline,
                     title: 'delete_this_reply'.tr,
@@ -2592,9 +2585,9 @@ class PostSubCommentSheet extends StatelessWidget {
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 14),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
                   alignment: Alignment.center,
-                  child: Text('cancel'.tr, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  child: Text('cancel'.tr, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                 ),
               ),
               const SizedBox(height: 8),
@@ -2609,7 +2602,7 @@ class PostSubCommentSheet extends StatelessWidget {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
-    Color textColor = Colors.black87,
+    Color textColor = AppColors.textPrimary,
   }) {
     return InkWell(
       onTap: onTap,
@@ -2664,8 +2657,7 @@ class _AnimatedLanguageSheetState extends State<_AnimatedLanguageSheet> with Sin
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: const EdgeInsets.only(top: 20, bottom: 30),
@@ -2677,7 +2669,7 @@ class _AnimatedLanguageSheetState extends State<_AnimatedLanguageSheet> with Sin
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2687,7 +2679,7 @@ class _AnimatedLanguageSheetState extends State<_AnimatedLanguageSheet> with Sin
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: [
-                HugeIcon(icon: HugeIcons.strokeRoundedLanguageSkill, color: Colors.black87),
+                HugeIcon(icon: HugeIcons.strokeRoundedLanguageSkill, color: AppColors.textPrimary),
                 SizedBox(width: 10),
                 Text('select_target_language'.tr, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ],
@@ -2738,13 +2730,13 @@ class _AnimatedLanguageSheetState extends State<_AnimatedLanguageSheet> with Sin
                                   width: 40,
                                   height: 40,
                                   alignment: Alignment.center,
-                                  decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle),
-                                  child: Text(name[0], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                                  decoration: BoxDecoration(color: AppColors.divider, shape: BoxShape.circle),
+                                  child: Text(name[0], style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
                                 ),
                                 const SizedBox(width: 16),
                                 Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                                 const Spacer(),
-                                Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey[300]),
+                                Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppColors.border),
                               ],
                             ),
                           ),
@@ -2830,18 +2822,18 @@ class _DetailedImageCarouselState extends State<_DetailedImageCarousel> {
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return Container(
-                        color: Colors.grey.shade100,
-                        child: const Center(
+                        color: AppColors.divider,
+                        child: Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Color.fromRGBO(44, 123, 109, 1.0),
+                            color: AppColors.primary,
                           ),
                         ),
                       );
                     },
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        color: Colors.grey.shade200,
+                        color: AppColors.divider,
                         child: const Icon(Icons.broken_image, color: Colors.grey, size: 40),
                       );
                     },
@@ -2983,8 +2975,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
 // 随着键盘手动拉起，弹窗平稳被顶起
@@ -3058,7 +3049,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                                   "@${widget.replyToNickname!.toLowerCase()}",
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey.shade500,
+                                    color: AppColors.textSecondary,
                                   ),
                                 ),
                               ],
@@ -3095,7 +3086,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                   height: 12,
                   child: Container(
                     width: 2,
-                    color: Colors.grey.shade200,
+                    color: AppColors.divider,
                   ),
                 ),
               ],
@@ -3122,7 +3113,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                         width: 32,
                         height: 32,
                         alignment: Alignment.center,
-                        child: Icon(Icons.subdirectory_arrow_right_rounded, color: Colors.grey.shade400, size: 18),
+                        child: Icon(Icons.subdirectory_arrow_right_rounded, color: AppColors.textHint, size: 18),
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -3148,7 +3139,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                                 style: const TextStyle(fontSize: 14, color: Color(0xFF1F2937)),
                                 decoration: InputDecoration(
                                   hintText: widget.replyToNickname != null ? 'write_your_reply'.tr : 'write_your_thoughts'.tr,
-                                  hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                                  hintStyle: TextStyle(color: AppColors.textHint, fontSize: 14),
                                   border: InputBorder.none,
                                   isDense: true,
                                   contentPadding: EdgeInsets.zero,
@@ -3168,7 +3159,7 @@ class _CommentInputSheetState extends State<_CommentInputSheet> {
                                     child: Container(
                                       padding: const EdgeInsets.all(6),
                                       decoration: BoxDecoration(
-                                        color: isTextEmpty ? Colors.grey.shade300 : widget.themeColor,
+                                        color: isTextEmpty ? AppColors.border : widget.themeColor,
                                         shape: BoxShape.circle,
                                       ),
                                       child: _isSending

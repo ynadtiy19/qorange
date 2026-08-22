@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:qorange/l10n/app_translations.dart';
 import 'package:qorange/services/frontend_chat_service.dart';
 import 'package:qorange/services/language_service.dart';
+import 'package:qorange/services/theme_service.dart';
 import 'package:qorange/theme.dart';
 import 'package:qorange/user_controller.dart';
 
@@ -26,6 +27,9 @@ void main() async {
   // 初始化多语言服务
   await Get.putAsync(() => LanguageService().init());
 
+  // 初始化白天/黑夜主题服务（内部会同步状态栏样式）
+  await Get.putAsync(() => ThemeService().init());
+
   Get.put(UserController());
 
   Get.put(FrontendChatService());
@@ -35,17 +39,6 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-
-  // 配置沉浸式状态栏 (透明背景，暗色图标)
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ),
-  );
-
 
   // 初始化网络权限状态
   await AuthStateManager.instance.checkInitialState();
@@ -59,7 +52,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
+    // Obx 监听主题模式：切换白天/黑夜时整体重建 GetMaterialApp，
+    // ThemeData 变化会驱动所有 Scaffold 子树重建，界面颜色即时跟随刷新
+    return Obx(() => GetMaterialApp(
       title: 'Qorange',
       debugShowCheckedModeBanner: false,
       translations: AppTranslations(),
@@ -78,13 +73,21 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: AppTheme.theme.copyWith(
-        textSelectionTheme: const TextSelectionThemeData(
-          cursorColor: Color.fromRGBO(44, 123, 109, 1.0),
-          selectionColor: Color.fromRGBO(44, 123, 109, 0.3),
-          selectionHandleColor: Color.fromRGBO(44, 123, 109, 1.0),
+      theme: AppTheme.lightTheme.copyWith(
+        textSelectionTheme: TextSelectionThemeData(
+          cursorColor: AppColors.primary,
+          selectionColor: AppColors.primary.withOpacity(0.3),
+          selectionHandleColor: AppColors.primary,
         ),
       ),
+      darkTheme: AppTheme.darkTheme.copyWith(
+        textSelectionTheme: TextSelectionThemeData(
+          cursorColor: AppColors.primary,
+          selectionColor: AppColors.primary.withOpacity(0.3),
+          selectionHandleColor: AppColors.primary,
+        ),
+      ),
+      themeMode: ThemeService.to.themeMode.value,
       // 首次加载进入启动页
       home: const SplashView(),
 
@@ -105,7 +108,7 @@ class MyApp extends StatelessWidget {
           child: child!,
         );
       },
-    );
+    ));
   }
 }
 

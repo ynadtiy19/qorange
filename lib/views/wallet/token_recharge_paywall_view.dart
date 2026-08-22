@@ -5,6 +5,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:qorange/theme.dart';
 import '../comment/agreement_webview_page.dart';
 import 'wallet_controller.dart';
 import '../../network/api_exception.dart';
@@ -27,10 +28,10 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
   bool _isPollingActive = false;
 
   // 🌟 明亮极简奢雅色彩模型
-  final Color premiumBg = const Color(0xFFF8FAFC);     // 明亮极简石蓝色
+  Color get premiumBg => AppColors.background;     // 明亮极简石蓝色
   final Color premiumAmber = const Color(0xFFD97706);  // 质感琥珀金（高对比度）
   final Color premiumCard = const Color(0xFFFFFFFF);   // 纯白轻奢卡片
-  final Color premiumGray = const Color(0xFF64748B);   // 钛空灰色
+  Color get premiumGray => AppColors.textSecondary;   // 钛空灰色
 
   double _selectedAmount = 10.0; // 默认面额 10 元
   String _selectedPayType = 'alipay';
@@ -174,15 +175,15 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
       appBar: AppBar(
         title: Text(
           'token_recharge_hall'.tr,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E293B)),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
         ),
         centerTitle: true,
         backgroundColor: premiumBg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
         ),
       ),
       body: SingleChildScrollView(
@@ -196,7 +197,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
             const SizedBox(height: 24),
             Text(
               'token_vault'.tr,
-              style: TextStyle(color: Color(0xFF1E293B), fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 0.5),
             ),
             const SizedBox(height: 6),
             Text(
@@ -235,7 +236,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                       color: isSelected ? premiumAmber.withOpacity(0.08) : premiumCard,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isSelected ? premiumAmber : const Color(0xFFE2E8F0),
+                        color: isSelected ? premiumAmber : AppColors.divider,
                         width: isSelected ? 2 : 1,
                       ),
                       boxShadow: isSelected
@@ -268,7 +269,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
-                            color: isSelected ? premiumAmber : const Color(0xFF1E293B),
+                            color: isSelected ? premiumAmber : AppColors.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -315,18 +316,18 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')), // 限制最多2位小数
                       ],
-                      style: const TextStyle(color: Color(0xFF1E293B), fontSize: 13),
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
                       cursorColor: premiumAmber,
                       decoration: InputDecoration(
                         hintText: 'custom_amount_hint'.tr,
                         hintStyle: TextStyle(color: premiumGray.withOpacity(0.5), fontSize: 12),
                         filled: true,
-                        fillColor: const Color(0xFFF1F5F9),
+                        fillColor: AppColors.surfaceAlt,
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: BorderSide(color: AppColors.divider),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -448,7 +449,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
           color: isSelected ? premiumAmber.withOpacity(0.08) : premiumCard,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? premiumAmber : const Color(0xFFE2E8F0),
+            color: isSelected ? premiumAmber : AppColors.divider,
             width: 1.5,
           ),
           boxShadow: [
@@ -469,7 +470,7 @@ class _TokenRechargePaywallViewState extends State<TokenRechargePaywallView> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: isSelected ? premiumAmber : const Color(0xFF475569),
+                color: isSelected ? premiumAmber : AppColors.textSecondary,
               ),
             ),
           ],

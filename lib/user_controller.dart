@@ -33,7 +33,7 @@ class UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      nickname: json['nickname']?.toString() ?? '未设置昵称',
+      nickname: json['nickname']?.toString() ?? 'nickname_not_set'.tr,
       avatar: json['avatar']?.toString() ?? '',
       phone: json['phone']?.toString(),
       bio: json['bio']?.toString() ?? '',
@@ -78,7 +78,7 @@ class UserController extends GetxController {
     if (cachedId != null && cachedId.isNotEmpty) {
       user.value = UserModel(
         id: cachedId,
-        nickname: cachedNickname ?? '用户',
+        nickname: cachedNickname ?? 'user'.tr,
         avatar: cachedAvatar ?? '',
         topics: [],
       );

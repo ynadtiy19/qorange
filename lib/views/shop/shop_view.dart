@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 import 'shop_goods_model.dart';
 import 'shop_controller.dart';
 import 'confetti_celebration_overlay.dart';
@@ -124,8 +125,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(28),
                   topRight: Radius.circular(28),
@@ -141,7 +141,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       width: 36,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
+                        color: AppColors.border,
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
@@ -168,14 +168,14 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                           children: [
                             Text(
                               item.title,
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A)),
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.textPrimary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
                             Text(
                               item.desc,
-                              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -185,7 +185,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                     ],
                   ),
                   const SizedBox(height: 24),
-                  Text('select_payment_method'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
+                  Text('select_payment_method'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                   const SizedBox(height: 12),
                   // 支付宝选项
                   InkWell(
@@ -195,7 +195,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: selectedPayType == 'alipay' ? controller.primaryColor : Colors.grey.shade200,
+                          color: selectedPayType == 'alipay' ? controller.primaryColor : AppColors.divider,
                           width: 1.5,
                         ),
                         borderRadius: BorderRadius.circular(16),
@@ -215,7 +215,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                               children: [
                                 Text('alipay'.tr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                                 const SizedBox(height: 2),
-                                Text('支持快捷安全跳转支付', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                Text('shop_pay_hint_safe'.tr, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                               ],
                             ),
                           ),
@@ -234,7 +234,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: selectedPayType == 'wxpay' ? controller.primaryColor : Colors.grey.shade200,
+                          color: selectedPayType == 'wxpay' ? controller.primaryColor : AppColors.divider,
                           width: 1.5,
                         ),
                         borderRadius: BorderRadius.circular(16),
@@ -254,7 +254,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                               children: [
                                 Text('wechat_pay'.tr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                                 const SizedBox(height: 2),
-                                Text('微信扫码或 App 跳转支付', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                Text('shop_pay_hint_qr'.tr, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                               ],
                             ),
                           ),
@@ -271,10 +271,10 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('total_due'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w500)),
+                          Text('total_due'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
                           const SizedBox(height: 2),
                           Text(
-                            item.price <= 0 ? '免费' : '¥${item.price.toStringAsFixed(2)}',
+                            item.price <= 0 ? 'shop_free'.tr : '¥${item.price.toStringAsFixed(2)}',
                             style: TextStyle(
                               color: item.price <= 0 ? const Color(0xFF059669) : controller.primaryColor,
                               fontWeight: FontWeight.w900,
@@ -329,8 +329,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
         return PopScope(
           canPop: false, // 拦截物理返回键
           child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(color: AppColors.surface,
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(32),
                 topRight: Radius.circular(32),
@@ -349,7 +348,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                     width: 38,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
+                      color: AppColors.divider,
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -359,9 +358,9 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                   if (status == PaymentProcessingStatus.waiting) ...[
                     _buildRadarWaitingIndicator(),
                     const SizedBox(height: 24),
-                    const Text(
-                      '正在安全同步支付结果',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    Text(
+                      'shop_syncing_payment'.tr,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 8),
                     Padding(
@@ -369,7 +368,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       child: Text(
                         msg,
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
                       ),
                     ),
                   ] else if (status == PaymentProcessingStatus.success) ...[
@@ -385,15 +384,15 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       ),
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      '支付成功，权益已解锁',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    Text(
+                      'shop_payment_success'.tr,
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '《${item.title}》已成功绑定至您的账号',
+                      'shop_binded'.trParams({'title': item.title}),
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                     ),
                   ] else ...[
                     Container(
@@ -408,17 +407,17 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       ),
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      '支付未完成或检测超时',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    Text(
+                      'shop_payment_failed_title'.tr,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 8),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
-                        msg.isNotEmpty ? msg : '如已扣款，系统将稍后自动补单同步。',
+                        msg.isNotEmpty ? msg : 'shop_payment_failed_desc'.tr,
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
                       ),
                     ),
                   ],
@@ -438,8 +437,8 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                           // 🌟 2. 屏幕中央释放全自绘制烟花彩带特效
                           ConfettiCelebrationOverlay.show(
                             context,
-                            title: '恭喜！解锁成功 🎉',
-                            subtitle: '《${item.title}》现已生效',
+                            title: 'shop_unlocked_title'.tr,
+                            subtitle: 'shop_unlocked_sub'.trParams({'title': item.title}),
                             onFinished: () {
                               // 🌟 3. 动画完成后自动平滑滚动并高亮该卡片
                               _scrollToPurchasedItem(item.id);
@@ -452,7 +451,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
-                        child: const Text('完成', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        child: Text('shop_done'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       ),
                     ),
                   ] else if (status == PaymentProcessingStatus.waiting) ...[
@@ -465,11 +464,11 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                               Navigator.pop(bottomSheetContext);
                             },
                             style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.grey.shade300),
+                              side: BorderSide(color: AppColors.border),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            child: Text('放弃支付', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                            child: Text('shop_abandon_pay'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -486,7 +485,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               elevation: 0,
                             ),
-                            child: const Text('我已完成支付', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            child: Text('shop_completed_pay'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -501,12 +500,12 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                           Navigator.pop(bottomSheetContext);
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey.shade100,
-                          foregroundColor: Colors.black87,
+                          backgroundColor: AppColors.divider,
+                          foregroundColor: AppColors.textPrimary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
-                        child: const Text('关闭返回', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        child: Text('shop_close_back'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                       ),
                     ),
                   ],
@@ -598,11 +597,11 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
           children: [
             HugeIcon(
               icon: HugeIcons.strokeRoundedShoppingBag01,
-              color: Colors.grey.shade300,
+              color: AppColors.border,
               size: 54,
             ),
             const SizedBox(height: 14),
-            Text('shop_empty_category'.tr, style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+            Text('shop_empty_category'.tr, style: TextStyle(color: AppColors.textHint, fontSize: 13)),
           ],
         ),
       );
@@ -634,18 +633,17 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
 
             return AnimatedContainer(
               duration: const Duration(milliseconds: 400),
-              decoration: BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: isHighlighted ? controller.primaryColor : Colors.grey.shade100,
+                  color: isHighlighted ? controller.primaryColor : AppColors.divider,
                   width: isHighlighted ? 2.2 : 1.0,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: isHighlighted
                         ? controller.primaryColor.withOpacity(0.25)
-                        : Colors.grey.shade200.withOpacity(0.35),
+                        : AppColors.divider.withOpacity(0.35),
                     blurRadius: isHighlighted ? 18 : 10,
                     offset: const Offset(0, 4),
                   ),
@@ -728,14 +726,14 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                       children: [
                         Text(
                           item.title,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A)),
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.textPrimary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 3),
                         Text(
                           item.desc,
-                          style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -744,7 +742,7 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              item.price <= 0 ? '免费' : '¥${item.price.toStringAsFixed(2)}',
+                              item.price <= 0 ? 'shop_free'.tr : '¥${item.price.toStringAsFixed(2)}',
                               style: TextStyle(
                                 color: item.price <= 0 ? const Color(0xFF059669) : controller.primaryColor, // 免费可使用清爽的绿色或保持主题色
                                 fontWeight: FontWeight.w900,
@@ -824,21 +822,21 @@ class _ShopViewState extends State<ShopView> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'shop_title'.tr,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0F172A)),
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.textPrimary),
         ),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: controller.primaryColor,
           indicatorWeight: 2.5,
           labelColor: controller.primaryColor,
-          unselectedLabelColor: Colors.grey.shade500,
+          unselectedLabelColor: AppColors.textSecondary,
           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           tabs: [
             Tab(text: 'shop_tab_all'.tr),

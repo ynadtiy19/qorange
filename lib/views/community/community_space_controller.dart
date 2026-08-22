@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:qorange/theme.dart';
 import '../../network/http_client.dart';
 import '../../network/api_exception.dart';
 import '../../services/epay_client_service.dart';
@@ -29,7 +30,7 @@ class CommunitySpaceController extends GetxController
   // 🌟 新增：细颗粒度观察当前用户在该群的状态（none, active, applying, approved_to_pay） [1]
   final RxString memberStatus = 'none'.obs;
 
-  final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
+  Color get primaryColor => AppColors.primary;
 
   @override
   void onInit() {
@@ -98,7 +99,7 @@ class CommunitySpaceController extends GetxController
       return;
     }
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      Center(child: CircularProgressIndicator(color: AppColors.primary)),
       barrierDismissible: false,
     );
 
@@ -191,7 +192,7 @@ class CommunitySpaceController extends GetxController
   /// 🌟 服务端非对称签名发货核验
   Future<void> _verifyJoinSuccessOnBackend(String outTradeNo) async {
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      Center(child: CircularProgressIndicator(color: AppColors.primary)),
       barrierDismissible: false,
     );
 
@@ -229,7 +230,7 @@ class CommunitySpaceController extends GetxController
     }
 
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      Center(child: CircularProgressIndicator(color: AppColors.primary)),
       barrierDismissible: false,
     );
 

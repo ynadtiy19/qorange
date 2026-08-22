@@ -88,12 +88,12 @@ class ImConversationController extends GetxController {
   void onNewMessageReceived(ImMessageModel newMsg, String senderNickname, String senderAvatar) {
     final index = conversations.indexWhere((c) => c.conversationId == newMsg.conversationId);
 
-    String preview = '[新消息]';
+    String preview = 'msg_type_new'.tr;
     if (newMsg.msgType == 'text') preview = newMsg.payload['text']?.toString() ?? '';
-    if (newMsg.msgType == 'image') preview = '[图片]';
-    if (newMsg.msgType == 'voice') preview = '[语音]';
-    if (newMsg.msgType == 'post_card') preview = '[文章推荐]';
-    if (newMsg.msgType == 'poll_card') preview = '[投票邀请]';
+    if (newMsg.msgType == 'image') preview = 'msg_type_image'.tr;
+    if (newMsg.msgType == 'voice') preview = 'msg_type_voice_short'.tr;
+    if (newMsg.msgType == 'post_card') preview = 'msg_type_article'.tr;
+    if (newMsg.msgType == 'poll_card') preview = 'msg_type_poll'.tr;
 
     // 检查当前用户是否正打开着这个会话窗口
     bool isCurrentChatActive = false;
@@ -148,7 +148,7 @@ class ImConversationController extends GetxController {
     if (index != -1) {
       final old = conversations[index];
       // 只有被撤回的是最新一条，预览才变成“此消息已被撤回”；否则保留原最新预览！
-      final String updatedPreview = isLatestMessage ? '此消息已被撤回' : old.lastMsgPreview;
+      final String updatedPreview = isLatestMessage ? 'msg_revoked'.tr : old.lastMsgPreview;
 
       conversations[index] = ImConversationModel(
         conversationId: old.conversationId,

@@ -198,7 +198,7 @@ class FrontendChatService extends GetxService {
         final String notifId = payload['id']?.toString() ?? payload['_id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
         if (_deduplicator.isDuplicate(notifId)) return;
 
-        final String displayTitle = payload['display_title']?.toString() ?? '新社交动态';
+        final String displayTitle = payload['display_title']?.toString() ?? 'push_new_activity'.tr;
         final String category = payload['tab_category']?.toString() ?? 'social';
         final String actionType = payload['action_type']?.toString() ?? 'like';
         final target = payload['target'] as Map? ?? {};
@@ -217,7 +217,7 @@ class FrontendChatService extends GetxService {
           'type': actionType,
           'sender': {
             'id': firstActor['user_id'] ?? '',
-            'nickname': firstActor['nickname'] ?? '用户',
+            'nickname': firstActor['nickname'] ?? 'user'.tr,
             'avatar': firstActor['avatar'] ?? '',
             'atsign': '',
           },
@@ -250,7 +250,7 @@ class FrontendChatService extends GetxService {
 
       if (_deduplicator.isDuplicate(imMsg.messageId)) return;
 
-      final String senderName = payload['sender_nickname']?.toString() ?? '用户';
+      final String senderName = payload['sender_nickname']?.toString() ?? 'user'.tr;
       final String senderAvatar = payload['sender_avatar']?.toString() ?? '';
 
       if (Get.isRegistered<ImChatController>(tag: imMsg.conversationId)) {
@@ -267,19 +267,19 @@ class FrontendChatService extends GetxService {
         ImConversationController.to.onNewMessageReceived(imMsg, senderName, senderAvatar);
       }
 
-      String preview = '[新私信]';
+      String preview = 'msg_type_new_dm'.tr;
       if (imMsg.msgType == 'text') {
         preview = imMsg.payload['text']?.toString() ?? '';
       } else if (imMsg.msgType == 'image') {
-        preview = '[图片]';
+        preview = 'msg_type_image'.tr;
       } else if (imMsg.msgType == 'voice') {
-        preview = '[语音]';
+        preview = 'msg_type_voice_short'.tr;
       } else if (imMsg.msgType == 'token_transfer') {
-        preview = '[青橙币转账]';
+        preview = 'msg_type_token_transfer'.tr;
       } else if (imMsg.msgType == 'token_request') {
-        preview = '[收款请款单]';
+        preview = 'msg_type_token_request'.tr;
       } else if (imMsg.msgType == 'post_card') {
-        preview = '[文章推荐]';
+        preview = 'msg_type_article'.tr;
       }
 
       final note = PushNotificationModel.fromJson({

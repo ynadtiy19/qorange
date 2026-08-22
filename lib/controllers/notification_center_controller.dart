@@ -30,11 +30,11 @@ class NotificationCenterController extends GetxController with GetSingleTickerPr
   static NotificationCenterController get to => Get.find<NotificationCenterController>();
 
   final List<Map<String, String>> tabDefs = [
-    {'key': 'all', 'label': '全部'},
-    {'key': 'like', 'label': '赞与收藏'},
-    {'key': 'comment', 'label': '评论回复'},
-    {'key': 'follow', 'label': '新增关注'},
-    {'key': 'system', 'label': '系统通知'},
+    {'key': 'all', 'label': 'notif_tab_all'.tr},
+    {'key': 'like', 'label': 'notif_tab_like'.tr},
+    {'key': 'comment', 'label': 'notif_tab_comment'.tr},
+    {'key': 'follow', 'label': 'notif_tab_follow'.tr},
+    {'key': 'system', 'label': 'notif_tab_system'.tr},
   ];
 
   late final Map<String, TabNotificationState> tabStates;
@@ -117,7 +117,7 @@ class NotificationCenterController extends GetxController with GetSingleTickerPr
               itemChanged = true;
             }
             updatedActors.add(actorCopy);
-            updatedNames.add(actorCopy['nickname']?.toString() ?? '用户');
+            updatedNames.add(actorCopy['nickname']?.toString() ?? 'user'.tr);
             updatedAvatars.add(actorCopy['avatar']?.toString() ?? '');
           }
 
@@ -182,14 +182,14 @@ class NotificationCenterController extends GetxController with GetSingleTickerPr
 
   String _regenerateDisplayTitle(String actionType, int count, List<String> names, String targetTitle) {
     if (actionType == 'like_post') {
-      return count > 1 ? '${names.join('、')} 等 $count 人赞了你的文章' : '${names.firstOrNull ?? '用户'} 赞了你的文章';
+      return count > 1 ? 'notif_like_multi'.trParams({'names': names.join(', '), 'count': count}) : 'notif_like_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
     }
     if (actionType == 'collect_post') {
-      return count > 1 ? '${names.join('、')} 等 $count 人收藏了你的文章' : '${names.firstOrNull ?? '用户'} 收藏了你的文章';
+      return count > 1 ? 'notif_collect_multi'.trParams({'names': names.join(', '), 'count': count}) : 'notif_collect_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
     }
-    if (actionType == 'comment_post') return '${names.firstOrNull ?? '用户'} 评论了你的文章';
-    if (actionType == 'reply_comment') return '${names.firstOrNull ?? '用户'} 回复了你的评论';
-    if (actionType == 'follow_user') return '${names.firstOrNull ?? '用户'} 关注了你';
+    if (actionType == 'comment_post') return 'notif_comment_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
+    if (actionType == 'reply_comment') return 'notif_reply_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
+    if (actionType == 'follow_user') return 'notif_follow_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
     return targetTitle;
   }
 

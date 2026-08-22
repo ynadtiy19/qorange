@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 
 import '../../../network/http_client.dart';
 
@@ -21,7 +22,7 @@ class PinterestGalleryPickerSheet extends StatefulWidget {
 }
 
 class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerSheet> {
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+  static Color get _primaryTeal => AppColors.primary;
 
   final List<String> _tags = ['全部'];
   String _selectedTag = '全部';
@@ -114,8 +115,7 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.82,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
@@ -140,20 +140,20 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Pinterest 意境图库壁纸',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        Text(
+                          'pinterest_title'.tr,
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                         ),
                         Text(
-                          '点击直接设为当前聊天背景',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
+                          'pinterest_sub'.tr,
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                  icon: Icon(Icons.close_rounded, color: AppColors.textSecondary, size: 22),
                   onPressed: () => Get.back(),
                 ),
               ],
@@ -173,7 +173,7 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
                 final isSelected = _selectedTag == tag;
 
                 return ChoiceChip(
-                  label: Text(tag),
+                  label: Text(tag == '全部' ? 'notif_tab_all'.tr : tag),
                   selected: isSelected,
                   onSelected: (selected) {
                     if (selected) {
@@ -187,10 +187,10 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
                   labelStyle: TextStyle(
                     fontSize: 12,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : const Color(0xFF475569),
+                    color: isSelected ? Colors.white : AppColors.textSecondary,
                   ),
                   selectedColor: _primaryTeal,
-                  backgroundColor: const Color(0xFFF1F5F9),
+                  backgroundColor: AppColors.surfaceAlt,
                   elevation: 0,
                   side: BorderSide.none,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -201,7 +201,7 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
           ),
 
           const SizedBox(height: 6),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: AppColors.surfaceAlt),
 
           // 3. 瀑布流壁纸卡片展示区
           Expanded(
@@ -255,7 +255,7 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
           HapticFeedback.mediumImpact();
           widget.onImageSelected(url);
           Get.back();
-          Fluttertoast.showToast(msg: '聊天壁纸已设置为【#$tag】精选大图');
+          Fluttertoast.showToast(msg: 'pinterest_set_done'.trParams({'tag': tag}));
         },
         child: Container(
           decoration: BoxDecoration(
@@ -279,15 +279,15 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
                   loadingBuilder: (c, child, progress) {
                     if (progress == null) return child;
                     return Container(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.surfaceAlt,
                       child: const Center(
                         child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2),
                       ),
                     );
                   },
                   errorBuilder: (_, __, ___) => Container(
-                    color: const Color(0xFFF1F5F9),
-                    child: const Icon(Icons.broken_image_rounded, color: Color(0xFF94A3B8)),
+                    color: AppColors.surfaceAlt,
+                    child: Icon(Icons.broken_image_rounded, color: AppColors.textHint),
                   ),
                 ),
                 // 底部轻量半透明标签渐变
@@ -335,13 +335,13 @@ class _PinterestGalleryPickerSheetState extends State<PinterestGalleryPickerShee
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle),
-            child: const Icon(Icons.photo_library_outlined, color: Color(0xFF94A3B8), size: 32),
+            decoration: BoxDecoration(color: AppColors.surfaceAlt, shape: BoxShape.circle),
+            child: Icon(Icons.photo_library_outlined, color: AppColors.textHint, size: 32),
           ),
           const SizedBox(height: 12),
-          const Text('该分类暂无蓄水池图片', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+          Text('pinterest_empty_title'.tr, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
           const SizedBox(height: 4),
-          const Text('请通过后台 crawl-images 接口继续灌水', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+          Text('pinterest_empty_sub'.tr, style: TextStyle(fontSize: 12, color: AppColors.textHint)),
         ],
       ),
     );

@@ -1,6 +1,7 @@
 // lib/views/shop/confetti_celebration_overlay.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:qorange/theme.dart';
 
 /// 自绘制烟花与庆祝彩带粒子模型
 class _ConfettiParticle {
@@ -30,8 +31,8 @@ class _ConfettiParticle {
     flipSpeed = random.nextDouble() * 8;
     shapeType = random.nextInt(10) > 7 ? 2 : (random.nextBool() ? 0 : 1);
 
-    const colors = [
-      Color(0xFF2C7B6D),
+    final colors = [
+      AppColors.primary,
       Color(0xFFFFB703),
       Color(0xFFFB8500),
       Color(0xFFE63946),
@@ -70,7 +71,7 @@ class _CelebrationPainter extends CustomPainter {
       final wavePaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = (1.0 - waveProgress) * 4
-        ..color = const Color(0xFF2C7B6D).withOpacity((1.0 - waveProgress) * 0.4);
+        ..color = AppColors.primary.withOpacity((1.0 - waveProgress) * 0.4);
       canvas.drawCircle(
         Offset(size.width / 2, size.height / 2 - 40),
         waveProgress * (size.width * 0.45),
@@ -128,8 +129,8 @@ class _CelebrationPainter extends CustomPainter {
 class ConfettiCelebrationOverlay {
   static void show(
       BuildContext context, {
-        String title = '恭喜！解锁成功',
-        String subtitle = '商品权益已成功下发至您的账号',
+        String title = 'shop_unlocked_title'.tr,
+        String subtitle = 'shop_unlocked_account'.tr,
         VoidCallback? onFinished,
       }) {
     final overlayState = Overlay.of(context, rootOverlay: true);
@@ -277,12 +278,11 @@ class _CelebrationWidgetState extends State<_CelebrationWidget>
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 40),
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.96),
+                decoration: BoxDecoration(color: AppColors.surface.withOpacity(0.96),
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF2C7B6D).withOpacity(0.2),
+                      color: AppColors.primary.withOpacity(0.2),
                       blurRadius: 30,
                       offset: const Offset(0, 10),
                     ),
@@ -292,7 +292,7 @@ class _CelebrationWidgetState extends State<_CelebrationWidget>
                       offset: const Offset(0, 4),
                     ),
                   ],
-                  border: Border.all(color: const Color(0xFF2C7B6D).withOpacity(0.15), width: 1.5),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.15), width: 1.5),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -301,15 +301,15 @@ class _CelebrationWidgetState extends State<_CelebrationWidget>
                       width: 68,
                       height: 68,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF2C7B6D), Color(0xFF48CAE4)],
+                        gradient: LinearGradient(
+                          colors: [AppColors.primary, Color(0xFF48CAE4)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF2C7B6D).withOpacity(0.35),
+                            color: AppColors.primary.withOpacity(0.35),
                             blurRadius: 14,
                             offset: const Offset(0, 6),
                           )
@@ -322,10 +322,10 @@ class _CelebrationWidgetState extends State<_CelebrationWidget>
                     const SizedBox(height: 16),
                     Text(
                       widget.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
+                        color: AppColors.textPrimary,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -335,7 +335,7 @@ class _CelebrationWidgetState extends State<_CelebrationWidget>
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: AppColors.textSecondary,
                         height: 1.4,
                       ),
                     ),

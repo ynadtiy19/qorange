@@ -7,6 +7,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:qorange/user_controller.dart';
 import 'package:qorange/views/profile/setting_view.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:qorange/theme.dart';
 
 import '../../controllers/im_chat_controller.dart';
 import '../../network/api_exception.dart';
@@ -233,7 +234,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
 
     final bool isFollowing = profile['is_following'] == true;
     final partnerAvatar = profile['avatar'] ?? '';
-    final partnerNickname = profile['nickname'] ?? '用户';
+    final partnerNickname = profile['nickname'] ?? 'user'.tr;
 
     // 🌟 核心防套娃机制：检查当前会话控制器是否已在堆栈底层活跃
     if (Get.isRegistered<ImChatController>(tag: conversationId)) {
@@ -303,8 +304,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
@@ -314,7 +314,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('personal_bio'.tr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text('personal_bio'.tr, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                 IconButton(
                   onPressed: () => Get.back(),
                   icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, color: Colors.grey, size: 20),
@@ -326,7 +326,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
               constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                child: Text(bio, style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.6)),
+                child: Text(bio, style: TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.6)),
               ),
             ),
             const SizedBox(height: 20),
@@ -338,13 +338,13 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
 
     return Obx(() {
       if (_controller.rxIsLoading.value) {
         return Scaffold(
-          backgroundColor: Colors.white,
-          appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+          backgroundColor: AppColors.surface,
+          appBar: AppBar(backgroundColor: AppColors.surface, elevation: 0),
           body: Center(child: CircularProgressIndicator(color: themeColor, strokeWidth: 2)),
         );
       }
@@ -352,9 +352,9 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
       final profile = _controller.rxProfile.value;
       if (profile == null) {
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            backgroundColor: AppColors.surface,
             elevation: 0,
             title: Text('my_space'.tr, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
           ),
@@ -364,14 +364,14 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  HugeIcon(icon: HugeIcons.strokeRoundedUser, color: Colors.grey.shade300, size: 72.0),
+                  HugeIcon(icon: HugeIcons.strokeRoundedUser, color: AppColors.border, size: 72.0),
                   const SizedBox(height: 16),
-                  Text('login_to_open_space'.tr, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  Text('login_to_open_space'.tr, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 8),
                   Text(
                     'login_promo_desc'.tr,
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.4),
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -402,7 +402,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
       final handleText = "@${profile['username'] ?? ''}";
 
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         body: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) {
             return [
@@ -421,7 +421,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                             IconButton(
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
-                              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19, color: Color(0xFF1E293B)),
+                              icon: Icon(Icons.arrow_back_ios_new_rounded, size: 19, color: AppColors.textPrimary),
                               onPressed: () {
                                 HapticFeedback.lightImpact();
                                 Get.back();
@@ -442,7 +442,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                     children: [
                                       Text(
                                         profile['nickname'] ?? 'anonymous_author'.tr,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -464,11 +464,11 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                               if (isMe) ...[
                                 IconButton(
                                   onPressed: () => Get.to(() => const WalletView()),
-                                  icon: HugeIcon(icon: HugeIcons.strokeRoundedWallet02, color: Colors.grey.shade700, size: 20),
+                                  icon: HugeIcon(icon: HugeIcons.strokeRoundedWallet02, color: AppColors.textPrimary, size: 20),
                                 ),
                                 IconButton(
                                   onPressed: () => Get.to(() => const SettingView()),
-                                  icon: HugeIcon(icon: HugeIcons.strokeRoundedSettings01, color: Colors.grey.shade700, size: 20),
+                                  icon: HugeIcon(icon: HugeIcons.strokeRoundedSettings01, color: AppColors.textPrimary, size: 20),
                                 ),
                                 IconButton(
                                   onPressed: _controller.logout,
@@ -485,9 +485,9 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           children: [
                             CircleAvatar(radius: 40, backgroundImage: NetworkImage(profile['avatar'] ?? '')),
                             const SizedBox(height: 14),
-                            Text(profile['nickname'] ?? 'anonymous_author'.tr, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                            Text(profile['nickname'] ?? 'anonymous_author'.tr, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                             const SizedBox(height: 4),
-                            Text(handleText, style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+                            Text(handleText, style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
                             const SizedBox(height: 18),
                             // 🌟 核心修改：操作按钮区（自己主页显示编辑资料，他人主页显示【关注 + 发私信】双按钮）
                             if (isMe)
@@ -516,8 +516,8 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                     child: ElevatedButton(
                                       onPressed: _controller.toggleFollow,
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: profile['is_following'] ? Colors.grey.shade100 : themeColor,
-                                        foregroundColor: profile['is_following'] ? Colors.black87 : Colors.white,
+                                        backgroundColor: profile['is_following'] ? AppColors.divider : themeColor,
+                                        foregroundColor: profile['is_following'] ? AppColors.textPrimary : Colors.white,
                                         elevation: 0,
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                       ),
@@ -540,9 +540,9 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                         color: themeColor,
                                         size: 16,
                                       ),
-                                      label: const Text(
-                                        '发私信',
-                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                      label: Text(
+                                        'profile_dm_btn'.tr,
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                                       ),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFFEBF5F3),
@@ -567,19 +567,19 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: Colors.grey.shade500, size: 16),
+                                  HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: AppColors.textSecondary, size: 16),
                                   const SizedBox(width: 6),
-                                  Text("${profile['following_count'] ?? 0}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                  Text("${profile['following_count'] ?? 0}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                                   const SizedBox(width: 4),
-                                  Text('following_label'.tr, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                  Text('following_label'.tr, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                                   const SizedBox(width: 16),
-                                  Container(width: 1, height: 12, color: Colors.grey.shade300),
+                                  Container(width: 1, height: 12, color: AppColors.border),
                                   const SizedBox(width: 16),
-                                  HugeIcon(icon: HugeIcons.strokeRoundedUserMultiple, color: Colors.grey.shade500, size: 16),
+                                  HugeIcon(icon: HugeIcons.strokeRoundedUserMultiple, color: AppColors.textSecondary, size: 16),
                                   const SizedBox(width: 6),
-                                  Text("${profile['followers_count'] ?? 0}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                  Text("${profile['followers_count'] ?? 0}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                                   const SizedBox(width: 4),
-                                  Text('followers_label'.tr, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                  Text('followers_label'.tr, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                                 ],
                               ),
                             ),
@@ -594,7 +594,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                             bioText,
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 14, color: Colors.grey.shade700, height: 1.5),
+                            style: TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.5),
                           ),
                           if (bioText.length > 50)
                             GestureDetector(
@@ -611,7 +611,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                         children: [
                           HugeIcon(
                             icon: HugeIcons.strokeRoundedSettings01,
-                            color: Colors.grey.shade500,
+                            color: AppColors.textSecondary,
                             size: 16,
                           ),
                           const SizedBox(width: 8),
@@ -619,7 +619,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                             'interests_style'.tr,
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.grey.shade600,
+                              color: AppColors.textSecondary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -636,18 +636,18 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                               .map((t) => Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color.fromRGBO(44, 123, 109, 0.08),
+                              color: AppColors.primary.withOpacity(0.08),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color.fromRGBO(44, 123, 109, 0.15),
+                                color: AppColors.primary.withOpacity(0.15),
                               ),
                             ),
                             child: Text(
                               t.toString(),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: Color.fromRGBO(44, 123, 109, 1),
+                                color: AppColors.primary,
                               ),
                             ),
                           ))
@@ -656,7 +656,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                       else
                         Text(
                           'no_interest_tags'.tr,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                          style: TextStyle(fontSize: 12, color: AppColors.textHint),
                         ),
                       const SizedBox(height: 10),
 
@@ -699,15 +699,15 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                       if (location.isNotEmpty)
                         Row(
                           children: [
-                            HugeIcon(icon: HugeIcons.strokeRoundedLocation01, color: Colors.grey.shade500, size: 16),
+                            HugeIcon(icon: HugeIcons.strokeRoundedLocation01, color: AppColors.textSecondary, size: 16),
                             const SizedBox(width: 8),
-                            Text("$location", style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                            Text("$location", style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                           ],
                         ),
 
                       if (topFollowed.isNotEmpty) ...[
                         const SizedBox(height: 24),
-                        Text('mutual_follows'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
+                        Text('mutual_follows'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 40,
@@ -721,7 +721,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                                 child: GestureDetector(
                                   onTap: () => Get.to(() => ProfileView(profileId: f['id'])),
                                   child: Container(
-                                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade200, width: 1.5)),
+                                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.divider, width: 1.5)),
                                     child: CircleAvatar(radius: 16, backgroundImage: NetworkImage(f['avatar'] ?? '')),
                                   ),
                                 ),
@@ -739,7 +739,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           isScrollable: true,
                           tabAlignment: TabAlignment.start, // 🌟 强制选项卡水平左对齐靠拢
                           labelColor: themeColor,
-                          unselectedLabelColor: Colors.grey.shade400,
+                          unselectedLabelColor: AppColors.textHint,
                           indicatorColor: themeColor,
                           indicatorWeight: 3,
                           indicatorSize: TabBarIndicatorSize.label,
@@ -788,10 +788,9 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 4),
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(color: AppColors.surface,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade100, width: 0.8),
+                      border: Border.all(color: AppColors.divider, width: 0.8),
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
                     ),
                     child: Column(
@@ -804,7 +803,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                             Expanded(
                               child: Text(
                                 'recommended_by_on'.trParams({'nickname': '${sender['nickname'] ?? 'user'.tr}', 'date': shareTime}),
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black54),
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
                               ),
                             ),
                           ],
@@ -827,7 +826,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
 
   // 🌟 修改后：个人主页高质感、大面积轻拟物列表卡片（深度对接 50 字 content_min 快照）
   Widget _buildAestheticPostCard(dynamic postData, {String? datePrefix, bool showLeftBorder = false, List<List<dynamic>>? cardIcon}) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     if (postData == null || postData['id'] == null) return const SizedBox.shrink();
 
     final type = postData['post_type'] ?? 'quill';
@@ -846,10 +845,9 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: showLeftBorder ? themeColor.withOpacity(0.15) : Colors.grey.shade100, width: showLeftBorder ? 1.5 : 0.8),
+        border: Border.all(color: showLeftBorder ? themeColor.withOpacity(0.15) : AppColors.divider, width: showLeftBorder ? 1.5 : 0.8),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.015),
@@ -891,7 +889,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           mainHeading,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Colors.black87, height: 1.35),
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.textPrimary, height: 1.35),
                         ),
 
                         // 副标题展示（仅在有标题且有正文快照时呈现，形成双层精致版面）
@@ -901,7 +899,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                             contentMin,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.3),
+                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
                           ),
                         ],
                         const SizedBox(height: 12),
@@ -911,13 +909,13 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           children: [
                             HugeIcon(
                               icon: cardIcon ?? HugeIcons.strokeRoundedCalendar01,
-                              color: Colors.grey.shade400,
+                              color: AppColors.textHint,
                               size: 13.0,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               datePrefix ?? 'published_on'.trParams({'date': createTime}),
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                             ),
                           ],
                         ),

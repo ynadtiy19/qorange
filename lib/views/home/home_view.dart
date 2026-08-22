@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 import '../../network/http_client.dart';
 import '../../user_controller.dart';
 import '../post_detail/post_detail_view.dart';
@@ -253,28 +254,28 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         centerTitle: false,
         title: Text(
           'app_name'.tr,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w900,
-            color: Color.fromRGBO(44, 123, 109, 1.0),
+            color: AppColors.primary,
             letterSpacing: -0.5,
           ),
         ),
         actions: [
           IconButton(
             onPressed: () => Get.to(() => const SearchView()),
-            icon: const HugeIcon(
+            icon: HugeIcon(
               icon: HugeIcons.strokeRoundedSearch01,
-              color: Color.fromRGBO(44, 123, 109, 1.0),
+              color: AppColors.primary,
             ),
           ),
           Obx(() {
@@ -291,18 +292,18 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                     transition: Transition.cupertino,
                     duration: const Duration(milliseconds: 300),
                   ),
-                  icon: const HugeIcon(
+                  icon: HugeIcon(
                     icon: HugeIcons.strokeRoundedAiGame,
-                    color: Color.fromRGBO(44, 123, 109, 1.0),
+                    color: AppColors.primary,
                   ),
                 ),
                 IconButton(
                   onPressed: () => Get.to(() => const PublishView())?.then((_) {
                     triggerGlobalDataSync();
                   }),
-                  icon: const HugeIcon(
+                  icon: HugeIcon(
                     icon: HugeIcons.strokeRoundedQuillWrite02,
-                    color: Color.fromRGBO(44, 123, 109, 1.0),
+                    color: AppColors.primary,
                   ),
                 ),
               ],
@@ -317,7 +318,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
               controller: _tabController,
               isScrollable: true,
               labelColor: Colors.black,
-              unselectedLabelColor: Colors.grey.shade400,
+              unselectedLabelColor: AppColors.textHint,
               indicatorColor: themeColor,
               indicatorWeight: 3,
               indicatorSize: TabBarIndicatorSize.label,
@@ -370,7 +371,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
   }
 
   Widget _buildActiveFilterBanner() {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -388,8 +389,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
             onTap: _clearActiveFilters,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: themeColor.withOpacity(0.3), width: 0.8),
               ),
@@ -417,9 +417,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
     required bool isLoadingMore,
   }) {
     if (isLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
-          color: Color.fromRGBO(44, 123, 109, 1.0),
+          color: AppColors.primary,
           strokeWidth: 2,
         ),
       );
@@ -429,9 +429,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.article_outlined, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.article_outlined, size: 48, color: AppColors.border),
             const SizedBox(height: 12),
-            Text('no_content_try_tag'.tr, style: TextStyle(color: Colors.grey.shade400)),
+            Text('no_content_try_tag'.tr, style: TextStyle(color: AppColors.textHint)),
           ],
         ),
       );
@@ -442,7 +442,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
     return RefreshIndicator(
       onRefresh: _loadFeeds,
-      color: const Color.fromRGBO(44, 123, 109, 1.0),
+      color: AppColors.primary,
       child: ListView.separated(
         controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -472,14 +472,14 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
   Widget _buildBottomIndicator(bool isLoadingMore, bool hasMore) {
     if (isLoadingMore) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
         child: Center(
           child: SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(
-              color: Color.fromRGBO(44, 123, 109, 1.0),
+              color: AppColors.primary,
               strokeWidth: 2,
             ),
           ),
@@ -492,7 +492,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         child: Center(
           child: Text(
             'no_more_data'.tr,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            style: TextStyle(fontSize: 12, color: AppColors.textHint),
           ),
         ),
       );
@@ -511,7 +511,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
         itemBuilder: (context, index) {
           final tag = _recommendedTags[index];
           final isSelected = _selectedTag == tag;
-          final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+          final themeColor = AppColors.primary;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ActionChip(
@@ -536,7 +536,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
   }
 
   Widget _buildAestheticPostItem(dynamic post) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     if (post == null || post['id'] == null) return const SizedBox.shrink();
 
     final author = post['author'] ?? {};
@@ -564,10 +564,9 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100, width: 0.8),
+        border: Border.all(color: AppColors.divider, width: 0.8),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.015),
@@ -595,13 +594,13 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       CircleAvatar(
                         radius: 12,
                         backgroundImage: authorAvatar.isNotEmpty ? NetworkImage(authorAvatar) : null,
-                        backgroundColor: Colors.grey.shade100,
+                        backgroundColor: AppColors.divider,
                         child: authorAvatar.isEmpty ? const Icon(Icons.person, size: 12, color: Colors.grey) : null,
                       ),
                       const SizedBox(width: 8),
                       Text(
                         authorNickname,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                       ),
                       const Spacer(),
                       GestureDetector(
@@ -661,7 +660,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade500,
+                                  color: AppColors.textSecondary,
                                   height: 1.35,
                                 ),
                               ),
@@ -695,7 +694,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       const SizedBox(width: 4),
                       Text(
                         timestamp,
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                        style: TextStyle(fontSize: 10, color: AppColors.textHint),
                       ),
                       const Spacer(),
                       const HugeIcon(
@@ -706,12 +705,12 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       const SizedBox(width: 4),
                       Text(
                         '$viewsCount',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 10, color: AppColors.textHint, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 14),
                       HugeIcon(
                         icon: isLiked ? HugeIcons.strokeRoundedFavourite : HugeIcons.strokeRoundedFavourite,
-                        color: isLiked ? Colors.redAccent : Colors.grey.shade400,
+                        color: isLiked ? Colors.redAccent : AppColors.textHint,
                         size: 13,
                       ),
                       const SizedBox(width: 4),
@@ -719,14 +718,14 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                         '$likesCount',
                         style: TextStyle(
                           fontSize: 10,
-                          color: isLiked ? Colors.redAccent : Colors.grey.shade400,
+                          color: isLiked ? Colors.redAccent : AppColors.textHint,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(width: 14),
                       HugeIcon(
                         icon: isCollected ? HugeIcons.strokeRoundedBookmark01 : HugeIcons.strokeRoundedBookmark01,
-                        color: isCollected ? Colors.orangeAccent : Colors.grey.shade400,
+                        color: isCollected ? Colors.orangeAccent : AppColors.textHint,
                         size: 13,
                       ),
                       const SizedBox(width: 4),
@@ -734,7 +733,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                         '$collectsCount',
                         style: TextStyle(
                           fontSize: 10,
-                          color: isCollected ? Colors.orangeAccent : Colors.grey.shade400,
+                          color: isCollected ? Colors.orangeAccent : AppColors.textHint,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -747,7 +746,7 @@ class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin
                       const SizedBox(width: 4),
                       Text(
                         '$repostsCount',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 10, color: AppColors.textHint, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),

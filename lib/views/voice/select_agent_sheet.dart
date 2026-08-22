@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:qorange/theme.dart';
 
 class SelectAgentBottomSheet extends StatefulWidget {
   // 🌟 支持传入当前选中的 Key；若未传，则自动使用内存中上一次选择的 Key
@@ -74,8 +75,7 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
     final Color buttonColor = const Color(0xFF4A1E24);
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
@@ -90,12 +90,12 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
           Container(
             width: 36,
             height: 4,
-            decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
+            decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
           ),
           const SizedBox(height: 20),
           Text(
             'select_ai_assistant'.tr,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 30),
 
@@ -148,7 +148,7 @@ class _SelectAgentBottomSheetState extends State<SelectAgentBottomSheet> {
                 height: 6,
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 decoration: BoxDecoration(
-                  color: isSelected ? buttonColor : Colors.grey.shade300,
+                  color: isSelected ? buttonColor : AppColors.border,
                   borderRadius: BorderRadius.circular(3),
                 ),
               );

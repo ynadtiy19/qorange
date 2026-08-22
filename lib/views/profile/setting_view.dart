@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../services/language_service.dart';
+import '../../services/theme_service.dart';
 
 /// 🌟 MVC 控制器：专门负责用户实名认证与安全邮箱数据的加载、校验与安全提交
 class SettingController extends GetxController {
@@ -81,12 +83,106 @@ class SettingController extends GetxController {
 class SettingView extends StatelessWidget {
   const SettingView({super.key});
 
+  /// 🌟 白天/黑夜主题切换大卡片
+  Widget _buildThemeModeCard() {
+    final bool isDark = ThemeService.to.isDark;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.brightness_6_rounded, color: AppColors.primary, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('appearance_theme'.tr, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(
+                    isDark ? 'theme_dark'.tr : 'theme_light'.tr,
+                    style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                  ),
+                ],
+              ),
+            ),
+            // 白天 / 黑夜 二选一切换按钮
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildThemeOption(
+                    selected: !isDark,
+                    icon: Icons.light_mode_rounded,
+                    label: 'theme_light'.tr,
+                    onTap: () => ThemeService.to.setMode(ThemeMode.light),
+                  ),
+                  _buildThemeOption(
+                    selected: isDark,
+                    icon: Icons.dark_mode_rounded,
+                    label: 'theme_dark'.tr,
+                    onTap: () => ThemeService.to.setMode(ThemeMode.dark),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeOption({
+    required bool selected,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: selected ? Colors.white : AppColors.textSecondary),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showLanguageSelector(BuildContext context, Color primaryColor) {
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -110,7 +206,7 @@ class SettingView extends StatelessWidget {
                   nameKey.tr,
                   style: TextStyle(
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? primaryColor : Colors.black87,
+                    color: isSelected ? primaryColor : AppColors.textPrimary,
                   ),
                 ),
                 trailing: isSelected ? Icon(Icons.check_circle_rounded, color: primaryColor) : null,
@@ -129,8 +225,8 @@ class SettingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(SettingController());
-    final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0); // 柔绿
-    final Color obsidianBg = const Color(0xFF0F172A); // 曜石黑
+    final Color primaryColor = AppColors.primary; // 柔绿
+    final Color obsidianBg = AppColors.primary; // 主题强调色（原曜石黑）
 
     final TextEditingController nameC = TextEditingController();
     final TextEditingController phoneC = TextEditingController();
@@ -147,15 +243,15 @@ class SettingView extends StatelessWidget {
     emailC.text = controller.email.value;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('settings'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+        title: Text('settings'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
         ),
       ),
       body: Obx(() {
@@ -168,10 +264,13 @@ class SettingView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 0. 多语言切换入口大卡片
+              // 0. 白天/黑夜主题切换大卡片
+              _buildThemeModeCard(),
+              const SizedBox(height: 24),
+
+              // 0.5 多语言切换入口大卡片
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
@@ -185,9 +284,9 @@ class SettingView extends StatelessWidget {
                           (l) => (l['locale'] as Locale).languageCode == LanguageService.to.currentLocale.languageCode,
                       orElse: () => LanguageService.to.supportedLanguages.first,
                     )['nameKey'].toString().tr,
-                    style: const TextStyle(fontSize: 12, color: Colors.black45),
+                    style: TextStyle(fontSize: 12, color: AppColors.textHint),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.black38),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textHint),
                   onTap: () => _showLanguageSelector(context, primaryColor),
                 ),
               ),
@@ -214,7 +313,7 @@ class SettingView extends StatelessWidget {
                           const SizedBox(height: 6),
                           Text(
                             'realname_notice'.tr,
-                            style: const TextStyle(fontSize: 11, color: Colors.black54, height: 1.5),
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.5),
                           )
                         ],
                       ),
@@ -225,11 +324,10 @@ class SettingView extends StatelessWidget {
               const SizedBox(height: 32),
 
               // 2. 实名录入
-              Text('alipay_real_name'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
+              Text('alipay_real_name'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
               const SizedBox(height: 10),
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
@@ -240,7 +338,7 @@ class SettingView extends StatelessWidget {
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'alipay_real_name_hint'.tr,
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                     prefixIcon: Icon(Icons.person_pin_rounded, color: primaryColor, size: 18),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -250,11 +348,10 @@ class SettingView extends StatelessWidget {
               const SizedBox(height: 24),
 
               // 3. 收款手机号录入
-              Text('alipay_phone'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)),
+              Text('alipay_phone'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
               const SizedBox(height: 10),
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
@@ -270,7 +367,7 @@ class SettingView extends StatelessWidget {
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'alipay_phone_hint'.tr,
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                     prefixIcon: Icon(Icons.phone_iphone_rounded, color: primaryColor, size: 18),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -280,11 +377,10 @@ class SettingView extends StatelessWidget {
               const SizedBox(height: 24),
 
               // 🌟 4. 新增：安全联系邮箱录入（用于接收邮件分享与系统通知）
-              Text('security_email'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54)), // 或 '联系与接收邮箱'
+              Text('security_email'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)), // 或 '联系与接收邮箱'
               const SizedBox(height: 10),
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))
@@ -296,7 +392,7 @@ class SettingView extends StatelessWidget {
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'security_email_hint'.tr, // 或 '输入邮箱以开启站内好友邮件分享接收'
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                     prefixIcon: Icon(Icons.alternate_email_rounded, color: primaryColor, size: 18),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

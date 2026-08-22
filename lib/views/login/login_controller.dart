@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 
 import '../../user_controller.dart';
 import '../../network/api_exception.dart';
@@ -26,7 +27,7 @@ class LoginController extends GetxController {
   final RxBool isLoading = false.obs;
 
   final RxList<Map<String, String>> savedCredentials = <Map<String, String>>[].obs;
-  final Color themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+  Color get themeColor => AppColors.primary;
 
   @override
   void onInit() {
@@ -133,8 +134,7 @@ class LoginController extends GetxController {
   void _showSavePasswordBottomSheet(String username, String password) {
     Get.bottomSheet(
       Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -148,7 +148,7 @@ class LoginController extends GetxController {
                   width: 38,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: AppColors.border,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -171,10 +171,10 @@ class LoginController extends GetxController {
                   const SizedBox(width: 12),
                   Text(
                     'save_password_title'.tr,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ],
@@ -182,21 +182,21 @@ class LoginController extends GetxController {
               const SizedBox(height: 16),
               Text(
                 'save_password_desc'.tr,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.4),
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
               ),
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: AppColors.surfaceAlt,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: AppColors.divider),
                 ),
                 child: Column(
                   children: [
                     Row(
                       children: [
-                        Text('account'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                        Text('account'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                         const Spacer(),
                         Text(username, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
@@ -207,7 +207,7 @@ class LoginController extends GetxController {
                     ),
                     Row(
                       children: [
-                        Text('password'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                        Text('password'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                         const Spacer(),
                         const Text("••••••••", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
@@ -225,11 +225,11 @@ class LoginController extends GetxController {
                         Get.back(result: true);
                       },
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.grey.shade300),
+                        side: BorderSide(color: AppColors.border),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: Text('dont_save'.tr, style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                      child: Text('dont_save'.tr, style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -266,8 +266,7 @@ class LoginController extends GetxController {
 
     Get.bottomSheet(
       Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -281,7 +280,7 @@ class LoginController extends GetxController {
                   width: 38,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: AppColors.border,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -297,10 +296,10 @@ class LoginController extends GetxController {
                   const SizedBox(width: 8),
                   Text(
                     'use_saved_account'.tr,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ],
@@ -308,7 +307,7 @@ class LoginController extends GetxController {
               const SizedBox(height: 6),
               Text(
                 'tap_account_autofill'.tr,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               ConstrainedBox(
@@ -331,7 +330,7 @@ class LoginController extends GetxController {
                         ),
                         title: Text(
                           name,
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                         ),
                         subtitle: const Text("••••••••", style: TextStyle(letterSpacing: 2)),
                         trailing: IconButton(

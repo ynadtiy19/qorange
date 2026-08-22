@@ -5,6 +5,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:qorange/theme.dart';
 import '../../services/api_service.dart';
 import '../../user_controller.dart';
 import 'community_discovery_controller.dart';
@@ -20,7 +21,7 @@ class CommunityDiscoveryView extends StatelessWidget {
         ? Get.find<CommunityDiscoveryController>()
         : Get.put(CommunityDiscoveryController());
 
-    const themeColor = Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
 
     final List<Map<String, String>> categories = [
       {'key': 'trending', 'name': '🔥 Trending', 'emoji': '🔥'},
@@ -33,14 +34,14 @@ class CommunityDiscoveryView extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.surfaceAlt,
       appBar: AppBar(
         title: Text(
           'discover_communities'.tr,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
         ),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => _showCreateCommunitySheet(context, controller, themeColor, categories),
@@ -66,7 +67,7 @@ class CommunityDiscoveryView extends StatelessWidget {
           // 顶部水平滑动的分类药丸
           Container(
             height: 54,
-            color: Colors.white,
+            color: AppColors.surface,
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
@@ -83,7 +84,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         decoration: BoxDecoration(
-                          color: isSelected ? themeColor : Colors.grey.shade100,
+                          color: isSelected ? themeColor : AppColors.divider,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -91,7 +92,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isSelected ? Colors.white : Colors.grey.shade600,
+                            color: isSelected ? Colors.white : AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -112,7 +113,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: Colors.grey.shade300, size: 48),
+                      HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: AppColors.border, size: 48),
                       const SizedBox(height: 12),
                       Text("no_matching_communities".tr, style: const TextStyle(color: Colors.grey)),
                     ],
@@ -173,10 +174,9 @@ class CommunityDiscoveryView extends StatelessWidget {
       }),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade100, width: 1),
+          border: Border.all(color: AppColors.divider, width: 1),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.02),
@@ -219,7 +219,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                       Expanded(
                         child: Text(
                           item.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -245,18 +245,18 @@ class CommunityDiscoveryView extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(item.descShort, style: TextStyle(color: Colors.grey.shade500, fontSize: 12, height: 1.4)),
+                  Text(item.descShort, style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: Colors.grey.shade400, size: 14),
+                      HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: AppColors.textHint, size: 14),
                       const SizedBox(width: 6),
-                      Text('${item.memberCount} ${'members'.tr}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      Text('${item.memberCount} ${'members'.tr}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                       const Spacer(),
                       if (item.isJoined)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(12)),
                           child: Text('joined_space'.tr, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
                         )
                       else
@@ -282,8 +282,7 @@ class CommunityDiscoveryView extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.all(24),
@@ -398,7 +397,7 @@ class CommunityDiscoveryView extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? themeColor : Colors.grey.shade100,
+          color: isSelected ? themeColor : AppColors.divider,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: isSelected ? themeColor : Colors.transparent, width: 1),
         ),
@@ -407,7 +406,7 @@ class CommunityDiscoveryView extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: isSelected ? Colors.white : Colors.black87,
+            color: isSelected ? Colors.white : AppColors.textPrimary,
           ),
         ),
       ),
@@ -469,8 +468,7 @@ class CommunityDiscoveryView extends StatelessWidget {
             }
 
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               padding: EdgeInsets.only(
@@ -488,7 +486,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                       child: Container(
                         width: 40,
                         height: 4,
-                        decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
+                        decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -500,9 +498,9 @@ class CommunityDiscoveryView extends StatelessWidget {
                         width: double.infinity,
                         height: 120,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: AppColors.divider,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(color: AppColors.divider),
                           image: bannerUrl.isNotEmpty
                               ? DecorationImage(image: NetworkImage(bannerUrl), fit: BoxFit.cover)
                               : null,
@@ -529,7 +527,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                       style: const TextStyle(fontSize: 14),
                       decoration: InputDecoration(
                         hintText: 'community_name_hint'.tr,
-                        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                        hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                         prefixIcon: const Icon(Icons.drive_file_rename_outline, size: 18),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -541,7 +539,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                       maxLines: 2,
                       decoration: InputDecoration(
                         hintText: 'community_desc_hint'.tr,
-                        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                        hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                         prefixIcon: const Icon(Icons.text_fields_outlined, size: 18),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -559,12 +557,12 @@ class CommunityDiscoveryView extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                             decoration: BoxDecoration(
-                              color: isSelected ? themeColor : Colors.grey.shade100,
+                              color: isSelected ? themeColor : AppColors.divider,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               cat['name']!,
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87),
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : AppColors.textPrimary),
                             ),
                           ),
                         );
@@ -600,7 +598,7 @@ class CommunityDiscoveryView extends StatelessWidget {
                             style: const TextStyle(fontSize: 14),
                             decoration: InputDecoration(
                               hintText: 'subscription_price_hint'.tr,
-                              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                              hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                               prefixIcon: const Icon(Icons.attach_money, size: 18),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             ),

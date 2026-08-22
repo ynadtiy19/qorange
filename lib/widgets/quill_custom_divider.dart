@@ -1,6 +1,7 @@
 // 负责实现编辑器与阅读详情页内的自定义装饰分割线渲染组件
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:qorange/theme.dart';
 
 class DividerBlockEmbed extends CustomBlockEmbed {
   static const String embedType = 'divider';
@@ -47,10 +48,10 @@ class _DividerPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final Paint sideDotPaint = Paint()
-      ..color = Colors.black87
+      ..color = AppColors.textPrimary
       ..style = PaintingStyle.fill;
     final Paint linePaint = Paint()
-      ..color = Colors.black54
+      ..color = AppColors.textSecondary
       ..strokeWidth = 1.0
       ..strokeCap = StrokeCap.round;
 

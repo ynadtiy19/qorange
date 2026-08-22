@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 import '../../controllers/im_conversation_controller.dart';
 import '../../controllers/notification_center_controller.dart';
 import '../../models/im_message_model.dart';
@@ -12,8 +13,8 @@ import 'im_chat_view.dart';
 class ImConversationListView extends StatelessWidget {
   const ImConversationListView({super.key});
 
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
-  static const Color _bgSlate = Color(0xFFF8FAFC);
+  static Color get _primaryTeal => AppColors.primary;
+  static Color get _bgSlate => AppColors.background;
 
   @override
   Widget build(BuildContext context) {
@@ -22,16 +23,16 @@ class ImConversationListView extends StatelessWidget {
     return Scaffold(
       backgroundColor: _bgSlate,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         centerTitle: false,
         title: Row(
           children: [
-            const Text(
-              '消息',
+            Text(
+              'nav_messages'.tr,
               style: TextStyle(
-                color: Color(0xFF0F172A),
+                color: AppColors.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.5,
@@ -63,12 +64,12 @@ class ImConversationListView extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 IconButton(
-                  icon: const HugeIcon(
+                  icon: HugeIcon(
                     icon: HugeIcons.strokeRoundedNotification03,
-                    color: Color(0xFF1E293B),
+                    color: AppColors.textPrimary,
                     size: 22,
                   ),
-                  tooltip: '通知中心',
+                  tooltip: 'notification_center'.tr,
                   onPressed: () {
                     HapticFeedback.lightImpact();
                     Get.to(
@@ -107,7 +108,7 @@ class ImConversationListView extends StatelessWidget {
           }),
 
           IconButton(
-            icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: Color(0xFF64748B), size: 20),
+            icon: HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: AppColors.textSecondary, size: 20),
             onPressed: () {
               HapticFeedback.lightImpact();
               controller.fetchConversations(refresh: true);
@@ -150,8 +151,7 @@ class ImConversationListView extends StatelessWidget {
 
     final isStranger = conv.relationshipStatus == 'stranger_pending';
 
-    return Material(
-      color: Colors.white,
+    return Material(color: AppColors.surface,
       borderRadius: BorderRadius.circular(20),
       elevation: 0,
       child: InkWell(
@@ -175,7 +175,7 @@ class ImConversationListView extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFF1F5F9)),
+            border: Border.all(color: AppColors.surfaceAlt),
           ),
           child: Row(
             children: [
@@ -186,7 +186,7 @@ class ImConversationListView extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: Image.network(avatar, width: 48, height: 48, fit: BoxFit.cover, errorBuilder: (_, __, ___) {
-                      return Container(width: 48, height: 48, color: const Color(0xFFE2E8F0));
+                      return Container(width: 48, height: 48, color: AppColors.divider);
                     }),
                   ),
                   if (isStranger)
@@ -220,12 +220,12 @@ class ImConversationListView extends StatelessWidget {
                             conv.partnerNickname,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                           ),
                         ),
                         Text(
                           _formatTime(conv.updatedAt),
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
@@ -240,7 +240,7 @@ class ImConversationListView extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 13,
-                              color: conv.unreadCount > 0 ? const Color(0xFF334155) : const Color(0xFF64748B),
+                              color: conv.unreadCount > 0 ? AppColors.textPrimary : AppColors.textSecondary,
                               fontWeight: conv.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
                             ),
                           ),
@@ -277,13 +277,13 @@ class ImConversationListView extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle),
-            child: const HugeIcon(icon: HugeIcons.strokeRoundedBubbleChat, color: Color(0xFF94A3B8), size: 36),
+            decoration: BoxDecoration(color: AppColors.surfaceAlt, shape: BoxShape.circle),
+            child: HugeIcon(icon: HugeIcons.strokeRoundedBubbleChat, color: AppColors.textHint, size: 36),
           ),
           const SizedBox(height: 16),
-          const Text('暂无私信消息', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+          Text('im_empty_title'.tr, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
           const SizedBox(height: 6),
-          const Text('去创作者主页或社群，开启第一句思想交流吧', style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
+          Text('im_empty_sub'.tr, style: TextStyle(fontSize: 13, color: AppColors.textHint)),
         ],
       ),
     );

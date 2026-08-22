@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:qorange/theme.dart';
 
 class AgreementWebViewPage extends StatefulWidget {
   const AgreementWebViewPage({super.key});
@@ -21,15 +22,15 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
   late final String _initialUrl;
 
   // 平台经典主色调
-  static const Color _primaryTeal = Color(0xFF2C7B6D);
-  static const Color _slateText = Color(0xFF1E293B);
+  static Color get _primaryTeal => AppColors.primary;
+  static Color get _slateText => AppColors.textPrimary;
 
   @override
   void initState() {
     super.initState();
     // 从 Get.arguments 中获取标题和网址
     final args = Get.arguments as Map<String, dynamic>? ?? {};
-    _title.value = args['title']?.toString() ?? '协议详情';
+    _title.value = args['title']?.toString() ?? 'agreement_title'.tr;
     _initialUrl = args['url']?.toString() ?? 'https://googlechat.zeabur.app/docs/user_agreement.html';
 
     _initWebViewController();
@@ -38,7 +39,7 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
   void _initWebViewController() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFF8FAFC))
+      ..setBackgroundColor(AppColors.background)
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
@@ -72,11 +73,11 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: AppColors.background,
         appBar: AppBar(
           elevation: 0,
           scrolledUnderElevation: 0.5,
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           centerTitle: true,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19, color: _slateText),
@@ -102,8 +103,8 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 22, color: Color(0xFF64748B)),
-              tooltip: '刷新',
+              icon: Icon(Icons.refresh_rounded, size: 22, color: AppColors.textSecondary),
+              tooltip: 'agreement_refresh'.tr,
               onPressed: () {
                 HapticFeedback.selectionClick();
                 _controller.reload();
@@ -151,21 +152,21 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
               width: 68,
               height: 68,
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: AppColors.surfaceAlt,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: AppColors.divider),
               ),
-              child: const Icon(Icons.cloud_off_rounded, size: 32, color: Color(0xFF94A3B8)),
+              child: Icon(Icons.cloud_off_rounded, size: 32, color: AppColors.textHint),
             ),
             const SizedBox(height: 18),
-            const Text(
-              '页面加载未成功',
+            Text(
+              'agreement_load_failed'.tr,
               style: TextStyle(color: _slateText, fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            const Text(
-              '请检查网络状态或稍后重试',
-              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+            Text(
+              'agreement_check_network'.tr,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -182,7 +183,7 @@ class _AgreementWebViewPageState extends State<AgreementWebViewPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
-              child: const Text('重新加载', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              child: Text('agreement_retry'.tr, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
             ),
           ],
         ),

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:qorange/theme.dart';
 import '../../user_controller.dart';
 import 'community_approval_view.dart';
 import 'community_model.dart';
@@ -17,17 +18,17 @@ class CommunitySpaceView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(CommunitySpaceController(communityId: communityId), tag: communityId);
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
         title: Obx(() => Text(
           controller.community.value?.name ?? 'community_loading'.tr,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
         )),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Get.back(),
@@ -124,7 +125,7 @@ class CommunitySpaceView extends StatelessWidget {
         final String status = controller.memberStatus.value; // none, applying, approved_to_pay
 
         return Container(
-          color: Colors.grey.shade50,
+          color: AppColors.surfaceAlt,
           padding: const EdgeInsets.all(24),
           child: Center(
             child: Column(
@@ -152,7 +153,7 @@ class CommunitySpaceView extends StatelessWidget {
                       ? 'space_paid_desc'.trParams({'count': '${space.memberCount}'})
                       : 'space_private_desc'.tr,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 11, height: 1.5),
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.5),
                 ),
                 const SizedBox(height: 24),
 
@@ -162,7 +163,7 @@ class CommunitySpaceView extends StatelessWidget {
                   ElevatedButton.icon(
                     onPressed: null, // 置灰禁用
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey.shade300,
+                      backgroundColor: AppColors.border,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       elevation: 0,
@@ -224,7 +225,7 @@ class CommunitySpaceView extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              HugeIcon(icon: HugeIcons.strokeRoundedMessage01, color: Colors.grey.shade300, size: 48),
+              HugeIcon(icon: HugeIcons.strokeRoundedMessage01, color: AppColors.border, size: 48),
               const SizedBox(height: 12),
               Text('space_empty_post_first'.tr, style: const TextStyle(color: Colors.grey, fontSize: 12)),
             ],
@@ -266,10 +267,9 @@ class CommunitySpaceView extends StatelessWidget {
 
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade100, width: 1),
+              border: Border.all(color: AppColors.divider, width: 1),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.01),
@@ -294,7 +294,7 @@ class CommunitySpaceView extends StatelessWidget {
                           CircleAvatar(
                             radius: 14,
                             backgroundImage: NetworkImage(author['avatar'] ?? ''),
-                            backgroundColor: Colors.grey.shade100,
+                            backgroundColor: AppColors.divider,
                           ),
                           const SizedBox(width: 8),
                           Column(
@@ -302,7 +302,7 @@ class CommunitySpaceView extends StatelessWidget {
                             children: [
                               Text(author['nickname'] ?? 'scholar'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                               const SizedBox(height: 2),
-                              Text(timestamp, style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+                              Text(timestamp, style: TextStyle(fontSize: 9, color: AppColors.textHint)),
                             ],
                           ),
                           const Spacer(),
@@ -332,7 +332,7 @@ class CommunitySpaceView extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
                       ),
                       const SizedBox(height: 6),
 
@@ -341,20 +341,20 @@ class CommunitySpaceView extends StatelessWidget {
                         contentPreview,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12, height: 1.4),
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
                       ),
                       const Divider(height: 24),
 
                       // 底部互动行
                       Row(
                         children: [
-                          HugeIcon(icon: HugeIcons.strokeRoundedFavourite, color: Colors.grey.shade400, size: 14),
+                          HugeIcon(icon: HugeIcons.strokeRoundedFavourite, color: AppColors.textHint, size: 14),
                           const SizedBox(width: 4),
-                          Text('${post['likes']?.length ?? 0}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+                          Text('${post['likes']?.length ?? 0}', style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 16),
-                          HugeIcon(icon: HugeIcons.strokeRoundedComment01, color: Colors.grey.shade400, size: 14),
+                          HugeIcon(icon: HugeIcons.strokeRoundedComment01, color: AppColors.textHint, size: 14),
                           const SizedBox(width: 4),
-                          Text('insightful_replies'.tr, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+                          Text('insightful_replies'.tr, style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ],
@@ -387,10 +387,9 @@ class CommunitySpaceView extends StatelessWidget {
               final count = controller.pendingApprovalsCount.value;
               return Container(
                 margin: const EdgeInsets.only(bottom: 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade100, width: 1),
+                  border: Border.all(color: AppColors.divider, width: 1),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.01),
@@ -405,7 +404,7 @@ class CommunitySpaceView extends StatelessWidget {
                     color: Colors.orangeAccent,
                     size: 20.0,
                   ),
-                  title: Text('member_approval_center'.tr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  title: Text('member_approval_center'.tr, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   subtitle: Text(count > 0 ? 'pending_approvals_count'.trParams({'count': '$count'}) : 'no_pending_members'.tr, style: const TextStyle(fontSize: 11)),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -432,10 +431,10 @@ class CommunitySpaceView extends StatelessWidget {
 
           Text('space_intro'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: 10),
-          Text(space.descShort, style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.5)),
+          Text(space.descShort, style: TextStyle(color: AppColors.textPrimary, fontSize: 13, height: 1.5)),
           if (space.fullDesc.isNotEmpty) ...[
             const SizedBox(height: 16),
-            Text(space.fullDesc, style: TextStyle(color: Colors.grey.shade600, fontSize: 12, height: 1.5)),
+            Text(space.fullDesc, style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5)),
           ],
           if (space.links.isNotEmpty) ...[
             const Divider(height: 32),
@@ -472,8 +471,7 @@ class CommunitySpaceView extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -484,7 +482,7 @@ class CommunitySpaceView extends StatelessWidget {
                 child: Container(
                   width: 40,
                   height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
                 ),
               ),
               const SizedBox(height: 20),
@@ -533,8 +531,7 @@ class CommunitySpaceView extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               padding: EdgeInsets.only(
@@ -551,7 +548,7 @@ class CommunitySpaceView extends StatelessWidget {
                     child: Container(
                       width: 40,
                       height: 4,
-                      decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
+                      decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -575,7 +572,7 @@ class CommunitySpaceView extends StatelessWidget {
                     style: const TextStyle(fontSize: 14),
                     decoration: InputDecoration(
                       hintText: 'share_title_hint'.tr,
-                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                      hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
@@ -589,7 +586,7 @@ class CommunitySpaceView extends StatelessWidget {
                     style: const TextStyle(fontSize: 14, height: 1.4),
                     decoration: InputDecoration(
                       hintText: 'share_content_hint'.tr,
-                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                      hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:qorange/theme.dart';
 import '../comment/agreement_webview_page.dart';
 import '../main/main_nav_view.dart';
 
@@ -65,8 +66,7 @@ class _SplashViewState extends State<SplashView> {
           ),
           child: Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(color: AppColors.surface,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
@@ -74,18 +74,18 @@ class _SplashViewState extends State<SplashView> {
               children: [
                 Text(
                   'privacy_title'.tr,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 16),
                 RichText(
                   text: TextSpan(
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black54,
+                      color: AppColors.textSecondary,
                       height: 1.5,
                     ),
                     children: [
@@ -93,8 +93,8 @@ class _SplashViewState extends State<SplashView> {
                       // 🌟 1. 用户协议
                       TextSpan(
                         text: 'user_agreement'.tr,
-                        style: const TextStyle(
-                          color: Color(0xFF2C7B6D),
+                        style: TextStyle(
+                          color: AppColors.primary,
                           fontWeight: FontWeight.w600,
                         ),
                         recognizer: TapGestureRecognizer()
@@ -113,8 +113,8 @@ class _SplashViewState extends State<SplashView> {
                       // 🌟 2. 隐私政策
                       TextSpan(
                         text: 'privacy_policy'.tr,
-                        style: const TextStyle(
-                          color: Color(0xFF2C7B6D),
+                        style: TextStyle(
+                          color: AppColors.primary,
                           fontWeight: FontWeight.w600,
                         ),
                         recognizer: TapGestureRecognizer()
@@ -201,11 +201,11 @@ class _SplashViewState extends State<SplashView> {
 
             Text(
               'app_name'.tr,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2,
-                color: Colors.black87,
+                color: AppColors.textPrimary,
               ),
             )
                 .animate()

@@ -4,6 +4,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:qorange/theme.dart';
 
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
@@ -57,7 +58,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
   bool _hasSearched = false;
   String _currentKeyword = '';
 
-  final Color _primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
+  Color get _primaryColor => AppColors.primary;
 
   @override
   void initState() {
@@ -316,7 +317,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
   // 🌟 关注/取关实时交互处理
   Future<void> _toggleFollowUser(Map<String, dynamic> user, int index) async {
     if (!UserController.to.isLoggedIn) {
-      Fluttertoast.showToast(msg: '请登录后关注');
+      Fluttertoast.showToast(msg: 'search_login_to_follow'.tr);
       return;
     }
 
@@ -368,9 +369,9 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
@@ -380,9 +381,9 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
             children: [
               IconButton(
                 onPressed: () => Get.back(),
-                icon: const HugeIcon(
+                icon: HugeIcon(
                   icon: HugeIcons.strokeRoundedArrowLeft01,
-                  color: Colors.black87,
+                  color: AppColors.textPrimary,
                 ),
               ),
               Expanded(
@@ -392,12 +393,12 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     color: _focusNode.hasFocus
                         ? Colors.white
-                        : Colors.grey.shade50,
+                        : AppColors.surfaceAlt,
                     borderRadius: BorderRadius.circular(23),
                     border: Border.all(
                       color: _focusNode.hasFocus
                           ? _primaryColor
-                          : Colors.grey.shade200,
+                          : AppColors.divider,
                       width: _focusNode.hasFocus ? 1.5 : 1.0,
                     ),
                     boxShadow: [
@@ -417,7 +418,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                         icon: HugeIcons.strokeRoundedSearch01,
                         color: _focusNode.hasFocus
                             ? _primaryColor
-                            : Colors.grey.shade400,
+                            : AppColors.textHint,
                         size: 18,
                       ),
                       const SizedBox(width: 10),
@@ -428,12 +429,12 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                           onSubmitted: _performSearch,
                           textInputAction: TextInputAction.search,
                           textAlign: TextAlign.start,
-                          style: const TextStyle(
-                              fontSize: 14, color: Colors.black87),
+                          style: TextStyle(
+                              fontSize: 14, color: AppColors.textPrimary),
                           decoration: InputDecoration(
                             hintText: 'search_hint'.tr,
                             hintStyle: TextStyle(
-                                fontSize: 13, color: Colors.grey.shade400),
+                                fontSize: 13, color: AppColors.textHint),
                             border: InputBorder.none,
                             isDense: true,
                             contentPadding: EdgeInsets.zero,
@@ -461,13 +462,13 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                                   child: Container(
                                     padding: const EdgeInsets.all(5),
                                     decoration: BoxDecoration(
-                                      color: Colors.grey.shade100,
+                                      color: AppColors.divider,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
                                       Icons.close_rounded,
                                       size: 13,
-                                      color: Colors.grey.shade500,
+                                      color: AppColors.textSecondary,
                                     ),
                                   ),
                                 )
@@ -488,8 +489,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
         bottom: _hasSearched
             ? PreferredSize(
           preferredSize: const Size.fromHeight(44),
-          child: Container(
-            color: Colors.white,
+          child: Container(color: AppColors.surface,
             alignment: Alignment.centerLeft,
             child: TabBar(
               controller: _tabController,
@@ -499,7 +499,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
               indicatorWeight: 3,
               indicatorSize: TabBarIndicatorSize.label,
               labelColor: _primaryColor,
-              unselectedLabelColor: const Color(0xFF94A3B8),
+              unselectedLabelColor: AppColors.textHint,
               labelStyle: const TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 13),
               unselectedLabelStyle: const TextStyle(
@@ -541,7 +541,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
     }
 
     if (_postResults.isEmpty) {
-      return _buildEmptyStateView('没有找到相关的观点文章');
+      return _buildEmptyStateView('search_no_articles'.tr);
     }
 
     return RefreshIndicator(
@@ -579,7 +579,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
     }
 
     if (_userResults.isEmpty) {
-      return _buildEmptyStateView('没有找到匹配的用户学者');
+      return _buildEmptyStateView('search_no_users'.tr);
     }
 
     return RefreshIndicator(
@@ -623,12 +623,12 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
       );
     }
     if (!hasMore) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 16),
         child: Center(
           child: Text(
-            '已加载全部搜索结果',
-            style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+            'search_loaded_all'.tr,
+            style: TextStyle(fontSize: 11, color: AppColors.textHint),
           ),
         ),
       );
@@ -641,11 +641,11 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade200),
+          Icon(Icons.search_off_rounded, size: 64, color: AppColors.divider),
           const SizedBox(height: 14),
           Text(
             message,
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+            style: TextStyle(color: AppColors.textHint, fontSize: 13),
           ),
         ],
       ),
@@ -655,7 +655,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
   // 🌟 高质感用户卡片（包含头像、个性账号、Bio与实时关注操作按钮）
   Widget _buildUserSearchCard(Map<String, dynamic> user, int index) {
     final String userId = user['id']?.toString() ?? '';
-    final String nickname = user['nickname']?.toString() ?? '用户';
+    final String nickname = user['nickname']?.toString() ?? 'user'.tr;
     final String username = user['username']?.toString() ?? '';
     final String avatar = user['avatar']?.toString() ?? '';
     final String bio = user['bio']?.toString().trim() ?? '';
@@ -665,10 +665,9 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
     final List<dynamic> topics = user['topics'] as List? ?? [];
 
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.divider),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.015),
@@ -703,11 +702,11 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                     errorBuilder: (_, __, ___) => Container(
                       width: 48,
                       height: 48,
-                      color: const Color(0xFFE2E8F0),
-                      child: const HugeIcon(
+                      color: AppColors.divider,
+                      child: HugeIcon(
                         icon: HugeIcons.strokeRoundedUser,
                         size: 24,
-                        color: Color(0xFF94A3B8),
+                        color: AppColors.textHint,
                       ),
                     ),
                   ),
@@ -722,10 +721,10 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                           Expanded(
                             child: Text(
                               nickname,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14.5,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F172A),
+                                color: AppColors.textPrimary,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -735,9 +734,9 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                             const SizedBox(width: 4),
                             Text(
                               '@$username',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
-                                color: Color(0xFF94A3B8),
+                                color: AppColors.textHint,
                               ),
                             ),
                           ],
@@ -747,9 +746,9 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                         const SizedBox(height: 4),
                         Text(
                           bio,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF475569),
+                            color: AppColors.textSecondary,
                             height: 1.35,
                           ),
                           maxLines: 2,
@@ -760,10 +759,10 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                       Row(
                         children: [
                           Text(
-                            '$followersCount 位关注者',
-                            style: const TextStyle(
+                            'search_followers_count'.trParams({'count': followersCount}),
+                            style: TextStyle(
                               fontSize: 10.5,
-                              color: Color(0xFF94A3B8),
+                              color: AppColors.textHint,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -797,10 +796,10 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                     onPressed: () => _toggleFollowUser(user, index),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isFollowing
-                          ? const Color(0xFFF1F5F9)
+                          ? AppColors.surfaceAlt
                           : _primaryColor,
                       foregroundColor: isFollowing
-                          ? const Color(0xFF64748B)
+                          ? AppColors.textSecondary
                           : Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
@@ -811,7 +810,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                       ),
                     ),
                     child: Text(
-                      isFollowing ? 'following'.tr : 'follow'.tr,
+                      isFollowing ? 'following_state'.tr : 'follow'.tr,
                       style: const TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.bold,
@@ -844,10 +843,10 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                   children: [
                     Text(
                       'recent_searches'.tr,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     GestureDetector(
@@ -859,7 +858,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                           'clear_all'.tr,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade400,
+                            color: AppColors.textHint,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -881,16 +880,16 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: AppColors.surfaceAlt,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                                color: Colors.grey.shade100, width: 0.8),
+                                color: AppColors.divider, width: 0.8),
                           ),
                           child: Text(
                             history,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey.shade600,
+                              color: AppColors.textSecondary,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -903,10 +902,10 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
               ],
               Text(
                 'trending_categories'.tr,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 14),
@@ -971,10 +970,9 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100, width: 0.8),
+        border: Border.all(color: AppColors.divider, width: 0.8),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.015),
@@ -1001,7 +999,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                         backgroundImage: authorAvatar.isNotEmpty
                             ? NetworkImage(authorAvatar)
                             : null,
-                        backgroundColor: Colors.grey.shade100,
+                        backgroundColor: AppColors.divider,
                         child: authorAvatar.isEmpty
                             ? const Icon(Icons.person,
                             size: 12, color: Colors.grey)
@@ -1010,10 +1008,10 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                       const SizedBox(width: 8),
                       Text(
                         authorNickname,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87),
+                            color: AppColors.textPrimary),
                       ),
                       const Spacer(),
                       Container(
@@ -1062,7 +1060,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade500,
+                                  color: AppColors.textSecondary,
                                   height: 1.35,
                                 ),
                               ),
@@ -1097,7 +1095,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                       Text(
                         timestamp,
                         style: TextStyle(
-                            fontSize: 10, color: Colors.grey.shade400),
+                            fontSize: 10, color: AppColors.textHint),
                       ),
                       const Spacer(),
                       const HugeIcon(
@@ -1110,14 +1108,14 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                         '$viewsCount',
                         style: TextStyle(
                             fontSize: 10,
-                            color: Colors.grey.shade400,
+                            color: AppColors.textHint,
                             fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 14),
                       HugeIcon(
                         icon: HugeIcons.strokeRoundedFavourite,
                         color:
-                        isLiked ? Colors.redAccent : Colors.grey.shade400,
+                        isLiked ? Colors.redAccent : AppColors.textHint,
                         size: 13,
                       ),
                       const SizedBox(width: 4),
@@ -1127,7 +1125,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                           fontSize: 10,
                           color: isLiked
                               ? Colors.redAccent
-                              : Colors.grey.shade400,
+                              : AppColors.textHint,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1136,7 +1134,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                         icon: HugeIcons.strokeRoundedBookmark01,
                         color: isCollected
                             ? Colors.orangeAccent
-                            : Colors.grey.shade400,
+                            : AppColors.textHint,
                         size: 13,
                       ),
                       const SizedBox(width: 4),
@@ -1146,7 +1144,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                           fontSize: 10,
                           color: isCollected
                               ? Colors.orangeAccent
-                              : Colors.grey.shade400,
+                              : AppColors.textHint,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1161,7 +1159,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                         '$repostsCount',
                         style: TextStyle(
                             fontSize: 10,
-                            color: Colors.grey.shade400,
+                            color: AppColors.textHint,
                             fontWeight: FontWeight.bold),
                       ),
                     ],

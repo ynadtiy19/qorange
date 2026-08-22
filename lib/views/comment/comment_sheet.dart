@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
+import 'package:qorange/theme.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
 import '../../user_controller.dart';
@@ -94,11 +95,10 @@ class _CommentSheetState extends State<CommentSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     return Container(
       height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -106,7 +106,7 @@ class _CommentSheetState extends State<CommentSheet> {
           Container(
             height: 50,
             alignment: Alignment.center,
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.divider))),
             child: Text('all_discussions'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
           Expanded(
@@ -130,16 +130,16 @@ class _CommentSheetState extends State<CommentSheet> {
               left: 16,
               right: 16,
             ),
-            decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey.shade100))),
+            decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.divider))),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
-                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(20)),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: TextField(
                       controller: _commentController,
-                      decoration: InputDecoration(hintText: _hintText, border: InputBorder.none, hintStyle: TextStyle(color: Colors.grey.shade400)),
+                      decoration: InputDecoration(hintText: _hintText, border: InputBorder.none, hintStyle: TextStyle(color: AppColors.textHint)),
                     ),
                   ),
                 ),
@@ -177,7 +177,7 @@ class _CommentSheetState extends State<CommentSheet> {
                     const SizedBox(height: 4),
                     RichText(
                       text: TextSpan(
-                        style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 13, height: 1.4),
                         children: [
                           if (comment['reply_to_user'] != null) ...[
                             TextSpan(text: 'reply_prefix'.tr),
@@ -195,7 +195,7 @@ class _CommentSheetState extends State<CommentSheet> {
                       children: [
                         Text(
                           comment['created_at'] != null ? comment['created_at'].toString().substring(11, 16) : '',
-                          style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                          style: TextStyle(fontSize: 10, color: AppColors.textHint),
                         ),
                         const SizedBox(width: 16),
                         GestureDetector(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
+import 'package:qorange/theme.dart';
 
 import '../../../network/http_client.dart';
 
@@ -19,7 +20,7 @@ class ImPostPickerBottomSheet extends StatefulWidget {
 }
 
 class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with SingleTickerProviderStateMixin {
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+  static Color get _primaryTeal => AppColors.primary;
   late TabController _tabController;
 
   final List<Map<String, dynamic>> _myPosts = [];
@@ -71,8 +72,7 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.78,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
@@ -94,14 +94,14 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
                       child: const Icon(Icons.auto_stories_rounded, color: _primaryTeal, size: 20),
                     ),
                     const SizedBox(width: 12),
-                    const Text(
-                      '选择要分享的文章',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    Text(
+                      'im_post_picker_title'.tr,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                     ),
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                  icon: Icon(Icons.close_rounded, color: AppColors.textSecondary, size: 22),
                   onPressed: () => Get.back(),
                 ),
               ],
@@ -112,18 +112,18 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
           TabBar(
             controller: _tabController,
             labelColor: _primaryTeal,
-            unselectedLabelColor: Colors.grey.shade400,
+            unselectedLabelColor: AppColors.textHint,
             indicatorColor: _primaryTeal,
             indicatorSize: TabBarIndicatorSize.label,
             indicatorWeight: 3,
             labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
             unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            tabs: const [
-              Tab(text: '我发布的'),
-              Tab(text: '我的收藏'),
+            tabs: [
+              Tab(text: 'im_tab_mine'.tr),
+              Tab(text: 'im_tab_favorites'.tr),
             ],
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: AppColors.surfaceAlt),
 
           // 3. 列表内容视图
           Expanded(
@@ -148,9 +148,9 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.article_outlined, size: 40, color: Colors.grey.shade300),
+            Icon(Icons.article_outlined, size: 40, color: AppColors.border),
             const SizedBox(height: 10),
-            Text('暂无相关文章', style: TextStyle(color: Colors.grey.shade400, fontSize: 13, fontWeight: FontWeight.w500)),
+            Text('im_no_related_posts'.tr, style: TextStyle(color: AppColors.textHint, fontSize: 13, fontWeight: FontWeight.w500)),
           ],
         ),
       );
@@ -165,7 +165,7 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
         final title = post['title']?.toString() ?? '';
         final snippet = post['content_min']?.toString() ?? '';
         final thumb = post['thumbnail']?.toString() ?? '';
-        final category = (post['category']?.toString() ?? '专栏').toUpperCase();
+        final category = (post['category']?.toString() ?? 'im_category_column'.tr).toUpperCase();
         final postType = post['post_type']?.toString() ?? 'quill';
         final createdAtStr = post['created_at'] != null ? post['created_at'].toString().substring(0, 10) : '';
 
@@ -184,9 +184,9 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: AppColors.divider),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -234,13 +234,13 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
                             ),
                             const SizedBox(width: 8),
                             if (postType == 'poll')
-                              const Text('· 投票', style: TextStyle(fontSize: 11, color: Color(0xFFD97706), fontWeight: FontWeight.bold))
+                              Text('post_type_poll'.tr, style: const TextStyle(fontSize: 11, color: Color(0xFFD97706), fontWeight: FontWeight.bold))
                             else if (postType == 'short_post')
-                              const Text('· 说说', style: TextStyle(fontSize: 11, color: Color(0xFF3B82F6), fontWeight: FontWeight.bold)),
+                              Text('post_type_saysay'.tr, style: const TextStyle(fontSize: 11, color: Color(0xFF3B82F6), fontWeight: FontWeight.bold)),
                             const Spacer(),
                             Text(
                               createdAtStr,
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
+                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -251,7 +251,7 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
                           mainHeading,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                         ),
 
                         // 摘要
@@ -261,14 +261,14 @@ class _ImPostPickerBottomSheetState extends State<ImPostPickerBottomSheet> with 
                             snippet,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.3),
+                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
                           ),
                         ],
                       ],
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF94A3B8)),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textHint),
                 ],
               ),
             ),

@@ -1,4 +1,6 @@
 // lib/models/im_message_model.dart
+import 'package:get/get.dart';
+
 class ImMessageModel {
   final String messageId;
   final String conversationId;
@@ -96,7 +98,7 @@ class ImConversationModel {
     return ImConversationModel(
       conversationId: json['conversation_id']?.toString() ?? '',
       partnerId: partner['id']?.toString() ?? '',
-      partnerNickname: partner['nickname']?.toString() ?? '用户',
+      partnerNickname: partner['nickname']?.toString() ?? 'user'.tr,
       partnerAvatar: partner['avatar']?.toString() ?? '',
       partnerUsername: partner['username']?.toString() ?? '',
       lastMsgPreview: lastMsg['preview_text']?.toString() ?? '',

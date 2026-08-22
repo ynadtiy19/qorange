@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:qorange/theme.dart';
 
 import '../network/http_client.dart';
 import '../views/post_detail/post_detail_view.dart';
@@ -153,7 +154,7 @@ class NotificationHandlerService extends GetxService {
 
           final String wssUrl = datas['wss_download_url']?.toString() ?? '';
           final String fallbackUrl = datas['download_url']?.toString() ?? '';
-          final String rawChangelog = datas['changelog']?.toString() ?? '优化系统流畅度与稳定性';
+          final String rawChangelog = datas['changelog']?.toString() ?? 'update_changelog_default'.tr;
           final String cleanChangelog = _cleanMarkdownText(rawChangelog);
 
           _showRefinedUpdateDialog(
@@ -183,7 +184,7 @@ class NotificationHandlerService extends GetxService {
         } else {
           if (isManualCheck) {
             Fluttertoast.showToast(
-              msg: '当前已是最新版本 (${packageInfo.version}+$normalizedBuild)',
+              msg: 'update_already_latest'.trParams({'version': '${packageInfo.version}+$normalizedBuild'}),
             );
           }
         }
@@ -192,7 +193,7 @@ class NotificationHandlerService extends GetxService {
       debugPrint('❌ [AppUpdate] 自动检查更新异常: $e');
       debugPrint('❌ [AppUpdate] StackTrace: $stackTrace');
       if (isManualCheck) {
-        Fluttertoast.showToast(msg: '检查更新失败，请稍后重试');
+        Fluttertoast.showToast(msg: 'update_check_failed'.tr);
       }
     } finally {
       _isChecking = false;
@@ -224,12 +225,11 @@ class NotificationHandlerService extends GetxService {
           backgroundColor: Colors.transparent,
           child: Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(color: AppColors.surface,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF2C7B6D).withOpacity(0.12),
+                  color: AppColors.primary.withOpacity(0.12),
                   blurRadius: 30,
                   offset: const Offset(0, 10),
                 )
@@ -247,20 +247,20 @@ class NotificationHandlerService extends GetxService {
                         color: const Color(0xFFEBF5F3),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.rocket_launch_rounded, color: Color(0xFF2C7B6D), size: 24),
+                      child: Icon(Icons.rocket_launch_rounded, color: AppColors.primary, size: 24),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            '发现新版本',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                          Text(
+                            'update_found_title'.tr,
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                           ),
                           Text(
                             tag,
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF2C7B6D), fontWeight: FontWeight.w600),
+                            style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -268,23 +268,23 @@ class NotificationHandlerService extends GetxService {
                   ],
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  '更新内容：',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                Text(
+                  'update_contents'.tr,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   constraints: const BoxConstraints(maxHeight: 160),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: AppColors.background,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: AppColors.divider),
                   ),
                   child: SingleChildScrollView(
                     child: Text(
                       changelog,
-                      style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF334155)),
+                      style: TextStyle(fontSize: 13, height: 1.6, color: AppColors.textPrimary),
                     ),
                   ),
                 ),
@@ -298,10 +298,10 @@ class NotificationHandlerService extends GetxService {
                           onIgnore();
                         },
                         style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF94A3B8),
+                          foregroundColor: AppColors.textHint,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        child: const Text('稍后提示', style: TextStyle(fontWeight: FontWeight.w600)),
+                        child: Text('update_later'.tr, style: const TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -313,13 +313,13 @@ class NotificationHandlerService extends GetxService {
                           onConfirm();
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2C7B6D),
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
-                        child: const Text('立即极速升级', style: TextStyle(fontWeight: FontWeight.w700)),
+                        child: Text('update_upgrade_now'.tr, style: const TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ],
@@ -340,8 +340,8 @@ class NotificationHandlerService extends GetxService {
     required String wssUrl,
   }) async {
     const int updateNoticeId = 9999;
-    final String title = '发现新版本 [$tag]';
-    final String body = '$notes\n点击通知栏将自动通过后端高速通道极速更新！';
+    final String title = 'update_push_title'.trParams({'tag': tag});
+    final String body = 'update_push_body'.trParams({'notes': notes});
 
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'googlechat_alerts',
@@ -350,11 +350,11 @@ class NotificationHandlerService extends GetxService {
       importance: Importance.max,
       priority: Priority.high,
       showWhen: true,
-      color: const Color(0xFF2C7B6D),
+      color: AppColors.primary,
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,
-        summaryText: '版本更新'.tr,
+        summaryText: 'update_version'.tr,
       ),
     );
 
@@ -433,7 +433,7 @@ class NotificationHandlerService extends GetxService {
     IOSink? fileSink;
 
     try {
-      Fluttertoast.showToast(msg: '正在下载更新');
+      Fluttertoast.showToast(msg: 'update_downloading'.tr);
       await _updateDownloadNotification(0, updateNotificationId);
 
       final Directory tempDir = await getTemporaryDirectory();
@@ -462,7 +462,7 @@ class NotificationHandlerService extends GetxService {
               } else if (json['type'] == 'done') {
                 if (!completer.isCompleted) completer.complete();
               } else if (json['type'] == 'error') {
-                if (!completer.isCompleted) completer.completeError(json['message'] ?? '下载失败');
+                if (!completer.isCompleted) completer.completeError(json['message'] ?? 'update_download_failed'.tr);
               }
             } catch (_) {}
           } else if (message is List<int>) {
@@ -527,7 +527,7 @@ class NotificationHandlerService extends GetxService {
       final http.StreamedResponse response = await client.send(request);
 
       if (response.statusCode != 200) {
-        throw HttpException('下载失败 (HTTP ${response.statusCode})');
+        throw HttpException('update_download_failed'.tr + ' (HTTP ${response.statusCode})');
       }
 
       final int totalBytes = response.contentLength ?? 0;
@@ -746,7 +746,7 @@ class NotificationHandlerService extends GetxService {
         importance: Importance.max,
         priority: Priority.high,
         showWhen: true,
-        color: const Color(0xFF2C7B6D),
+        color: AppColors.primary,
         largeIcon: avatarPath != null ? FilePathAndroidBitmap(avatarPath) : null,
         styleInformation: BigTextStyleInformation(
           body,

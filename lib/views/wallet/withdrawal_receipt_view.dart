@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:qorange/theme.dart';
 
 class WithdrawalReceiptView extends StatefulWidget {
   final Map<String, dynamic> detail;
@@ -81,11 +82,11 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
         : '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9), // 浅灰背景，更衬托票据纸张纯净感
+      backgroundColor: AppColors.surfaceAlt, // 浅灰背景，更衬托票据纸张纯净感
       appBar: AppBar(
-        title: Text('withdrawal_statement'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+        title: Text('withdrawal_statement'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Get.back(),
@@ -99,8 +100,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
             RepaintBoundary(
               key: _repaintKey,
               child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -149,7 +149,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(nickname, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                                  Text(nickname, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
                                   const SizedBox(height: 2),
                                   Text(handle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                                 ],
@@ -163,7 +163,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                             ],
                           ),
                           const SizedBox(height: 24),
-                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                          Divider(height: 1, color: AppColors.surfaceAlt),
                           const SizedBox(height: 20),
 
                           _buildReceiptItem('receipt_ref_no'.tr, outBizNo),
@@ -175,13 +175,13 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                           _buildReceiptItem('receipt_tax'.tr, '- ¥$taxDeducted', textColor: Colors.redAccent),
 
                           const SizedBox(height: 16),
-                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                          Divider(height: 1, color: AppColors.surfaceAlt),
                           const SizedBox(height: 20),
 
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('receipt_net'.tr, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Colors.black87)),
+                              Text('receipt_net'.tr, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.textPrimary)),
                               Text(
                                 '¥$actualPayout',
                                 style: TextStyle(color: premiumBg, fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: -0.5),
@@ -191,7 +191,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
                           const SizedBox(height: 8),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: Text('receipt_created_at'.trParams({'time': '$createTime'}), style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+                            child: Text('receipt_created_at'.trParams({'time': '$createTime'}), style: TextStyle(fontSize: 9, color: AppColors.textHint)),
                           ),
 
                           const SizedBox(height: 32),
@@ -258,7 +258,7 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
               ),
             ),
             const SizedBox(height: 12),
-            Text('statement_saved_notice'.tr, style: TextStyle(color: Colors.grey.shade500, fontSize: 10), textAlign: TextAlign.center),
+            Text('statement_saved_notice'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 10), textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -271,8 +271,8 @@ class _WithdrawalReceiptViewState extends State<WithdrawalReceiptView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 13, fontWeight: FontWeight.w500)),
-          Text(value, style: TextStyle(color: textColor ?? Colors.black87, fontSize: 13, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(value, style: TextStyle(color: textColor ?? AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold)),
         ],
       ),
     );

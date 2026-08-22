@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 import 'wallet_controller.dart';
 import 'withdrawal_receipt_view.dart';
 import 'token_recharge_paywall_view.dart'; // 🌟 桥接全新高阶付费墙充值页面
@@ -19,11 +20,11 @@ class _WalletViewState extends State<WalletView> {
   final WalletController controller = Get.put(WalletController());
 
   // 🌟 明亮极简奢雅色彩模型
-  final Color premiumBg = const Color(0xFFF8FAFC);     // 明亮极简石蓝色
+  Color get premiumBg => AppColors.background;     // 明亮极简石蓝色
   final Color premiumAmber = const Color(0xFFD97706);  // 质感琥珀金（高对比度）
   final Color premiumTeal = const Color(0xFF4F46E5);   // 皇家深靛蓝（代替原本的浅绿）
   final Color premiumCard = const Color(0xFFFFFFFF);   // 纯白轻奢卡片
-  final Color premiumGray = const Color(0xFF64748B);   // 钛空灰色
+  Color get premiumGray => AppColors.textSecondary;   // 钛空灰色
 
   @override
   Widget build(BuildContext context) {
@@ -32,15 +33,15 @@ class _WalletViewState extends State<WalletView> {
       appBar: AppBar(
         title: Text(
           'creator_wallet'.tr,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E293B)),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
         ),
         centerTitle: true,
         backgroundColor: premiumBg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
         ),
       ),
       body: Obx(() {
@@ -70,12 +71,12 @@ class _WalletViewState extends State<WalletView> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [premiumCard, const Color(0xFFF1F5F9)],
+                    colors: [premiumCard, AppColors.surfaceAlt],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                  border: Border.all(color: AppColors.divider, width: 1),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.04),
@@ -108,7 +109,7 @@ class _WalletViewState extends State<WalletView> {
                             const SizedBox(width: 8),
                             Text(
                               'verified_wallet'.tr,
-                              style: TextStyle(color: Color(0xFF475569), fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                             ),
                           ],
                         ),
@@ -144,7 +145,7 @@ class _WalletViewState extends State<WalletView> {
                                   icon: HugeIcon(icon: HugeIcons.strokeRoundedCheckList, color: premiumAmber, size: 14.0),
                                   label: Text('generate_statement'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    backgroundColor: AppColors.surfaceAlt,
                                     foregroundColor: premiumAmber,
                                     elevation: 0,
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -159,7 +160,7 @@ class _WalletViewState extends State<WalletView> {
                                         ? () => Fluttertoast.showToast(msg: 'balance_below_minimum'.tr)
                                         : () => _showWithdrawSheet(context, controller, balance),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: balance < 10.0 ? const Color(0xFFE2E8F0) : premiumAmber,
+                                      backgroundColor: balance < 10.0 ? AppColors.divider : premiumAmber,
                                       foregroundColor: balance < 10.0 ? premiumGray : Colors.white,
                                       elevation: 0,
                                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -179,7 +180,7 @@ class _WalletViewState extends State<WalletView> {
                           margin: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [Colors.transparent, const Color(0xFFE2E8F0), Colors.transparent],
+                              colors: [Colors.transparent, AppColors.divider, Colors.transparent],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                             ),
@@ -194,8 +195,8 @@ class _WalletViewState extends State<WalletView> {
                               const SizedBox(height: 8),
                               Text(
                                 '${tokens.toInt()}',
-                                style: const TextStyle(
-                                  color: Color(0xFF1E293B),
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
                                   fontSize: 26,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -229,7 +230,7 @@ class _WalletViewState extends State<WalletView> {
                 children: [
                   Text(
                     'recent_withdrawals'.tr,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B)),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
                   ),
                   Text(
                     'recent_only_notice'.tr,
@@ -246,7 +247,7 @@ class _WalletViewState extends State<WalletView> {
                   decoration: BoxDecoration(
                     color: premiumCard,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: AppColors.divider),
                   ),
                   child: Column(
                     children: [
@@ -269,7 +270,7 @@ class _WalletViewState extends State<WalletView> {
                     decoration: BoxDecoration(
                       color: premiumCard,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                      border: Border.all(color: AppColors.divider, width: 1),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.01),
@@ -287,7 +288,7 @@ class _WalletViewState extends State<WalletView> {
                             children: [
                               Text(
                                 'withdraw_to_alipay'.trParams({'amount': amount.toStringAsFixed(2)}),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -358,7 +359,7 @@ class _WalletViewState extends State<WalletView> {
           decoration: BoxDecoration(
             color: premiumCard,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+            border: Border.all(color: AppColors.divider, width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.08),
@@ -390,7 +391,7 @@ class _WalletViewState extends State<WalletView> {
               const SizedBox(height: 24),
               Text(
                 'withdraw_earnings_title'.tr,
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
               ),
               const SizedBox(height: 10),
               Text(
@@ -402,18 +403,18 @@ class _WalletViewState extends State<WalletView> {
               // 姓名输入框
               TextField(
                 controller: nameC,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+                style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
                 cursorColor: premiumAmber,
                 decoration: InputDecoration(
                   hintText: 'alipay_name_hint'.tr,
                   hintStyle: TextStyle(color: premiumGray.withOpacity(0.5), fontSize: 12),
                   prefixIcon: Icon(Icons.person_outline_rounded, size: 18, color: premiumGray),
                   filled: true,
-                  fillColor: const Color(0xFFF1F5F9),
+                  fillColor: AppColors.surfaceAlt,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    borderSide: BorderSide(color: AppColors.divider),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -426,18 +427,18 @@ class _WalletViewState extends State<WalletView> {
               // 账号输入框
               TextField(
                 controller: accountC,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+                style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
                 cursorColor: premiumAmber,
                 decoration: InputDecoration(
                   hintText: 'alipay_account_hint'.tr,
                   hintStyle: TextStyle(color: premiumGray.withOpacity(0.5), fontSize: 12),
                   prefixIcon: Icon(Icons.phone_iphone_rounded, size: 18, color: premiumGray),
                   filled: true,
-                  fillColor: const Color(0xFFF1F5F9),
+                  fillColor: AppColors.surfaceAlt,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    borderSide: BorderSide(color: AppColors.divider),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -454,7 +455,7 @@ class _WalletViewState extends State<WalletView> {
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
                 ],
-                style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+                style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
                 cursorColor: premiumAmber,
                 decoration: InputDecoration(
                   hintText: 'withdraw_amount_hint'.tr,
@@ -473,11 +474,11 @@ class _WalletViewState extends State<WalletView> {
                     ),
                   ),
                   filled: true,
-                  fillColor: const Color(0xFFF1F5F9),
+                  fillColor: AppColors.surfaceAlt,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    borderSide: BorderSide(color: AppColors.divider),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),

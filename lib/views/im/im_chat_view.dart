@@ -13,6 +13,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:qorange/theme.dart';
 
 import '../../controllers/im_chat_controller.dart';
 import '../../models/im_message_model.dart';
@@ -51,9 +52,9 @@ class _ImChatViewState extends State<ImChatView> {
   String _currentlyPlayingUrl = '';
   bool _isPlayingAudio = false;
 
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+  static Color get _primaryTeal => AppColors.primary;
   static const Color _goldAccent = Color(0xFFD97706);
-  static const Color _bgSlate = Color(0xFFF8FAFC);
+  static Color get _bgSlate => AppColors.background;
 
   @override
   void initState() {
@@ -168,12 +169,12 @@ class _ImChatViewState extends State<ImChatView> {
       backgroundColor: _bgSlate,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         centerTitle: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Color(0xFF1E293B)),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppColors.textPrimary),
           onPressed: () => Get.back(),
         ),
         // 🌟 顶部头像与昵称全面接入响应式监听（对方改资料时 0 毫秒实时响应）
@@ -203,8 +204,8 @@ class _ImChatViewState extends State<ImChatView> {
                     errorBuilder: (_, __, ___) => Container(
                       width: 34,
                       height: 34,
-                      color: const Color(0xFFE2E8F0),
-                      child: const Icon(Icons.person, size: 18, color: Color(0xFF94A3B8)),
+                      color: AppColors.divider,
+                      child: Icon(Icons.person, size: 18, color: AppColors.textHint),
                     ),
                   )),
                 ),
@@ -219,12 +220,12 @@ class _ImChatViewState extends State<ImChatView> {
                         _controller.rxPartnerNickname.value,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700),
                       )),
                       Obx(() => Text(
                         _controller.relationshipStatus.value == 'stranger_pending'
-                            ? '陌生人消息请求'
-                            : (_controller.relationshipStatus.value == 'blocked' ? '已拉黑' : '在线'),
+                            ? 'im_stranger_request'.tr
+                            : (_controller.relationshipStatus.value == 'blocked' ? 'im_blocked_status'.tr : 'im_online'.tr),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -244,12 +245,12 @@ class _ImChatViewState extends State<ImChatView> {
         ),
         actions: [
           IconButton(
-            icon: const HugeIcon(icon: HugeIcons.strokeRoundedImage01, color: Color(0xFF64748B), size: 20),
-            tooltip: '更换聊天壁纸',
+            icon: HugeIcon(icon: HugeIcons.strokeRoundedImage01, color: AppColors.textSecondary, size: 20),
+            tooltip: 'im_change_bg'.tr,
             onPressed: () => _showBackgroundPickerSheet(context),
           ),
           IconButton(
-            icon: const HugeIcon(icon: HugeIcons.strokeRoundedMoreHorizontal, color: Color(0xFF64748B), size: 22),
+            icon: HugeIcon(icon: HugeIcons.strokeRoundedMoreHorizontal, color: AppColors.textSecondary, size: 22),
             onPressed: () => _showMoreOptionsModal(context),
           ),
           const SizedBox(width: 4),
@@ -275,7 +276,7 @@ class _ImChatViewState extends State<ImChatView> {
             final hasBg = _controller.customBgPath.value.isNotEmpty || _controller.customBgUrl.value.isNotEmpty;
             if (!hasBg) return const SizedBox.shrink();
             return Positioned.fill(
-              child: Container(color: Colors.white.withOpacity(0.4)),
+              child: Container(color: AppColors.surface.withOpacity(0.4)),
             );
           }),
 
@@ -375,7 +376,7 @@ class _ImChatViewState extends State<ImChatView> {
                     children: [
                       if (newCount > 0) ...[
                         Text(
-                          '$newCount 条新消息',
+                          'im_new_messages'.trParams({'count': newCount}),
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white),
                         ),
                         const SizedBox(width: 4),
@@ -417,8 +418,8 @@ class _ImChatViewState extends State<ImChatView> {
           Expanded(
             child: Text(
               isMeSender
-                  ? '已发送打招呼消息，等待对方回复后解锁畅聊'
-                  : '对方为未互关陌生人，发来 1 条打招呼私信',
+                  ? 'im_stranger_banner_sent'.tr
+                  : 'im_stranger_banner_received'.tr,
               style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
             ),
           ),
@@ -435,7 +436,7 @@ class _ImChatViewState extends State<ImChatView> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('同意沟通', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+              child: Text('im_accept_talk'.tr, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
             ),
         ],
       ),
@@ -456,7 +457,7 @@ class _ImChatViewState extends State<ImChatView> {
               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.76),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
               decoration: BoxDecoration(
-                color: isMe ? _primaryTeal : Colors.white,
+                color: isMe ? AppColors.bubbleOwn : AppColors.bubbleOther,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18),
                   topRight: const Radius.circular(18),
@@ -476,12 +477,12 @@ class _ImChatViewState extends State<ImChatView> {
   }
 
   Widget _buildBubbleContent(BuildContext context, ImMessageModel msg, bool isMe) {
-    final textColor = isMe ? Colors.white : const Color(0xFF1E293B);
+    final textColor = isMe ? Colors.white : AppColors.textPrimary;
 
     if (msg.isRevoked) {
-      return const Text(
-        '此消息已被撤回',
-        style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Color(0xFF94A3B8)),
+      return Text(
+        'msg_revoked'.tr,
+        style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.textHint),
       );
     }
 
@@ -585,7 +586,7 @@ class _ImChatViewState extends State<ImChatView> {
     // 3. 🌟 青橙币直接转账 (修复长文本自动换行扩展，杜绝溢出)
     else if (msg.msgType == 'token_transfer') {
       final double tokens = double.tryParse(msg.payload['tokens']?.toString() ?? '0') ?? 0.0;
-      final String remark = msg.payload['remark']?.toString() ?? '青橙币转账';
+      final String remark = msg.payload['remark']?.toString() ?? 'im_token_transfer_default'.tr;
 
       return Container(
         padding: const EdgeInsets.all(12),
@@ -613,7 +614,7 @@ class _ImChatViewState extends State<ImChatView> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '¥ ${tokens.toStringAsFixed(1)} 青橙币',
+                    'im_token_amount'.trParams({'amount': tokens.toStringAsFixed(1)}),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -641,7 +642,7 @@ class _ImChatViewState extends State<ImChatView> {
     // 4. 🌟 青橙币请款收款单 (增强防溢出排版与高质感账单卡片设计)
     else if (msg.msgType == 'token_request') {
       final double tokens = double.tryParse(msg.payload['tokens']?.toString() ?? '0') ?? 0.0;
-      final String remark = msg.payload['remark']?.toString() ?? '款项结算';
+      final String remark = msg.payload['remark']?.toString() ?? 'im_payment_settled'.tr;
       final String status = msg.payload['status']?.toString() ?? 'pending';
       final bool isPending = status == 'pending';
       final bool isPaid = status == 'paid';
@@ -675,7 +676,7 @@ class _ImChatViewState extends State<ImChatView> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '青橙币收款单',
+                      'im_token_request_title'.tr,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -692,11 +693,11 @@ class _ImChatViewState extends State<ImChatView> {
                         ? const Color(0xFF10B981).withOpacity(0.15)
                         : (isPending
                         ? const Color(0xFFF59E0B).withOpacity(0.15)
-                        : Colors.grey.shade200),
+                        : AppColors.divider),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    isPaid ? '已支付' : (isPending ? '待付款' : '已拒绝'),
+                    isPaid ? 'im_status_paid'.tr : (isPending ? 'im_status_pending'.tr : 'im_status_rejected'.tr),
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -704,7 +705,7 @@ class _ImChatViewState extends State<ImChatView> {
                           ? (isMe ? Colors.white : const Color(0xFF059669))
                           : (isPending
                           ? (isMe ? Colors.white : const Color(0xFFD97706))
-                          : Colors.grey.shade600),
+                          : AppColors.textSecondary),
                     ),
                   ),
                 ),
@@ -714,7 +715,7 @@ class _ImChatViewState extends State<ImChatView> {
 
             // 2. 大字号请款金额
             Text(
-              '¥ ${tokens.toStringAsFixed(1)} 青橙币',
+              'im_token_amount'.trParams({'amount': tokens.toStringAsFixed(1)}),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
@@ -733,7 +734,7 @@ class _ImChatViewState extends State<ImChatView> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '事由: $remark',
+'im_reason'.trParams({'remark': remark}),
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.4,
@@ -755,7 +756,7 @@ class _ImChatViewState extends State<ImChatView> {
                     _controller.payTokenRequest(msg.messageId);
                   },
                   icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
-                  label: const Text('立即支付此请款', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                  label: Text('im_pay_now'.tr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF59E0B),
                     foregroundColor: Colors.white,
@@ -770,14 +771,14 @@ class _ImChatViewState extends State<ImChatView> {
                 alignment: Alignment.centerRight,
                 child: Text(
                   isPaid
-                      ? '✓ 交易已完成，青橙币已到账'
-                      : (status == 'rejected' ? '✕ 付款人已拒绝此收款' : '⏳ 等待对方确认并支付'),
+                      ? 'im_paid_done'.tr
+                      : (status == 'rejected' ? 'im_rejected_text'.tr : 'im_waiting_pay'.tr),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: isPaid
                         ? (isMe ? Colors.white70 : const Color(0xFF059669))
-                        : (isMe ? Colors.white60 : Colors.grey.shade600),
+                        : (isMe ? Colors.white60 : AppColors.textSecondary),
                   ),
                 ),
               ),
@@ -788,10 +789,10 @@ class _ImChatViewState extends State<ImChatView> {
 
     // 6. 🌟 全新设计：杂志级高质感文章推荐气泡卡片
     else if (msg.msgType == 'post_card') {
-      final title = msg.payload['title']?.toString() ?? '文章推荐';
+      final title = msg.payload['title']?.toString() ?? 'im_article_recommend_default'.tr;
       final postId = msg.payload['post_id']?.toString() ?? '';
       final thumbnail = msg.payload['thumbnail']?.toString() ?? '';
-      final category = (msg.payload['category']?.toString() ?? '专栏').toUpperCase();
+      final category = (msg.payload['category']?.toString() ?? 'im_category_column'.tr).toUpperCase();
 
       return InkWell(
         onTap: () {
@@ -803,10 +804,10 @@ class _ImChatViewState extends State<ImChatView> {
           width: 230,
           padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
-            color: isMe ? Colors.white.withOpacity(0.14) : const Color(0xFFF8FAFC),
+            color: isMe ? Colors.white.withOpacity(0.14) : AppColors.background,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isMe ? Colors.white.withOpacity(0.25) : const Color(0xFFE2E8F0),
+              color: isMe ? Colors.white.withOpacity(0.25) : AppColors.divider,
               width: 0.8,
             ),
           ),
@@ -837,7 +838,7 @@ class _ImChatViewState extends State<ImChatView> {
                   Icon(
                     Icons.auto_stories_rounded,
                     size: 14,
-                    color: isMe ? Colors.white60 : Colors.grey.shade400,
+                    color: isMe ? Colors.white60 : AppColors.textHint,
                   ),
                 ],
               ),
@@ -886,7 +887,7 @@ class _ImChatViewState extends State<ImChatView> {
                 decoration: BoxDecoration(
                   border: Border(
                     top: BorderSide(
-                      color: isMe ? Colors.white.withOpacity(0.12) : const Color(0xFFE2E8F0),
+                      color: isMe ? Colors.white.withOpacity(0.12) : AppColors.divider,
                       width: 0.8,
                     ),
                   ),
@@ -895,17 +896,17 @@ class _ImChatViewState extends State<ImChatView> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '阅读全文',
+                      'im_read_full'.tr,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: isMe ? Colors.white70 : const Color(0xFF64748B),
+                        color: isMe ? Colors.white70 : AppColors.textSecondary,
                       ),
                     ),
                     Icon(
                       Icons.arrow_forward_ios_rounded,
                       size: 10,
-                      color: isMe ? Colors.white70 : const Color(0xFF64748B),
+                      color: isMe ? Colors.white70 : AppColors.textSecondary,
                     ),
                   ],
                 ),
@@ -916,7 +917,7 @@ class _ImChatViewState extends State<ImChatView> {
       );
     }
 
-    return Text(msg.payload['text']?.toString() ?? '[消息]', style: TextStyle(color: textColor));
+    return Text(msg.payload['text']?.toString() ?? 'msg_type_text'.tr, style: TextStyle(color: textColor));
   }
 
 
@@ -948,17 +949,16 @@ class _ImChatViewState extends State<ImChatView> {
     final bool canRevoke = isMe && !msg.isRevoked && diffInSeconds <= 120;
     final int remainSec = 120 - diffInSeconds;
 
-    String previewText = '[消息]';
+    String previewText = 'msg_type_text'.tr;
     if (msg.msgType == 'text') previewText = msg.payload['text']?.toString() ?? '';
-    if (msg.msgType == 'image') previewText = '[图片]';
-    if (msg.msgType == 'voice') previewText = '[语音留言]';
-    if (msg.msgType == 'post_card') previewText = '[文章分享] ${msg.payload['title'] ?? ''}';
+    if (msg.msgType == 'image') previewText = 'msg_type_image'.tr;
+    if (msg.msgType == 'voice') previewText = 'msg_type_voice'.tr;
+    if (msg.msgType == 'post_card') previewText = 'msg_type_post_share'.trParams({'title': msg.payload['title'] ?? ''});
 
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           boxShadow: [
             BoxShadow(
@@ -976,7 +976,7 @@ class _ImChatViewState extends State<ImChatView> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
+                color: AppColors.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -987,9 +987,9 @@ class _ImChatViewState extends State<ImChatView> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: AppColors.divider),
               ),
               child: Row(
                 children: [
@@ -1007,7 +1007,7 @@ class _ImChatViewState extends State<ImChatView> {
                       previewText,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
@@ -1023,13 +1023,13 @@ class _ImChatViewState extends State<ImChatView> {
                   Expanded(
                     child: _buildContextMenuButton(
                       icon: Icons.copy_rounded,
-                      label: '复制文本',
-                      color: const Color(0xFF1E293B),
-                      bgColor: const Color(0xFFF1F5F9),
+                      label: 'im_copy_text'.tr,
+                      color: AppColors.textPrimary,
+                      bgColor: AppColors.surfaceAlt,
                       onTap: () {
                         Get.back();
                         Clipboard.setData(ClipboardData(text: msg.payload['text']?.toString() ?? ''));
-                        Fluttertoast.showToast(msg: '已复制到剪贴板');
+                        Fluttertoast.showToast(msg: 'im_copied'.tr);
                       },
                     ),
                   ),
@@ -1042,7 +1042,7 @@ class _ImChatViewState extends State<ImChatView> {
                   Expanded(
                     child: _buildContextMenuButton(
                       icon: Icons.undo_rounded,
-                      label: '撤回 (${remainSec}s)',
+                      label: 'im_revoke'.trParams({'sec': remainSec}),
                       color: const Color(0xFFEF4444),
                       bgColor: const Color(0xFFFEF2F2),
                       onTap: () {
@@ -1111,9 +1111,8 @@ class _ImChatViewState extends State<ImChatView> {
         top: 8,
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade100)),
+      decoration: BoxDecoration(color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.divider)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -1124,7 +1123,7 @@ class _ImChatViewState extends State<ImChatView> {
               duration: const Duration(milliseconds: 200),
               child: HugeIcon(
                 icon: HugeIcons.strokeRoundedAddCircle,
-                color: _controller.isAttachmentOpen.value ? _primaryTeal : const Color(0xFF64748B),
+                color: _controller.isAttachmentOpen.value ? _primaryTeal : AppColors.textSecondary,
                 size: 24,
               ),
             )),
@@ -1139,7 +1138,7 @@ class _ImChatViewState extends State<ImChatView> {
               margin: const EdgeInsets.symmetric(vertical: 2),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: AppColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: TextField(
@@ -1153,9 +1152,9 @@ class _ImChatViewState extends State<ImChatView> {
                     _controller.isAttachmentOpen.value = false;
                   }
                 },
-                decoration: const InputDecoration(
-                  hintText: '输入消息，支持换行...',
-                  hintStyle: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+                decoration: InputDecoration(
+                  hintText: 'im_input_hint'.tr,
+                  hintStyle: TextStyle(fontSize: 14, color: AppColors.textHint),
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: EdgeInsets.symmetric(vertical: 4),
@@ -1195,7 +1194,7 @@ class _ImChatViewState extends State<ImChatView> {
     return Container(
       height: 220,
       padding: const EdgeInsets.all(16),
-      color: Colors.white,
+      color: AppColors.surface,
       child: GridView.count(
         crossAxisCount: 4,
         mainAxisSpacing: 16,
@@ -1205,7 +1204,7 @@ class _ImChatViewState extends State<ImChatView> {
           // 1. 语音留言
           _buildActionItem(
             icon: HugeIcons.strokeRoundedMic01,
-            label: '语音留言',
+            label: 'im_action_voice'.tr,
             color: const Color(0xFFEF4444),
             onTap: () {
               _controller.isAttachmentOpen.value = false;
@@ -1215,7 +1214,7 @@ class _ImChatViewState extends State<ImChatView> {
           // 2. 拍照
           _buildActionItem(
             icon: HugeIcons.strokeRoundedCamera01,
-            label: '拍照',
+            label: 'im_action_camera'.tr,
             color: const Color(0xFF3B82F6),
             onTap: () {
               _controller.isAttachmentOpen.value = false;
@@ -1225,7 +1224,7 @@ class _ImChatViewState extends State<ImChatView> {
           // 3. 相册图片
           _buildActionItem(
             icon: HugeIcons.strokeRoundedImage02,
-            label: '相册图片',
+            label: 'im_action_gallery'.tr,
             color: const Color(0xFF10B981),
             onTap: () {
               _controller.isAttachmentOpen.value = false;
@@ -1235,7 +1234,7 @@ class _ImChatViewState extends State<ImChatView> {
           // 4. 发送青橙币
           _buildActionItem(
             icon: HugeIcons.strokeRoundedCoins01,
-            label: '发送青橙币',
+            label: 'im_action_transfer'.tr,
             color: const Color(0xFFF59E0B),
             onTap: () {
               _controller.isAttachmentOpen.value = false;
@@ -1245,7 +1244,7 @@ class _ImChatViewState extends State<ImChatView> {
           // 5. 发起收款
           _buildActionItem(
             icon: HugeIcons.strokeRoundedReceiptDollar,
-            label: '发起收款',
+            label: 'im_action_request'.tr,
             color: const Color(0xFF8B5CF6),
             onTap: () {
               _controller.isAttachmentOpen.value = false;
@@ -1255,7 +1254,7 @@ class _ImChatViewState extends State<ImChatView> {
           // 6. 更换壁纸
           _buildActionItem(
             icon: HugeIcons.strokeRoundedPaintBoard,
-            label: '更换壁纸',
+            label: 'im_action_wallpaper'.tr,
             color: _primaryTeal,
             onTap: () {
               _controller.isAttachmentOpen.value = false;
@@ -1266,7 +1265,7 @@ class _ImChatViewState extends State<ImChatView> {
           // 🌟 推荐文章按钮
           _buildActionItem(
             icon: HugeIcons.strokeRoundedNote01,
-            label: '推荐文章',
+            label: 'im_action_recommend'.tr,
             color: const Color(0xFF06B6D4),
             onTap: () {
               _controller.isAttachmentOpen.value = false;
@@ -1275,7 +1274,7 @@ class _ImChatViewState extends State<ImChatView> {
                   onPostSelected: (post) {
                     _controller.sendPostCard(
                       postId: post['id'].toString(),
-                      title: post['title']?.toString() ?? '文章推荐',
+                      title: post['title']?.toString() ?? 'im_article_recommend_default'.tr,
                       thumbnail: post['thumbnail']?.toString() ?? '',
                       category: post['category']?.toString() ?? 'general',
                     );
@@ -1315,7 +1314,7 @@ class _ImChatViewState extends State<ImChatView> {
             child: HugeIcon(icon: icon, color: color, size: 24),
           ),
           const SizedBox(height: 6),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         ],
       ),
     );
@@ -1339,21 +1338,20 @@ class _ImChatViewState extends State<ImChatView> {
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              '设置此聊天的专属背景',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+            Text(
+              'im_bg_set_title'.tr,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 18),
             ListTile(
               leading: const Icon(Icons.photo_library_rounded, color: _primaryTeal),
-              title: const Text('从手机本地相册选取', style: TextStyle(fontWeight: FontWeight.w600)),
+              title: Text('im_bg_from_album'.tr, style: const TextStyle(fontWeight: FontWeight.w600)),
               onTap: () async {
                 Get.back();
                 final XFile? img = await ImagePicker().pickImage(source: ImageSource.gallery);
@@ -1362,7 +1360,7 @@ class _ImChatViewState extends State<ImChatView> {
             ),
             ListTile(
               leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFF3B82F6)),
-              title: const Text('拍照设为背景', style: TextStyle(fontWeight: FontWeight.w600)),
+              title: Text('im_bg_from_camera'.tr, style: const TextStyle(fontWeight: FontWeight.w600)),
               onTap: () async {
                 Get.back();
                 final XFile? img = await ImagePicker().pickImage(source: ImageSource.camera);
@@ -1371,8 +1369,8 @@ class _ImChatViewState extends State<ImChatView> {
             ),
             ListTile(
               leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF8B5CF6)),
-              title: const Text('从 Pinterest 意境池精选壁纸', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('浏览并选用数据库已存储的高清大图', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+              title: Text('im_bg_from_pinterest'.tr, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text('im_bg_from_pinterest_sub'.tr, style: TextStyle(fontSize: 11, color: AppColors.textHint)),
               onTap: () {
                 Get.back();
                 Get.bottomSheet(
@@ -1388,7 +1386,7 @@ class _ImChatViewState extends State<ImChatView> {
             ),
             ListTile(
               leading: const Icon(Icons.refresh_rounded, color: Color(0xFFEF4444)),
-              title: const Text('恢复默认浅色背景', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600)),
+              title: Text('im_bg_reset'.tr, style: const TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600)),
               onTap: () {
                 Get.back();
                 _controller.setCustomBackground();
@@ -1412,17 +1410,17 @@ class _ImChatViewState extends State<ImChatView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('转账青橙币给对方', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              Text('im_transfer_title'.tr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 16),
               TextField(
                 controller: amountCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: '青橙币数量', border: OutlineInputBorder()),
+                decoration: InputDecoration(labelText: 'im_transfer_amount'.tr, border: const OutlineInputBorder()),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: remarkCtrl,
-                decoration: const InputDecoration(labelText: '备注 (如: 请喝咖啡)', border: OutlineInputBorder()),
+                decoration: InputDecoration(labelText: 'im_transfer_remark'.tr, border: const OutlineInputBorder()),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
@@ -1432,7 +1430,7 @@ class _ImChatViewState extends State<ImChatView> {
                     Get.back();
                     _controller.sendTokenTransfer(tokens: tokens, remark: remarkCtrl.text.trim());
                   } else {
-                    Fluttertoast.showToast(msg: '请输入有效数量');
+                    Fluttertoast.showToast(msg: 'im_invalid_amount'.tr);
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -1440,7 +1438,7 @@ class _ImChatViewState extends State<ImChatView> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 44),
                 ),
-                child: const Text('确认转账', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: Text('im_confirm_transfer'.tr, style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -1461,17 +1459,17 @@ class _ImChatViewState extends State<ImChatView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('发起青橙币收款单', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              Text('im_request_title'.tr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 16),
               TextField(
                 controller: amountCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: '请求支付数量', border: OutlineInputBorder()),
+                decoration: InputDecoration(labelText: 'im_request_amount'.tr, border: const OutlineInputBorder()),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: remarkCtrl,
-                decoration: const InputDecoration(labelText: '请款事由 (如: 稿费结算)', border: OutlineInputBorder()),
+                decoration: InputDecoration(labelText: 'im_request_reason'.tr, border: const OutlineInputBorder()),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
@@ -1481,7 +1479,7 @@ class _ImChatViewState extends State<ImChatView> {
                     Get.back();
                     _controller.sendTokenRequest(tokens: tokens, remark: remarkCtrl.text.trim());
                   } else {
-                    Fluttertoast.showToast(msg: '请输入有效数量');
+                    Fluttertoast.showToast(msg: 'im_invalid_amount'.tr);
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -1489,7 +1487,7 @@ class _ImChatViewState extends State<ImChatView> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 44),
                 ),
-                child: const Text('生成收款单', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: Text('im_generate_request'.tr, style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -1502,8 +1500,7 @@ class _ImChatViewState extends State<ImChatView> {
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -1513,7 +1510,7 @@ class _ImChatViewState extends State<ImChatView> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
+                color: AppColors.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1529,7 +1526,7 @@ class _ImChatViewState extends State<ImChatView> {
                   color: isBlocked ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                 ),
                 title: Text(
-                  isBlocked ? '解除拉黑' : '拉黑此用户',
+                  isBlocked ? 'im_unblock'.tr : 'im_block'.tr,
                   style: TextStyle(
                     color: isBlocked ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                     fontWeight: FontWeight.w700,
@@ -1537,7 +1534,7 @@ class _ImChatViewState extends State<ImChatView> {
                   ),
                 ),
                 subtitle: Text(
-                  isBlocked ? '解除后可恢复正常私信交流' : '拉黑后对方将无法向您发送任何私信',
+                  isBlocked ? 'im_unblock_desc'.tr : 'im_block_desc'.tr,
                   style: TextStyle(
                     color: isBlocked ? const Color(0xFF059669) : const Color(0xFF991B1B),
                     fontSize: 11,
@@ -1577,7 +1574,7 @@ class _VoiceRecordBottomSheetState extends State<_VoiceRecordBottomSheet> {
   Timer? _timer;
   String? _recordedFilePath;
 
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+  static Color get _primaryTeal => AppColors.primary;
 
   @override
   void initState() {
@@ -1609,7 +1606,7 @@ class _VoiceRecordBottomSheetState extends State<_VoiceRecordBottomSheet> {
         });
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: '无法开启麦克风录音: $e');
+      Fluttertoast.showToast(msg: 'im_mic_failed'.trParams({'error': e.toString()}));
       Get.back();
     }
   }
@@ -1631,7 +1628,7 @@ class _VoiceRecordBottomSheetState extends State<_VoiceRecordBottomSheet> {
         widget.onVoiceRecorded(bytes, _recordDuration);
       }
     } else {
-      Fluttertoast.showToast(msg: '录音时间太短');
+      Fluttertoast.showToast(msg: 'im_recording_too_short'.tr);
       Get.back();
     }
   }
@@ -1661,14 +1658,13 @@ class _VoiceRecordBottomSheetState extends State<_VoiceRecordBottomSheet> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('正在录制语音留言', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+          Text('im_recording'.tr, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
           const SizedBox(height: 18),
 
           // 录音计时器
@@ -1704,13 +1700,13 @@ class _VoiceRecordBottomSheetState extends State<_VoiceRecordBottomSheet> {
             children: [
               TextButton.icon(
                 onPressed: _cancelRecording,
-                icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8)),
-                label: const Text('取消', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w600, fontSize: 14)),
+                icon: Icon(Icons.close_rounded, color: AppColors.textHint),
+                label: Text('cancel'.tr, style: TextStyle(color: AppColors.textHint, fontWeight: FontWeight.w600, fontSize: 14)),
               ),
               ElevatedButton.icon(
                 onPressed: _stopAndSend,
                 icon: const Icon(Icons.send_rounded, size: 18),
-                label: const Text('发送语音', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                label: Text('im_send_voice'.tr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primaryTeal,
                   foregroundColor: Colors.white,
@@ -1775,7 +1771,7 @@ class _InteractiveImagePreviewPageState extends State<_InteractiveImagePreviewPa
         actions: [
           IconButton(
             icon: const Icon(Icons.download_rounded, color: Colors.white, size: 24),
-            tooltip: '保存到本地',
+            tooltip: 'im_save_image'.tr,
             onPressed: () {
               HapticFeedback.mediumImpact();
               widget.onSave();

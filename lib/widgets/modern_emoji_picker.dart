@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:qorange/theme.dart';
 
 /// 表情数据模型
 class EmojiItem {
@@ -70,10 +71,10 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
   List<EmojiItem> _searchResults = [];
   bool _isSearching = false;
 
-  final Color _primaryColor = const Color(0xFF2C7B6D);
-  final Color _backgroundColor = const Color(0xFFF8FAFC);
-  final Color _slateGrey = const Color(0xFF334155);
-  final Color _lightSlateGrey = const Color(0xFF94A3B8);
+  Color get _primaryColor => AppColors.primary;
+  Color get _backgroundColor => AppColors.background;
+  Color get _slateGrey => AppColors.textPrimary;
+  Color get _lightSlateGrey => AppColors.textHint;
 
   @override
   void initState() {
@@ -216,10 +217,9 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
             width: 42,
             height: 42,
             alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(color: AppColors.surface,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: AppColors.divider),
             ),
             child: _EmojiButton(
               emojiItem: item,
@@ -251,8 +251,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
 
     final double keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return Container(
-      color: Colors.white,
+    return Container(color: AppColors.surface,
       padding: EdgeInsets.only(bottom: keyboardInset),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -267,12 +266,12 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
                     height: 38,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.surfaceAlt,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: _searchFocusNode.hasFocus
                             ? _primaryColor.withOpacity(0.5)
-                            : const Color(0xFFE2E8F0),
+                            : AppColors.divider,
                         width: 1.0,
                       ),
                     ),
@@ -340,9 +339,9 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
                       width: 42,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
+                        color: AppColors.surfaceAlt,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: AppColors.divider),
                       ),
                       child: Icon(
                         Icons.backspace_outlined,
@@ -355,7 +354,7 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: AppColors.surfaceAlt),
 
           // 🌟 核心切换：搜索状态下仅展示两排（横向候选条）；非搜索状态展示完整多分类网格
           if (_isSearching)
@@ -367,9 +366,8 @@ class _ModernEmojiPickerState extends State<ModernEmojiPicker>
                 child: _buildPageView(),
               ),
             ),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            Container(
-              color: Colors.white,
+            Divider(height: 1, color: AppColors.surfaceAlt),
+            Container(color: AppColors.surface,
               height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: TabBar(

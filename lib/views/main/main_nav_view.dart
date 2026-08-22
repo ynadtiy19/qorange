@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 
 import '../../controllers/im_conversation_controller.dart';
 import '../../services/notification_handler_service.dart';
@@ -81,7 +82,7 @@ class _MainNavViewState extends State<MainNavView> {
 
   @override
   Widget build(BuildContext context) {
-    const themeColor = Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
     final imConvCtrl = Get.find<ImConversationController>();
 
     return Scaffold(
@@ -90,7 +91,7 @@ class _MainNavViewState extends State<MainNavView> {
         decoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-              color: Colors.grey.shade100,
+              color: AppColors.divider,
               width: 1,
             ),
           ),
@@ -98,9 +99,9 @@ class _MainNavViewState extends State<MainNavView> {
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: _onTap,
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           selectedItemColor: themeColor,
-          unselectedItemColor: Colors.grey.shade400,
+          unselectedItemColor: AppColors.textHint,
           showSelectedLabels: true,
           showUnselectedLabels: true,
           selectedLabelStyle: const TextStyle(
@@ -117,7 +118,7 @@ class _MainNavViewState extends State<MainNavView> {
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedHome01,
-                color: Colors.grey.shade400,
+                color: AppColors.textHint,
               ),
               activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedHome01,
@@ -128,7 +129,7 @@ class _MainNavViewState extends State<MainNavView> {
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedUserGroup,
-                color: Colors.grey.shade400,
+                color: AppColors.textHint,
               ),
               activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedUserGroup,
@@ -139,7 +140,7 @@ class _MainNavViewState extends State<MainNavView> {
             BottomNavigationBarItem(
               icon: Obx(() => _buildBadgeIcon(
                 icon: HugeIcons.strokeRoundedBubbleChat,
-                color: Colors.grey.shade400,
+                color: AppColors.textHint,
                 unreadCount: imConvCtrl.totalUnreadCount.value,
               )),
               activeIcon: Obx(() => _buildBadgeIcon(
@@ -147,12 +148,12 @@ class _MainNavViewState extends State<MainNavView> {
                 color: themeColor,
                 unreadCount: imConvCtrl.totalUnreadCount.value,
               )),
-              label: '消息',
+              label: 'nav_messages'.tr,
             ),
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedShoppingBag01,
-                color: Colors.grey.shade400,
+                color: AppColors.textHint,
               ),
               activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedShoppingBag01,
@@ -163,7 +164,7 @@ class _MainNavViewState extends State<MainNavView> {
             BottomNavigationBarItem(
               icon: HugeIcon(
                 icon: HugeIcons.strokeRoundedUser,
-                color: Colors.grey.shade400,
+                color: AppColors.textHint,
               ),
               activeIcon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedUser,

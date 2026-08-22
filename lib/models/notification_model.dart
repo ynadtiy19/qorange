@@ -1,4 +1,6 @@
 // lib/models/notification_model.dart
+import 'package:get/get.dart';
+
 class NotificationItemModel {
   final String id;
   final String recipientId;
@@ -44,7 +46,7 @@ class NotificationItemModel {
       if (a is Map) {
         final actorMap = Map<String, dynamic>.from(a);
         actorsList.add(actorMap);
-        names.add(actorMap['nickname']?.toString() ?? '用户');
+        names.add(actorMap['nickname']?.toString() ?? 'user'.tr);
         avatars.add(actorMap['avatar']?.toString() ?? '');
       }
     }
@@ -59,7 +61,7 @@ class NotificationItemModel {
       latestActors: actorsList,
       actorNames: names,
       actorAvatars: avatars,
-      displayTitle: json['display_title']?.toString() ?? (json['target']?['title']?.toString() ?? '新通知'),
+      displayTitle: json['display_title']?.toString() ?? (json['target']?['title']?.toString() ?? 'notif_new'.tr),
       target: json['target'] is Map ? Map<String, dynamic>.from(json['target'] as Map) : {},
       contextData: json['context_data'] is Map ? Map<String, dynamic>.from(json['context_data'] as Map) : {},
       isRead: json['is_read'] == true,

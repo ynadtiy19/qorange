@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:qorange/theme.dart';
 import 'shop_goods_model.dart';
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
@@ -22,7 +23,7 @@ enum PaymentProcessingStatus {
 class ShopController extends GetxController with WidgetsBindingObserver {
   static ShopController get to => Get.find<ShopController>();
 
-  final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
+  Color get primaryColor => AppColors.primary;
 
   // 商品数据载荷
   final RxList<ShopGoods> allGoods = <ShopGoods>[].obs;
@@ -234,7 +235,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
 
     purchasingItem.value = item;
     paymentStatus.value = PaymentProcessingStatus.waiting;
-    paymentStatusMessage.value = '正在安全创建订单...';
+    paymentStatusMessage.value = 'shop_creating_order'.tr;
 
     try {
       final orderRes = await HttpClient.instance.post<Map<String, dynamic>>(
@@ -248,7 +249,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
 
       if (orderRes.respCode != 0 || orderRes.datas == null) {
         paymentStatus.value = PaymentProcessingStatus.failed;
-        paymentStatusMessage.value = orderRes.respMsg.isNotEmpty ? orderRes.respMsg : '订单创建失败';
+        paymentStatusMessage.value = orderRes.respMsg.isNotEmpty ? orderRes.respMsg : 'shop_order_failed'.tr;
         return false;
       }
 
@@ -262,7 +263,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         return false;
       }
 
-      paymentStatusMessage.value = '正在唤起收银台...';
+      paymentStatusMessage.value = 'shop_opening_cashier'.tr;
 
       final epay = EpayClientService();
       final epayCreateRes = await epay.createPaymentDirectly(params: {
@@ -278,7 +279,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         final payUrl = epayCreateRes['pay_info'] ?? epayCreateRes['pay_url'];
         if (payUrl != null && payUrl.toString().isNotEmpty) {
           currentOutTradeNo = outTradeNo;
-          paymentStatusMessage.value = '已打开支付页面，正在实时监听支付结果...';
+          paymentStatusMessage.value = 'shop_monitoring_payment'.tr;
 
           await launchExternalBrowser(payUrl.toString());
           startPollingVerification(outTradeNo);
@@ -320,7 +321,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
         isPolling = false;
         if (paymentStatus.value == PaymentProcessingStatus.waiting) {
           paymentStatus.value = PaymentProcessingStatus.timeout;
-          paymentStatusMessage.value = '未在规定时间内检测到到账，若已扣款请稍后手动刷新';
+          paymentStatusMessage.value = 'shop_payment_not_detected'.tr;
         }
       } else {
         verifyPaymentOnBackend(outTradeNo, isSilent: true);
@@ -349,7 +350,7 @@ class ShopController extends GetxController with WidgetsBindingObserver {
 
         lastOrderDetails.assignAll(datas);
         paymentStatus.value = PaymentProcessingStatus.success;
-        paymentStatusMessage.value = '支付成功，权益已实时解锁！';
+        paymentStatusMessage.value = 'shop_payment_realtime_success'.tr;
 
         // 🌟 1. 全局数据信号广播
         triggerGlobalDataSync();

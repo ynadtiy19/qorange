@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 import 'applicant_model.dart';
 import 'community_approval_controller.dart';
 
@@ -11,14 +12,14 @@ class CommunityApprovalView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(CommunityApprovalController(communityId: communityId), tag: communityId);
-    final themeColor = const Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.surfaceAlt,
       appBar: AppBar(
-        title: Text('member_approval'.tr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+        title: Text('member_approval'.tr, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Get.back(),
@@ -72,10 +73,9 @@ class CommunityApprovalView extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100, width: 1),
+        border: Border.all(color: AppColors.divider, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.01),
@@ -92,16 +92,16 @@ class CommunityApprovalView extends StatelessWidget {
               CircleAvatar(
                 radius: 18,
                 backgroundImage: NetworkImage(applicant.avatar),
-                backgroundColor: Colors.grey.shade100,
+                backgroundColor: AppColors.divider,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(applicant.nickname, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                    Text(applicant.nickname, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
                     const SizedBox(height: 2),
-                    Text('$formattedTime', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                    Text('$formattedTime', style: TextStyle(fontSize: 10, color: AppColors.textHint)),
                   ],
                 ),
               ),

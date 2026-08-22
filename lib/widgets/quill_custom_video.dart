@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
+import 'package:qorange/theme.dart';
 
 import '../network/http_client.dart';
 import '../user_controller.dart';
@@ -141,7 +142,10 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
             );
           }
         },
-        // 🌟 新增：支持视频在富文本中安全上移/下移一个段落
+        // 🌟 支持视频在富文本中安全上移/下移一个段落
+        // 修复：旧逻辑 ① 只删嵌入符不删行尾换行 → 原地残留空段落
+        //        ② 下移目标点落在视频自身行尾 → 最后的视频"下移失效"
+        //        ③ 最底部判断 off-by-one（视频位于最后段时偏移为 length-2）
         onMoveRequested: (bool moveUp) {
           final doc = embedContext.controller.document;
           int currentOffset = 0;
@@ -165,40 +169,69 @@ class VideoEmbedBuilder extends quill.EmbedBuilder {
           if (!found) return;
 
           final plainText = doc.toPlainText();
+          // 视频节点在纯文本中占 1 个 \uFFFC 字符，其后恒跟随 1 个段落换行符
+          final bool hasTerminator =
+              currentOffset + 1 < plainText.length &&
+              plainText[currentOffset + 1] == '\n';
+          final int deleteLen = hasTerminator ? 2 : 1;
+
           if (moveUp) {
+            // 视频即首段（偏移 0）时已在最顶部
             if (currentOffset <= 0) {
-              Fluttertoast.showToast(msg: "视频已在最顶部");
+              Fluttertoast.showToast(msg: 'video_at_top'.tr);
               return;
             }
-            // 向上寻找上一个段落的开头
-            int targetOffset = plainText.lastIndexOf('\n', currentOffset - 2);
-            targetOffset = targetOffset == -1 ? 0 : targetOffset + 1;
+            // 目标：上一个段落的开头（位于删除点之前，偏移不受删除影响）
+            final int prevNewline =
+                plainText.lastIndexOf('\n', currentOffset - 2);
+            final int targetOffset = prevNewline == -1 ? 0 : prevNewline + 1;
 
-            embedContext.controller.replaceText(currentOffset, 1, '', null);
+            // 1) 整行移除视频（嵌入符 + 行尾换行），不残留空段落
+            embedContext.controller.replaceText(
+              currentOffset,
+              deleteLen,
+              '',
+              null,
+            );
+            // 2) 在上一段开头插入视频（自带新行）
             embedContext.controller.replaceText(
               targetOffset,
               0,
               quill.BlockEmbed.custom(VideoBlockEmbed(videoData)),
               null,
             );
-            Fluttertoast.showToast(msg: "已上移一个段落");
+            Fluttertoast.showToast(msg: 'video_moved_up'.tr);
           } else {
-            if (currentOffset >= plainText.length - 1) {
-              Fluttertoast.showToast(msg: "视频已在最底部");
+            // 视频行后只剩最终换行符 → 已是最后一段
+            if (currentOffset + 2 >= plainText.length) {
+              Fluttertoast.showToast(msg: 'video_at_bottom'.tr);
               return;
             }
-            // 向下寻找下一个段落的结尾
-            int nextNewline = plainText.indexOf('\n', currentOffset + 1);
-            int targetOffset = nextNewline == -1 ? plainText.length : nextNewline + 1;
+            // 下一段自己的行尾换行符（currentOffset+1 是视频自身的行尾）
+            final int nextLineTerminator =
+                plainText.indexOf('\n', currentOffset + 2);
+            if (nextLineTerminator == -1) {
+              Fluttertoast.showToast(msg: 'video_at_bottom'.tr);
+              return;
+            }
+            // 目标：下一段行尾之后；删除 2 字符后整体偏移 -2
+            final int insertAt = (nextLineTerminator + 1) - deleteLen;
 
-            embedContext.controller.replaceText(currentOffset, 1, '', null);
+            // 1) 整行移除视频
             embedContext.controller.replaceText(
-              targetOffset - 1,
+              currentOffset,
+              deleteLen,
+              '',
+              null,
+            );
+            // 2) 插到下一段之后，形成新的视频行
+            embedContext.controller.replaceText(
+              insertAt,
               0,
               quill.BlockEmbed.custom(VideoBlockEmbed(videoData)),
               null,
             );
-            Fluttertoast.showToast(msg: "已下移一个段落");
+            Fluttertoast.showToast(msg: 'video_moved_down'.tr);
           }
         },
       ),
@@ -238,7 +271,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
   bool _isSelected = false;
   late Map<String, dynamic> _currentVideoData;
 
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+  static Color get _primaryTeal => AppColors.primary;
 
   @override
   void initState() {
@@ -290,8 +323,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: EdgeInsets.only(
@@ -308,7 +340,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
+                    color: AppColors.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -327,20 +359,20 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                 ),
               ),
               const SizedBox(height: 14),
-              const Text(
-                '移除此视频组件？',
+              Text(
+                'video_remove_title'.tr,
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
-                '移除后该视频将从文章内容中清除，上方及下方的文本内容不受影响。',
+              Text(
+                'video_remove_desc'.tr,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+                    fontSize: 13, color: AppColors.textSecondary, height: 1.4),
               ),
               const SizedBox(height: 24),
               Row(
@@ -352,14 +384,14 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                         setState(() => _isSelected = false);
                       },
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFE2E8F0)),
+                        side: BorderSide(color: AppColors.divider),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('取消',
+                      child: Text('cancel'.tr,
                           style: TextStyle(
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                               fontWeight: FontWeight.bold)),
                     ),
                   ),
@@ -370,7 +402,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                         Navigator.pop(context);
                         if (widget.onDeleteRequested != null) {
                           widget.onDeleteRequested!();
-                          Fluttertoast.showToast(msg: "视频组件已移除");
+                          Fluttertoast.showToast(msg: "video_removed".tr);
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -380,8 +412,8 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                             borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('确认移除',
-                          style: TextStyle(
+                      child: Text('video_remove_confirm'.tr,
+                          style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold)),
                     ),
@@ -407,8 +439,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
       backgroundColor: Colors.transparent,
       builder: (bottomContext) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: EdgeInsets.only(
@@ -426,7 +457,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
+                    color: AppColors.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -447,12 +478,12 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    '编辑视频描述 / 注解',
+                  Text(
+                    'video_caption_title'.tr,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ],
@@ -460,19 +491,19 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
               const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: AppColors.divider),
                 ),
                 child: TextField(
                   controller: captionC,
                   maxLines: 3,
                   minLines: 1,
                   autofocus: true,
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B)),
-                  decoration: const InputDecoration(
-                    hintText: '为这个视频写下一段深度见解或说明（可选）...',
-                    hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                  style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'video_caption_hint'.tr,
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                     border: InputBorder.none,
                     contentPadding:
                     EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -500,7 +531,7 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                     widget.onUpdateData?.call(newMap);
 
                     Navigator.pop(bottomContext);
-                    Fluttertoast.showToast(msg: "注解已更新");
+                    Fluttertoast.showToast(msg: "video_caption_saved".tr);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primaryTeal,
@@ -508,8 +539,8 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text(
-                    '保存视频注解',
+                  child: Text(
+                    'video_caption_save'.tr,
                     style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -573,10 +604,10 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: AppColors.background,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: _isSelected ? Colors.redAccent : const Color(0xFFE2E8F0),
+            color: _isSelected ? Colors.redAccent : AppColors.divider,
             width: _isSelected ? 2.5 : 1.0,
           ),
           boxShadow: [
@@ -670,17 +701,17 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                                     color: Colors.white.withOpacity(0.3),
                                     width: 1),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  HugeIcon(
+                                  const HugeIcon(
                                     icon: HugeIcons.strokeRoundedMaximize02,
                                     color: Colors.white,
                                     size: 13.0,
                                   ),
-                                  SizedBox(width: 4),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'Reels 全屏',
+                                    'video_reels_fullscreen'.tr,
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 10,
@@ -701,15 +732,14 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 10),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+                      decoration: BoxDecoration(color: AppColors.surface,
+                        border: Border(top: BorderSide(color: AppColors.surfaceAlt)),
                       ),
                       child: Row(
                         children: [
-                          const HugeIcon(
+                          HugeIcon(
                             icon: HugeIcons.strokeRoundedNote01,
-                            color: Color(0xFF94A3B8),
+                            color: AppColors.textHint,
                             size: 15.0,
                           ),
                           const SizedBox(width: 8),
@@ -718,16 +748,16 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                               caption.isNotEmpty
                                   ? caption
                                   : (widget.readOnly
-                                  ? '无视频描述'
-                                  : '点击添加视频说明文案 / 注解...'),
+                                  ? 'video_no_caption'.tr
+                                  : 'video_add_caption'.tr),
                               style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: caption.isNotEmpty
                                     ? FontWeight.w600
                                     : FontWeight.w400,
                                 color: caption.isNotEmpty
-                                    ? const Color(0xFF334155)
-                                    : const Color(0xFF94A3B8),
+                                    ? AppColors.textPrimary
+                                    : AppColors.textHint,
                                 fontStyle: caption.isEmpty
                                     ? FontStyle.italic
                                     : FontStyle.normal,
@@ -767,8 +797,8 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.85),
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 3)),
+                      boxShadow: [
+                        BoxShadow(color: AppColors.textHint, blurRadius: 10, offset: Offset(0, 3)),
                       ],
                     ),
                     child: Row(
@@ -824,11 +854,11 @@ class _QuillCustomVideoWidgetState extends State<QuillCustomVideoWidget> {
 
   Widget _buildPlaceholder() {
     return Container(
-      color: const Color(0xFF0F172A),
-      child: const Center(
+      color: AppColors.textPrimary,
+      child: Center(
         child: HugeIcon(
           icon: HugeIcons.strokeRoundedPlayList,
-          color: Color(0xFF475569),
+          color: AppColors.textSecondary,
           size: 42.0,
         ),
       ),
@@ -1038,9 +1068,9 @@ class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
             )
                 : (thumbnailUrl.isNotEmpty
                 ? Image.network(thumbnailUrl, fit: BoxFit.cover)
-                : const Center(
+                : Center(
               child: CircularProgressIndicator(
-                color: Color.fromRGBO(44, 123, 109, 1.0),
+                color: AppColors.primary,
                 strokeWidth: 2,
               ),
             )),
@@ -1069,8 +1099,8 @@ class _DirectReelsVideoPageState extends State<_DirectReelsVideoPage> {
                       size: 16.0,
                     ),
                     const SizedBox(width: 6),
-                    const Text(
-                      '2.0X 极速播放中',
+                    Text(
+                      'video_fast_forward'.tr,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -1226,8 +1256,7 @@ class _InteractiveReelsProgressBarState
                       duration: const Duration(milliseconds: 150),
                       height: _isDragging ? 6.0 : 2.5,
                       width: constraints.maxWidth,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                      decoration: BoxDecoration(color: AppColors.surface.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -1237,7 +1266,7 @@ class _InteractiveReelsProgressBarState
                       height: _isDragging ? 6.0 : 2.5,
                       width: constraints.maxWidth * displayProgress,
                       decoration: BoxDecoration(
-                        color: const Color.fromRGBO(44, 123, 109, 1.0),
+                        color: AppColors.primary,
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -1248,12 +1277,11 @@ class _InteractiveReelsProgressBarState
                         child: Container(
                           width: 14,
                           height: 14,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
+                          decoration: BoxDecoration(color: AppColors.surface,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black45,
+                                color: AppColors.textHint,
                                 blurRadius: 4,
                               ),
                             ],
@@ -1347,7 +1375,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
   Future<void> _toggleVideoLike() async {
     if (!UserController.to.isLoggedIn) {
       Get.to(() => const LoginView());
-      Fluttertoast.showToast(msg: "请登录后点赞视频");
+      Fluttertoast.showToast(msg: "video_like_login".tr);
       return;
     }
 
@@ -1393,8 +1421,8 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
     final String videoUrl = widget.videoMap['video_url']?.toString() ?? '';
 
     Share.share(
-      '🎬 给你分享一段精彩视频内容：\n$caption\n$videoUrl',
-      subject: '精彩视频分享',
+      'video_share_text'.trParams({'caption': caption, 'url': videoUrl}),
+      subject: 'video_share_subject'.tr,
     );
   }
 
@@ -1404,7 +1432,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
     final authorMap = widget.author ?? {};
     final String authorName = authorMap['nickname']?.toString() ??
         widget.videoMap['author_nickname']?.toString() ??
-        '创作者';
+        'video_author_default'.tr;
     final String authorAvatar = authorMap['avatar']?.toString() ??
         widget.videoMap['author_avatar']?.toString() ??
         '';
@@ -1435,7 +1463,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
                           border: Border.all(color: Colors.white24),
                         ),
                         child: Text(
-                          '本帖第 ${widget.currentIndex + 1}/${widget.totalVideosInPost} 条视频 (上下滑动切换)',
+                          'video_index_in_post'.trParams({'index': widget.currentIndex + 1, 'total': widget.totalVideosInPost}),
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 10),
                         ),
@@ -1538,17 +1566,17 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
                   const SizedBox(height: 20),
                   GestureDetector(
                     onTap: _shareVideo,
-                    child: const Column(
+                    child: Column(
                       children: [
-                        HugeIcon(
+                        const HugeIcon(
                           icon: HugeIcons.strokeRoundedShare01,
                           color: Colors.white,
                           size: 26.0,
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          '分享',
-                          style: TextStyle(
+                          'video_share_btn'.tr,
+                          style: const TextStyle(
                               color: Colors.white, fontSize: 11),
                         ),
                       ],
@@ -1586,9 +1614,9 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
   bool _isLoading = true;
   String? _replyParentId;
   String? _replyToUserId;
-  String _hint = '写下对视频的看法...';
+  String _hint = 'video_comment_hint'.tr;
 
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+  static Color get _primaryTeal => AppColors.primary;
 
   @override
   void initState() {
@@ -1625,7 +1653,7 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
 
     if (!UserController.to.isLoggedIn) {
       Get.to(() => const LoginView());
-      Fluttertoast.showToast(msg: "请登录后参与评论");
+      Fluttertoast.showToast(msg: "video_comment_login".tr);
       return;
     }
 
@@ -1644,12 +1672,12 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
         setState(() {
           _replyParentId = null;
           _replyToUserId = null;
-          _hint = '写下对视频的看法...';
+          _hint = 'video_comment_hint'.tr;
         });
         _loadVideoComments();
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "发送评论失败: $e");
+      Fluttertoast.showToast(msg: "video_comment_failed".trParams({"error": e.toString()}));
     }
   }
 
@@ -1657,8 +1685,7 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.72,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
@@ -1668,14 +1695,14 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.surfaceAlt)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '视频讨论 (${_comments.length})',
+                  'video_discussion'.trParams({'count': _comments.length}),
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w800),
                 ),
@@ -1692,15 +1719,15 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
                 child: CircularProgressIndicator(
                     color: _primaryTeal, strokeWidth: 2))
                 : _comments.isEmpty
-                ? const Center(
-              child: Text('暂无讨论，快来发表第一条见解吧',
+                ? Center(
+              child: Text('video_no_discussion'.tr,
                   style: TextStyle(color: Colors.grey, fontSize: 13)),
             )
                 : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: _comments.length,
-              separatorBuilder: (_, __) => const Divider(
-                  height: 16, color: Color(0xFFF8FAFC)),
+              separatorBuilder: (_, __) => Divider(
+                  height: 16, color: AppColors.background),
               itemBuilder: (context, index) {
                 final c = _comments[index];
                 final author = c['author'] ?? {};
@@ -1723,7 +1750,7 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
                             CrossAxisAlignment.start,
                             children: [
                               Text(
-                                author['nickname'] ?? '学者',
+                                author['nickname'] ?? 'video_author_fallback'.tr,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12),
@@ -1731,9 +1758,9 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
                               const SizedBox(height: 3),
                               Text(
                                 c['content'] ?? '',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 13,
-                                    color: Color(0xFF1E293B)),
+                                    color: AppColors.textPrimary),
                               ),
                               const SizedBox(height: 4),
                               GestureDetector(
@@ -1741,11 +1768,10 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
                                   setState(() {
                                     _replyParentId = c['id'];
                                     _replyToUserId = author['id'];
-                                    _hint =
-                                    '回复 @${author['nickname']}...';
+                                    _hint = 'video_reply_hint'.trParams({'name': author['nickname']});
                                   });
                                 },
-                                child: Text('回复',
+                                child: Text('video_reply'.tr,
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: _primaryTeal,
@@ -1780,9 +1806,9 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
                                   Expanded(
                                     child: RichText(
                                       text: TextSpan(
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 12,
-                                            color: Color(0xFF334155)),
+                                            color: AppColors.textPrimary),
                                         children: [
                                           TextSpan(
                                             text:
@@ -1810,16 +1836,15 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+            decoration: BoxDecoration(color: AppColors.surface,
+              border: Border(top: BorderSide(color: AppColors.surfaceAlt)),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.surfaceAlt,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1828,8 +1853,8 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
                       style: const TextStyle(fontSize: 13),
                       decoration: InputDecoration(
                         hintText: _hint,
-                        hintStyle: const TextStyle(
-                            color: Color(0xFF94A3B8), fontSize: 12),
+                        hintStyle: TextStyle(
+                            color: AppColors.textHint, fontSize: 12),
                         border: InputBorder.none,
                       ),
                     ),

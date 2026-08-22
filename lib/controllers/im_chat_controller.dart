@@ -99,10 +99,10 @@ class ImChatController extends GetxController {
         isBlockedByMe.value = false;
         relationshipStatus.value = 'accepted';
         canSend.value = true;
-        Fluttertoast.showToast(msg: '已解除拉黑');
+        Fluttertoast.showToast(msg: 'im_unblocked_done'.tr);
       }
     } catch (_) {
-      Fluttertoast.showToast(msg: '网络异常');
+      Fluttertoast.showToast(msg: 'network_error'.tr);
     }
   }
 
@@ -152,7 +152,7 @@ class ImChatController extends GetxController {
       );
 
       HapticFeedback.mediumImpact();
-      Fluttertoast.showToast(msg: '收款单已到账！');
+      Fluttertoast.showToast(msg: 'im_request_received'.tr);
     }
   }
 
@@ -227,7 +227,7 @@ class ImChatController extends GetxController {
     required Map<String, dynamic> payload,
   }) async {
     if (!canSend.value) {
-      Fluttertoast.showToast(msg: '需等待对方回复后方可继续发送消息');
+      Fluttertoast.showToast(msg: 'im_stranger_wait_reply'.tr);
       return;
     }
 
@@ -275,7 +275,7 @@ class ImChatController extends GetxController {
       if (e is ApiException) {
         Fluttertoast.showToast(msg: e.message);
       } else {
-        Fluttertoast.showToast(msg: '网络连接异常，发送失败');
+        Fluttertoast.showToast(msg: 'im_send_failed'.tr);
       }
     } finally {
       isSending.value = false;
@@ -306,12 +306,12 @@ class ImChatController extends GetxController {
             isLatestMessage: isLatest,
           );
         }
-        Fluttertoast.showToast(msg: '消息已撤回');
+        Fluttertoast.showToast(msg: 'im_revoked_done'.tr);
       } else {
         Fluttertoast.showToast(msg: res.respMsg);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: '撤回异常: $e');
+      Fluttertoast.showToast(msg: 'im_revoke_failed'.trParams({'error': e.toString()}));
     }
   }
 
@@ -327,7 +327,7 @@ class ImChatController extends GetxController {
       if (pickedFile == null) return;
 
       isUploadingMedia.value = true;
-      Fluttertoast.showToast(msg: '正在上传图片...');
+      Fluttertoast.showToast(msg: 'im_uploading_image'.tr);
 
       final Uint8List imageBytes = await pickedFile.readAsBytes();
 
@@ -350,10 +350,10 @@ class ImChatController extends GetxController {
           },
         );
       } else {
-        Fluttertoast.showToast(msg: '图片上传失败');
+        Fluttertoast.showToast(msg: 'image_upload_failed'.tr);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: '处理图片异常: $e');
+      Fluttertoast.showToast(msg: 'im_image_error'.trParams({'error': e.toString()}));
     } finally {
       isUploadingMedia.value = false;
     }
@@ -368,7 +368,7 @@ class ImChatController extends GetxController {
 
     try {
       isUploadingMedia.value = true;
-      Fluttertoast.showToast(msg: '正在发送语音...');
+      Fluttertoast.showToast(msg: 'im_sending_voice'.tr);
 
       // 1. 发送录音纯二进制流 (type=voice&ext=m4a)
       final res = await HttpClient.instance.postBinary<Map<String, dynamic>>(
@@ -389,10 +389,10 @@ class ImChatController extends GetxController {
           },
         );
       } else {
-        Fluttertoast.showToast(msg: '语音上传失败');
+        Fluttertoast.showToast(msg: 'im_voice_failed'.tr);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: '发送语音异常: $e');
+      Fluttertoast.showToast(msg: 'im_voice_error'.trParams({'error': e.toString()}));
     } finally {
       isUploadingMedia.value = false;
     }
@@ -401,7 +401,7 @@ class ImChatController extends GetxController {
   /// 🌟 保存网络图片到本地设备
   Future<void> saveImageToDevice(String imageUrl) async {
     try {
-      Fluttertoast.showToast(msg: '正在保存图片...');
+      Fluttertoast.showToast(msg: 'im_saving_image'.tr);
       final response = await http.get(Uri.parse(imageUrl));
       if (response.statusCode == 200) {
         Directory? dir;
@@ -416,35 +416,35 @@ class ImChatController extends GetxController {
         final file = File(savePath);
         await file.writeAsBytes(response.bodyBytes);
 
-        Fluttertoast.showToast(msg: '图片已保存成功！');
+        Fluttertoast.showToast(msg: 'im_saved_done'.tr);
       } else {
-        Fluttertoast.showToast(msg: '下载图片失败');
+        Fluttertoast.showToast(msg: 'im_download_failed'.tr);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: '保存失败: $e');
+      Fluttertoast.showToast(msg: 'im_save_failed'.trParams({'error': e.toString()}));
     }
   }
 
   /// 🌟 发送青橙币直接转账
-  Future<void> sendTokenTransfer({required double tokens, String remark = '请喝咖啡'}) async {
+  Future<void> sendTokenTransfer({required double tokens, String remark = 'im_default_remark_coffee'.tr}) async {
     if (tokens <= 0) return;
     await sendMessage(
       msgType: 'token_transfer',
       payload: {
         'tokens': tokens,
-        'remark': remark.isEmpty ? '请喝咖啡' : remark,
+        'remark': remark.isEmpty ? 'im_default_remark_coffee'.tr : remark,
       },
     );
   }
 
   /// 🌟 发起青橙币请款单
-  Future<void> sendTokenRequest({required double tokens, String remark = '款项结算'}) async {
+  Future<void> sendTokenRequest({required double tokens, String remark = 'im_payment_settled'.tr}) async {
     if (tokens <= 0) return;
     await sendMessage(
       msgType: 'token_request',
       payload: {
         'tokens': tokens,
-        'remark': remark.isEmpty ? '款项结算' : remark,
+        'remark': remark.isEmpty ? 'im_payment_settled'.tr : remark,
       },
     );
   }
@@ -480,12 +480,12 @@ class ImChatController extends GetxController {
             createdAt: old.createdAt,
           );
         }
-        Fluttertoast.showToast(msg: '青橙币支付成功！');
+        Fluttertoast.showToast(msg: 'im_pay_success'.tr);
       } else {
         Fluttertoast.showToast(msg: res.respMsg);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: '支付执行异常: $e');
+      Fluttertoast.showToast(msg: 'im_pay_error'.trParams({'error': e.toString()}));
     }
   }
 
@@ -530,7 +530,7 @@ class ImChatController extends GetxController {
       await prefs.remove('${keyPrefix}_path');
       await prefs.remove('${keyPrefix}_url');
     }
-    Fluttertoast.showToast(msg: '聊天背景已更新');
+    Fluttertoast.showToast(msg: 'im_bg_updated'.tr);
   }
 
   Future<void> loadCustomBackground() async {
@@ -578,7 +578,7 @@ class ImChatController extends GetxController {
         senderId: old.senderId,
         recipientId: old.recipientId,
         msgType: 'text',
-        payload: {'text': '此消息已被撤回'},
+        payload: {'text': 'msg_revoked'.tr},
         isRead: old.isRead,
         isRevoked: true,
         createdAt: old.createdAt,
@@ -596,7 +596,7 @@ class ImChatController extends GetxController {
       if (res.respCode == 0) {
         relationshipStatus.value = 'accepted';
         canSend.value = true;
-        Fluttertoast.showToast(msg: '已同意沟通，信道已完全解锁');
+        Fluttertoast.showToast(msg: 'im_stranger_accepted'.tr);
       }
     } catch (_) {}
   }
@@ -611,7 +611,7 @@ class ImChatController extends GetxController {
       if (res.respCode == 0) {
         relationshipStatus.value = 'blocked';
         canSend.value = false;
-        Fluttertoast.showToast(msg: '已将该用户加入黑名单');
+        Fluttertoast.showToast(msg: 'im_blocked_done'.tr);
       }
     } catch (_) {}
   }

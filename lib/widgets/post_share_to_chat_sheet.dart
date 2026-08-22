@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 
 import '../../../network/http_client.dart';
 
@@ -27,7 +28,7 @@ class PostShareToChatSheet extends StatefulWidget {
 }
 
 class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
+  static Color get _primaryTeal => AppColors.primary;
 
   final List<Map<String, dynamic>> _contacts = [];
   bool _isLoading = true;
@@ -66,7 +67,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
   Future<void> _sendPostToUser(String targetUserId, String targetNickname) async {
     HapticFeedback.mediumImpact();
     try {
-      Fluttertoast.showToast(msg: '正在分享给 @$targetNickname ...');
+      Fluttertoast.showToast(msg: 'share_sending'.trParams({'name': targetNickname}));
 
       final res = await HttpClient.instance.post<Map<String, dynamic>>(
         '/api-im/send',
@@ -84,12 +85,12 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
 
       if (res.respCode == 0) {
         Get.back();
-        Fluttertoast.showToast(msg: '已成功分享文章给 @$targetNickname');
+        Fluttertoast.showToast(msg: 'share_success'.trParams({'name': targetNickname}));
       } else {
         Fluttertoast.showToast(msg: res.respMsg);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: '分享发送失败，请重试');
+      Fluttertoast.showToast(msg: 'share_failed'.tr);
     }
   }
 
@@ -97,8 +98,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.65,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
@@ -120,14 +120,14 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                       child: const Icon(Icons.send_rounded, color: _primaryTeal, size: 18),
                     ),
                     const SizedBox(width: 12),
-                    const Text(
-                      '分享文章至私信',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    Text(
+                      'share_to_dm_title'.tr,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                     ),
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                  icon: Icon(Icons.close_rounded, color: AppColors.textSecondary, size: 22),
                   onPressed: () => Get.back(),
                 ),
               ],
@@ -139,9 +139,9 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
             margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
+              color: AppColors.background,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: AppColors.divider),
             ),
             child: Row(
               children: [
@@ -156,7 +156,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                     widget.postTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                   ),
                 ),
               ],
@@ -169,7 +169,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: AppColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: TextField(
@@ -177,10 +177,10 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                   _searchKeyword = val.trim();
                   _fetchContacts();
                 },
-                decoration: const InputDecoration(
-                  icon: Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  hintText: '搜索创作者或用户昵称...',
-                  hintStyle: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                decoration: InputDecoration(
+                  icon: Icon(Icons.search_rounded, size: 18, color: AppColors.textHint),
+                  hintText: 'share_search_hint'.tr,
+                  hintStyle: TextStyle(fontSize: 13, color: AppColors.textHint),
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: EdgeInsets.symmetric(vertical: 10),
@@ -189,7 +189,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
             ),
           ),
 
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: AppColors.surfaceAlt),
 
           // 4. 好友列表
           Expanded(
@@ -197,7 +197,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                 ? const Center(child: CircularProgressIndicator(color: _primaryTeal, strokeWidth: 2))
                 : _contacts.isEmpty
                 ? Center(
-              child: Text('暂无相关用户', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              child: Text('share_no_users'.tr, style: TextStyle(fontSize: 13, color: AppColors.textHint)),
             )
                 : ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -206,7 +206,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
               itemBuilder: (context, index) {
                 final user = _contacts[index];
                 final userId = user['user_id']?.toString() ?? '';
-                final nickname = user['nickname']?.toString() ?? '用户';
+                final nickname = user['nickname']?.toString() ?? 'user'.tr;
                 final avatar = user['avatar']?.toString() ?? '';
 
                 return Material(
@@ -218,7 +218,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFF1F5F9)),
+                        border: Border.all(color: AppColors.surfaceAlt),
                       ),
                       child: Row(
                         children: [
@@ -236,8 +236,8 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(nickname, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-                                Text('@${user['username'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                Text(nickname, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                Text('@${user['username'] ?? ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                               ],
                             ),
                           ),
@@ -247,7 +247,7 @@ class _PostShareToChatSheetState extends State<PostShareToChatSheet> {
                               color: _primaryTeal.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Text('发送', style: TextStyle(color: _primaryTeal, fontSize: 12, fontWeight: FontWeight.w700)),
+                            child: Text('im_send_btn'.tr, style: const TextStyle(color: _primaryTeal, fontSize: 12, fontWeight: FontWeight.w700)),
                           ),
                         ],
                       ),

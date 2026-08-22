@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:qorange/theme.dart';
 import '../../network/http_client.dart';
 import 'applicant_model.dart';
 import 'community_space_controller.dart'; // 🌟 用于联动更新小红点
@@ -12,7 +13,7 @@ class CommunityApprovalController extends GetxController {
   final RxList<ApplicantModel> applicants = <ApplicantModel>[].obs;
   final RxBool isLoading = true.obs;
 
-  final Color primaryColor = const Color.fromRGBO(44, 123, 109, 1.0);
+  Color get primaryColor => AppColors.primary;
 
   @override
   void onInit() {
@@ -39,7 +40,7 @@ class CommunityApprovalController extends GetxController {
   /// 🌟 批准通过申请加入
   Future<void> approveApplicant(String applicantUserId) async {
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      Center(child: CircularProgressIndicator(color: AppColors.primary)),
       barrierDismissible: false,
     );
 
@@ -75,7 +76,7 @@ class CommunityApprovalController extends GetxController {
   /// 🌟 拒绝/驳回学者加入申请
   Future<void> rejectApplicant(String applicantUserId, String reason) async {
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: Color.fromRGBO(44, 123, 109, 1.0))),
+      Center(child: CircularProgressIndicator(color: AppColors.primary)),
       barrierDismissible: false,
     );
 

@@ -10,6 +10,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:qorange/theme.dart';
 
 import '../../network/api_exception.dart';
 import '../../network/http_client.dart';
@@ -97,7 +98,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
   };
 
   bool _isPublishing = false;
-  final Color _primaryTeal = const Color.fromRGBO(44, 123, 109, 1.0);
+  Color get _primaryTeal => AppColors.primary;
 
   @override
   void initState() {
@@ -385,8 +386,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
           expand: false,
           builder: (context, scrollController) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(color: AppColors.surface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: ClipRRect(
@@ -419,8 +419,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
       isScrollControlled: true,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: EdgeInsets.only(
@@ -436,16 +435,16 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: AppColors.border,
                     borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 18),
               Text(
                 'select_target_circle'.tr,
-                style: const TextStyle(
+                style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Color(0xFF0F172A)),
+                    color: AppColors.textPrimary),
               ),
               const SizedBox(height: 16),
               GridView.builder(
@@ -474,7 +473,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                       decoration: BoxDecoration(
                         color: isSelected
                             ? _primaryTeal.withOpacity(0.1)
-                            : const Color(0xFFF1F5F9),
+                            : AppColors.surfaceAlt,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected ? _primaryTeal : Colors.transparent,
@@ -488,7 +487,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                           fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.normal,
                           color:
-                          isSelected ? _primaryTeal : const Color(0xFF334155),
+                          isSelected ? _primaryTeal : AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -508,8 +507,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: EdgeInsets.only(
@@ -525,16 +523,16 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: AppColors.border,
                     borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 20),
               Text(
                 'set_publish_status'.tr,
-                style: const TextStyle(
+                style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Color(0xFF0F172A)),
+                    color: AppColors.textPrimary),
               ),
               const SizedBox(height: 14),
               ..._statusNameKeys.entries.map((entry) {
@@ -546,7 +544,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   title: Text(
                     entry.value.tr,
                     style: TextStyle(
-                      color: isSelected ? _primaryTeal : const Color(0xFF1E293B),
+                      color: isSelected ? _primaryTeal : AppColors.textPrimary,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       fontSize: 14,
                     ),
@@ -628,19 +626,19 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            _isUploadingVideo ? '视频正在上传' : '放弃本次编辑？',
+            _isUploadingVideo ? 'publish_exit_title_uploading'.tr : 'publish_exit_title_draft'.tr,
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
           ),
           content: Text(
             _isUploadingVideo
-                ? '视频正在压缩上传中，此时退出将中断上传任务，确定要退出吗？'
-                : '当前内容尚未发布，退出后未保存的内容将会丢失。',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+                ? 'publish_exit_desc_uploading'.tr
+                : 'publish_exit_desc_draft'.tr,
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('继续编辑', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+              child: Text('publish_continue_editing'.tr, style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext, true),
@@ -649,7 +647,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('确认退出', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: Text('publish_confirm_exit'.tr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -710,7 +708,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
           'thumbnail_url': thumbnailUrl,
           'caption': '',
           'author_id': user?.id ?? '',
-          'author_nickname': user?.nickname ?? '创作者',
+          'author_nickname': user?.nickname ?? 'video_author_default'.tr,
           'author_avatar': user?.avatar ?? '',
           'duration_sec': 0,
         };
@@ -727,10 +725,10 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
           quill.ChangeSource.local,
         );
 
-        Fluttertoast.showToast(msg: "视频上传成功，点击视频边框可删除，点击底部可添加注解！");
+        Fluttertoast.showToast(msg: "publish_video_added".tr);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "视频上传故障: $e");
+      Fluttertoast.showToast(msg: "publish_video_upload_error".trParams({"error": e.toString()}));
     } finally {
       if (mounted) {
         setState(() {
@@ -922,10 +920,10 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         resizeToAvoidBottomInset: false, // 🌟 避免页面双重挤压抽搐
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           elevation: 0,
           scrolledUnderElevation: 0,
           leading: IconButton(
@@ -935,9 +933,9 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 Get.back();
               }
             },
-            icon: const HugeIcon(
+            icon: HugeIcon(
               icon: HugeIcons.strokeRoundedCancel01,
-              color: Color(0xFF64748B),
+              color: AppColors.textSecondary,
               size: 22.0,
             ),
           ),
@@ -980,22 +978,22 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: AppColors.surfaceAlt,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: AppColors.divider),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const HugeIcon(
+                      HugeIcon(
                         icon: HugeIcons.strokeRoundedView,
-                        color: Color(0xFF64748B),
+                        color: AppColors.textSecondary,
                         size: 12.0,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         _statusNameKeys[activeStatusKey]?.tr ?? 'status_published'.tr,
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                       ),
                     ],
                   ),
@@ -1060,8 +1058,8 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                       const SizedBox(width: 10),
                       Text(
                         _videoUploadProgress < 1.0
-                            ? '正在上传视频 (${(_videoUploadProgress * 100).toInt()}%)...'
-                            : '已完成传输，云端正在进行智能转码抽帧...',
+                            ? 'publish_uploading_video'.trParams({'percent': (_videoUploadProgress * 100).toInt()})
+                            : 'publish_transcoding'.tr,
                         style: TextStyle(
                           fontSize: 12,
                           color: _primaryTeal,
@@ -1123,16 +1121,16 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
           padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 6),
           child: TextField(
             controller: _quillTitleController,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
+              color: AppColors.textPrimary,
               letterSpacing: -0.5,
             ),
             decoration: InputDecoration(
               hintText: 'title'.tr,
-              hintStyle: const TextStyle(
-                color: Color(0xFFCBD5E1),
+              hintStyle: TextStyle(
+                color: AppColors.border,
                 fontWeight: FontWeight.w700,
               ),
               border: InputBorder.none,
@@ -1140,7 +1138,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
             ),
           ),
         ),
-        const Divider(height: 1, color: Color(0xFFF1F5F9)),
+        Divider(height: 1, color: AppColors.surfaceAlt),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
@@ -1158,7 +1156,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   paragraph: quill.DefaultTextBlockStyle(
                     TextStyle(
                       fontSize: 16.5,
-                      color: Color(0xFF1E293B),
+                      color: AppColors.textPrimary,
                       height: 1.65,
                       fontFamily: 'ShantellSans',
                     ),
@@ -1170,7 +1168,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   placeHolder: quill.DefaultTextBlockStyle(
                     TextStyle(
                       fontSize: 16.5,
-                      color: Color(0xFF94A3B8),
+                      color: AppColors.textHint,
                       height: 1.65,
                       fontFamily: 'ShantellSans',
                     ),
@@ -1191,9 +1189,9 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: const BoxDecoration(
-            color: Color(0xFFF8FAFC),
-            border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            border: Border(top: BorderSide(color: AppColors.surfaceAlt)),
           ),
           child: Row(
             children: [
@@ -1203,10 +1201,10 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   style: const TextStyle(fontSize: 12),
                   decoration: InputDecoration(
                     hintText: 'tags_hint_tech'.tr,
-                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 11),
                     border: InputBorder.none,
                     isDense: true,
-                    prefixIcon: const Icon(Icons.tag_rounded, size: 14, color: Color(0xFF94A3B8)),
+                    prefixIcon: Icon(Icons.tag_rounded, size: 14, color: AppColors.textHint),
                     prefixIconConstraints: const BoxConstraints(minWidth: 20),
                     contentPadding: const EdgeInsets.symmetric(vertical: 6),
                   ),
@@ -1217,10 +1215,9 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                 width: 110,
                 height: 30,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(color: AppColors.surface,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: AppColors.divider),
                 ),
                 child: TextField(
                   controller: _quillPriceController,
@@ -1231,7 +1228,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   decoration: InputDecoration(
                     hintText: 'price_hint'.tr,
-                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10),
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 10),
                     border: InputBorder.none,
                     isDense: true,
                     prefixText: '¥ ',
@@ -1272,11 +1269,11 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             decoration: InputDecoration(
               hintText: 'poll_question_hint'.tr,
-              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
+              hintStyle: TextStyle(color: AppColors.textHint, fontSize: 15),
               border: InputBorder.none,
             ),
           ),
-          const Divider(height: 20, color: Color(0xFFF1F5F9)),
+          Divider(height: 20, color: AppColors.surfaceAlt),
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1288,7 +1285,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   child: OutlinedButton.icon(
                     onPressed: () {
                       if (_pollOptionControllers.length >= 6) {
-                        Fluttertoast.showToast(msg: '最多支持 6 个选项');
+                        Fluttertoast.showToast(msg: 'publish_max_options'.tr);
                         return;
                       }
                       setState(() {
@@ -1342,17 +1339,17 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: AppColors.background,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(color: AppColors.divider),
                         ),
                         child: TextField(
                           controller: _pollOptionControllers[index],
                           style: const TextStyle(fontSize: 13.5),
                           decoration: InputDecoration(
                             hintText: 'poll_option_hint'.tr,
-                            hintStyle: const TextStyle(
-                                fontSize: 12, color: Color(0xFF94A3B8)),
+                            hintStyle: TextStyle(
+                                fontSize: 12, color: AppColors.textHint),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 10),
@@ -1397,15 +1394,15 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   focusNode: _shortFocusNode,
                   maxLines: 8,
                   minLines: 3,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16.5,
                     height: 1.6,
-                    color: Color(0xFF0F172A),
+                    color: AppColors.textPrimary,
                   ),
                   decoration: InputDecoration(
                     hintText: 'share_moment_hint'.tr,
-                    hintStyle: const TextStyle(
-                      color: Color(0xFF94A3B8),
+                    hintStyle: TextStyle(
+                      color: AppColors.textHint,
                       fontSize: 15,
                     ),
                     border: InputBorder.none,
@@ -1429,7 +1426,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                               height: 86,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(color: AppColors.divider),
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(14),
@@ -1444,8 +1441,8 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                               },
                               child: Container(
                                 margin: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.black54,
+                                decoration: BoxDecoration(
+                                  color: AppColors.textSecondary,
                                   shape: BoxShape.circle,
                                 ),
                                 padding: const EdgeInsets.all(3),
@@ -1463,15 +1460,15 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                             width: 86,
                             height: 86,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
+                              color: AppColors.surfaceAlt,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                  color: const Color(0xFFE2E8F0),
+                                  color: AppColors.divider,
                                   style: BorderStyle.solid),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.add_photo_alternate_outlined,
-                              color: Color(0xFF94A3B8),
+                              color: AppColors.textHint,
                               size: 24,
                             ),
                           ),
@@ -1484,13 +1481,13 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: const BoxDecoration(
-            color: Color(0xFFF8FAFC),
-            border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            border: Border(top: BorderSide(color: AppColors.surfaceAlt)),
           ),
           child: Row(
             children: [
-              const Icon(Icons.tag_rounded, size: 16, color: Color(0xFF94A3B8)),
+              Icon(Icons.tag_rounded, size: 16, color: AppColors.textHint),
               const SizedBox(width: 6),
               Expanded(
                 child: TextField(
@@ -1498,7 +1495,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   style: const TextStyle(fontSize: 12.5),
                   decoration: InputDecoration(
                     hintText: 'tags_hint_news'.tr,
-                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 11.5),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
@@ -1514,8 +1511,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
   Widget _buildBottomActionToolbar() {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: AppColors.surface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.03),
@@ -1523,7 +1519,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
             offset: const Offset(0, -3),
           ),
         ],
-        border: const Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+        border: Border(top: BorderSide(color: AppColors.surfaceAlt)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1540,28 +1536,28 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                       child: Row(
                         children: [
                           IconButton(
-                            tooltip: '插入 #',
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_hash'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedHashtag,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                               size: 19.0,
                             ),
                             onPressed: _insertHashtag,
                           ),
                           IconButton(
-                            tooltip: '换行并保持视野',
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_linebreak'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedSquareArrowMoveDownLeft,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                               size: 19.0,
                             ),
                             onPressed: _insertNewlineAndAutoScroll,
                           ),
                           IconButton(
-                            tooltip: '取消焦点',
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_unfocus'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedCancelCircle,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                               size: 19.0,
                             ),
                             onPressed: _unfocusEditor,
@@ -1601,37 +1597,37 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                           ),
                           _vDivider(),
                           IconButton(
-                            tooltip: '插入视频',
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_video'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedVideo01,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                               size: 19.0,
                             ),
                             onPressed: _pickAndUploadVideo,
                           ),
                           IconButton(
-                            tooltip: '插入图片',
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_image'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedImage01,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                               size: 19.0,
                             ),
                             onPressed: _pickImage,
                           ),
                           IconButton(
-                            tooltip: '插入 GIF',
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_gif'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedGif01,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                               size: 19.0,
                             ),
                             onPressed: _pickGif,
                           ),
                           IconButton(
-                            tooltip: '分割线',
-                            icon: const HugeIcon(
+                            tooltip: 'pub_tooltip_divider'.tr,
+                            icon: HugeIcon(
                               icon: HugeIcons.strokeRoundedMenu04,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                               size: 19.0,
                             ),
                             onPressed: _insertDivider,
@@ -1642,28 +1638,28 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                   )
                 else if (_activeFormIndex == 2) ...[
                   IconButton(
-                    tooltip: '添加图片',
-                    icon: const HugeIcon(
+                    tooltip: 'pub_tooltip_add_image'.tr,
+                    icon: HugeIcon(
                       icon: HugeIcons.strokeRoundedImage01,
-                      color: Color(0xFF64748B),
+                      color: AppColors.textSecondary,
                       size: 20.0,
                     ),
                     onPressed: _pickImage,
                   ),
                   IconButton(
-                    tooltip: '添加 GIF',
-                    icon: const HugeIcon(
+                    tooltip: 'pub_tooltip_add_gif'.tr,
+                    icon: HugeIcon(
                       icon: HugeIcons.strokeRoundedGif01,
-                      color: Color(0xFF64748B),
+                      color: AppColors.textSecondary,
                       size: 20.0,
                     ),
                     onPressed: _pickGif,
                   ),
                   IconButton(
-                    tooltip: '插入 #',
-                    icon: const HugeIcon(
+                    tooltip: 'pub_tooltip_hash'.tr,
+                    icon: HugeIcon(
                       icon: HugeIcons.strokeRoundedHashtag,
-                      color: Color(0xFF64748B),
+                      color: AppColors.textSecondary,
                       size: 20.0,
                     ),
                     onPressed: _insertHashtag,
@@ -1675,14 +1671,14 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
 
                 // 表情面板呼出键
                 IconButton(
-                  tooltip: '表情符号',
+                  tooltip: 'pub_tooltip_emoji'.tr,
                   icon: HugeIcon(
                     icon: _isEmojiPanelVisible
                         ? HugeIcons.strokeRoundedKeyboard
                         : HugeIcons.strokeRoundedInLove,
                     color: _isEmojiPanelVisible
                         ? _primaryTeal
-                        : const Color(0xFF64748B),
+                        : AppColors.textSecondary,
                     size: 21.0,
                   ),
                   onPressed: _toggleEmojiPanel,
@@ -1690,7 +1686,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: AppColors.surfaceAlt),
 
           // 模式切换胶囊栏
           Padding(
@@ -1742,7 +1738,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
         return IconButton(
           icon: HugeIcon(
             icon: icon,
-            color: isApplied ? _primaryTeal : const Color(0xFF64748B),
+            color: isApplied ? _primaryTeal : AppColors.textSecondary,
             size: 19,
           ),
           onPressed: () => _toggleAttribute(attr),
@@ -1751,11 +1747,11 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
     );
   }
 
-  Widget _vDivider() => const VerticalDivider(
+  Widget _vDivider() => VerticalDivider(
     indent: 14,
     endIndent: 14,
     width: 16,
-    color: Color(0xFFE2E8F0),
+    color: AppColors.divider,
   );
 
   Widget _buildPillButton({
@@ -1779,12 +1775,12 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? bgColor : const Color(0xFFF8FAFC),
+            color: isSelected ? bgColor : AppColors.background,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
                   ? textColor.withOpacity(0.35)
-                  : const Color(0xFFE2E8F0),
+                  : AppColors.divider,
               width: isSelected ? 1.5 : 1.0,
             ),
           ),
@@ -1793,14 +1789,14 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
             children: [
               HugeIcon(
                 icon: icon,
-                color: isSelected ? textColor : const Color(0xFF64748B),
+                color: isSelected ? textColor : AppColors.textSecondary,
                 size: 15,
               ),
               const SizedBox(width: 5),
               Text(
                 text,
                 style: TextStyle(
-                  color: isSelected ? textColor : const Color(0xFF475569),
+                  color: isSelected ? textColor : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   fontSize: 12.5,
                 ),
@@ -1863,13 +1859,13 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
       children: [
         Container(
           padding: const EdgeInsets.only(top: 12, bottom: 8),
-          color: Colors.white,
+          color: AppColors.surface,
           child: Center(
             child: Container(
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: AppColors.border,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -1881,15 +1877,15 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
             controller: _searchC,
             focusNode: _searchFocus,
             textInputAction: TextInputAction.search,
-            cursorColor: const Color(0xFF2C7B6D),
-            style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
+            cursorColor: AppColors.primary,
+            style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
             onSubmitted: (value) => _fetchGifs(value),
             decoration: InputDecoration(
               hintText: 'search_gif_hint'.tr,
-              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+              hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
               prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
               filled: true,
-              fillColor: const Color(0xFFF1F5F9),
+              fillColor: AppColors.surfaceAlt,
               contentPadding:
               const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
               border: OutlineInputBorder(
@@ -1897,8 +1893,8 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
                 borderSide: BorderSide.none,
               ),
               suffixIcon: IconButton(
-                icon: const Icon(Icons.arrow_forward_rounded,
-                    color: Color(0xFF2C7B6D), size: 20),
+                icon: Icon(Icons.arrow_forward_rounded,
+                    color: AppColors.primary, size: 20),
                 onPressed: () => _fetchGifs(_searchC.text),
               ),
             ),
@@ -1906,14 +1902,14 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(
+              ? Center(
             child: CircularProgressIndicator(
-                strokeWidth: 2.5, color: Color(0xFF2C7B6D)),
+                strokeWidth: 2.5, color: AppColors.primary),
           )
               : _gifs.isEmpty
               ? Center(
             child: Text('no_gif_found'.tr,
-                style: TextStyle(color: Colors.grey[400])),
+                style: TextStyle(color: AppColors.textHint)),
           )
               : GridView.builder(
             controller: widget.scrollController,
@@ -1930,7 +1926,7 @@ class _GifSearchSheetState extends State<_GifSearchSheet> {
             itemBuilder: (context, index) {
               final url = _gifs[index];
               return Material(
-                color: Colors.grey[100],
+                color: AppColors.divider,
                 borderRadius: BorderRadius.circular(12),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 
 import 'login_controller.dart';
 
@@ -9,7 +10,7 @@ class LoginView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const themeColor = Color.fromRGBO(44, 123, 109, 1.0);
+    final themeColor = AppColors.primary;
 
     return GetBuilder<LoginController>(
       init: LoginController(),
@@ -18,10 +19,10 @@ class LoginView extends StatelessWidget {
       },
       builder: (controller) {
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           resizeToAvoidBottomInset: false,
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            backgroundColor: AppColors.surface,
             elevation: 0,
             leading: IconButton(
               icon: const HugeIcon(
@@ -43,23 +44,23 @@ class LoginView extends StatelessWidget {
                       const SizedBox(height: 20),
                       Text(
                         controller.isRegisterMode.value ? 'app_name'.tr : 'welcome_login'.tr,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         controller.isRegisterMode.value ? 'enter_account'.tr : 'enter_password'.tr,
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 40),
 
                       // 账号输入框（正常点击聚焦打字，无多余弹窗拦截）
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: AppColors.divider,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: TextField(
@@ -84,11 +85,11 @@ class LoginView extends StatelessWidget {
                                 controller.passwordFocusNode.unfocus();
                                 controller.showSavedAccountsBottomSheet();
                               },
-                              child: const Padding(
+                              child: Padding(
                                 padding: EdgeInsets.only(right: 14.0),
                                 child: HugeIcon(
                                   icon: HugeIcons.strokeRoundedKey01,
-                                  color: Color.fromRGBO(44, 123, 109, 1.0),
+                                  color: AppColors.primary,
                                   size: 20,
                                 ),
                               ),
@@ -107,7 +108,7 @@ class LoginView extends StatelessWidget {
                       // 密码输入框
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: AppColors.divider,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: TextField(
@@ -131,7 +132,7 @@ class LoginView extends StatelessWidget {
                         const SizedBox(height: 16),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: AppColors.divider,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: TextField(
@@ -165,9 +166,9 @@ class LoginView extends StatelessWidget {
                               : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: themeColor,
-                            disabledBackgroundColor: Colors.grey.shade200,
+                            disabledBackgroundColor: AppColors.divider,
                             foregroundColor: Colors.white,
-                            disabledForegroundColor: Colors.grey.shade400,
+                            disabledForegroundColor: AppColors.textHint,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),

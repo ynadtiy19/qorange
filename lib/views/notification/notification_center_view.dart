@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:qorange/theme.dart';
 
 import '../../controllers/im_conversation_controller.dart';
 import '../../controllers/notification_center_controller.dart';
@@ -27,37 +28,37 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
   late NotificationCenterController _controller;
   late TabController _tabController;
 
-  static const Color _primaryTeal = Color.fromRGBO(44, 123, 109, 1.0);
-  static const Color _bgSlate = Color(0xFFF8FAFC);
+  static Color get _primaryTeal => AppColors.primary;
+  static Color get _bgSlate => AppColors.background;
 
   final List<Map<String, dynamic>> _tabsConfig = [
     {
       'key': 'all',
-      'label': '全部',
+      'label': 'notif_tab_all'.tr,
       'icon': HugeIcons.strokeRoundedGrid,
-      'color': const Color(0xFF2C7B6D),
+      'color': AppColors.primary,
     },
     {
       'key': 'like',
-      'label': '赞与收藏',
+      'label': 'notif_tab_like'.tr,
       'icon': HugeIcons.strokeRoundedFavourite,
       'color': const Color(0xFFEF4444),
     },
     {
       'key': 'comment',
-      'label': '评论回复',
+      'label': 'notif_tab_comment'.tr,
       'icon': HugeIcons.strokeRoundedComment01,
       'color': const Color(0xFF3B82F6),
     },
     {
       'key': 'follow',
-      'label': '新增关注',
+      'label': 'notif_tab_follow'.tr,
       'icon': HugeIcons.strokeRoundedUserAdd01,
       'color': const Color(0xFF10B981),
     },
     {
       'key': 'system',
-      'label': '系统通知',
+      'label': 'notif_tab_system'.tr,
       'icon': HugeIcons.strokeRoundedNotification03,
       'color': const Color(0xFFF59E0B),
     },
@@ -92,14 +93,14 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
     return Scaffold(
       backgroundColor: _bgSlate,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         centerTitle: true,
         leading: IconButton(
-          icon: const HugeIcon(
+          icon: HugeIcon(
             icon: HugeIcons.strokeRoundedArrowLeft01,
-            color: Color(0xFF1E293B),
+            color: AppColors.textPrimary,
             size: 20,
           ),
           onPressed: () {
@@ -107,10 +108,10 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
             Get.back();
           },
         ),
-        title: const Text(
-          '通知中心',
+        title: Text(
+          'notification_center'.tr,
           style: TextStyle(
-            color: Color(0xFF0F172A),
+            color: AppColors.textPrimary,
             fontSize: 17,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.3,
@@ -118,27 +119,26 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
         ),
         actions: [
           IconButton(
-            icon: const HugeIcon(
+            icon: HugeIcon(
               icon: HugeIcons.strokeRoundedCheckmarkBadge01,
-              color: Color(0xFF64748B),
+              color: AppColors.textSecondary,
               size: 22,
             ),
-            tooltip: '全部标为已读',
+            tooltip: 'notif_mark_all_read'.tr,
             onPressed: () {
               HapticFeedback.mediumImpact();
               _controller.markTabAsRead('all');
               for (final def in _tabsConfig) {
                 _controller.fetchTabNotifications(def['key'], isRefresh: true);
               }
-              Fluttertoast.showToast(msg: '已全部标为已读');
+              Fluttertoast.showToast(msg: 'notif_marked_all'.tr);
             },
           ),
           const SizedBox(width: 4),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
-          child: Container(
-            color: Colors.white,
+          child: Container(color: AppColors.surface,
             alignment: Alignment.centerLeft,
             child: TabBar(
               controller: _tabController,
@@ -147,7 +147,7 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
               splashFactory: NoSplash.splashFactory,
               overlayColor: WidgetStateProperty.all(Colors.transparent),
               labelColor: _primaryTeal,
-              unselectedLabelColor: const Color(0xFF94A3B8),
+              unselectedLabelColor: AppColors.textHint,
               indicatorColor: _primaryTeal,
               indicatorWeight: 3,
               indicatorSize: TabBarIndicatorSize.label,
@@ -239,7 +239,7 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
 
       return RefreshIndicator(
         color: _primaryTeal,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         onRefresh: () => _controller.fetchTabNotifications(tabKey, isRefresh: true),
         child: NotificationListener<ScrollNotification>(
           onNotification: (ScrollNotification scrollInfo) {
@@ -270,12 +270,12 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
                     );
                   }
                   if (!state.hasMore.value && state.list.length >= 10) {
-                    return const Padding(
+                    return Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: Center(
                         child: Text(
-                          '已加载全部通知',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                          'notif_loaded_all'.tr,
+                          style: TextStyle(fontSize: 11, color: AppColors.textHint),
                         ),
                       ),
                     );
@@ -303,31 +303,31 @@ class _NotificationCenterViewState extends State<NotificationCenterView>
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF1F5F9),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceAlt,
               shape: BoxShape.circle,
             ),
-            child: const HugeIcon(
+            child: HugeIcon(
               icon: HugeIcons.strokeRoundedNotification03,
-              color: Color(0xFF94A3B8),
+              color: AppColors.textHint,
               size: 36,
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            '暂无相关通知',
+          Text(
+            'notif_empty_title'.tr,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF475569),
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            '当有互动动态时，会在此处即时提醒',
+          Text(
+            'notif_empty_sub'.tr,
             style: TextStyle(
               fontSize: 13,
-              color: Color(0xFF94A3B8),
+              color: AppColors.textHint,
             ),
           ),
         ],
@@ -361,7 +361,7 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
     final targetId = target['target_id']?.toString() ?? '';
     final thumbnail = target['thumbnail']?.toString() ?? '';
     final postTitle = target['title']?.toString() ?? '';
-    final category = (target['category']?.toString() ?? '专栏').toUpperCase();
+    final category = (target['category']?.toString() ?? 'im_category_column'.tr).toUpperCase();
 
     final contextData = notif.contextData;
     final isReply = notif.actionType == 'reply_comment';
@@ -371,8 +371,7 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
     final String commentText = contextData['comment_content']?.toString() ?? '';
     final String myOriginalComment = contextData['my_original_comment']?.toString() ?? '';
 
-    return Material(
-      color: Colors.white,
+    return Material(color: AppColors.surface,
       borderRadius: BorderRadius.circular(20),
       elevation: 0,
       child: InkWell(
@@ -393,7 +392,7 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: notif.isRead
-                  ? const Color(0xFFF1F5F9)
+                  ? AppColors.surfaceAlt
                   : widget.primaryTeal.withOpacity(0.25),
               width: notif.isRead ? 0.8 : 1.2,
             ),
@@ -422,16 +421,16 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: notif.isRead ? FontWeight.w600 : FontWeight.w800,
-                            color: const Color(0xFF0F172A),
+                            color: AppColors.textPrimary,
                             height: 1.35,
                           ),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           _formatRelativeTime(notif.updatedAt),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF94A3B8),
+                            color: AppColors.textHint,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -449,16 +448,16 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.surfaceAlt,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.remove_circle_outline_rounded, size: 14, color: Color(0xFF94A3B8)),
+                        Icon(Icons.remove_circle_outline_rounded, size: 14, color: AppColors.textHint),
                         SizedBox(width: 6),
                         Text(
-                          '该评论已被作者删除',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
+                          'notif_comment_deleted'.tr,
+                          style: TextStyle(fontSize: 12, color: AppColors.textHint, fontStyle: FontStyle.italic),
                         ),
                       ],
                     ),
@@ -468,9 +467,9 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                     commentText,
                     maxLines: _isExpanded ? 10 : 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF1E293B),
+                      color: AppColors.textPrimary,
                       height: 1.5,
                       fontWeight: FontWeight.w500,
                     ),
@@ -484,7 +483,7 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 4.0),
                         child: Text(
-                          _isExpanded ? '收起' : '显示更多',
+                          _isExpanded ? 'notif_collapse'.tr : 'notif_expand'.tr,
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: widget.primaryTeal),
                         ),
                       ),
@@ -496,15 +495,15 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: AppColors.background,
                       borderRadius: BorderRadius.circular(10),
                       border: const Border(left: BorderSide(color: Color(0xFF3B82F6), width: 3)),
                     ),
                     child: Text(
-                      '我的评论: $myOriginalComment',
+                      'notif_my_comment'.trParams({'text': myOriginalComment}),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
                     ),
                   ),
                 ],
@@ -516,9 +515,9 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: AppColors.background,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: AppColors.divider),
                   ),
                   child: Row(
                     children: [
@@ -534,7 +533,7 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                               width: 46,
                               height: 46,
                               color: widget.primaryTeal.withOpacity(0.08),
-                              child: const Icon(Icons.article_rounded, color: Color(0xFF2C7B6D), size: 20),
+                              child: Icon(Icons.article_rounded, color: AppColors.primary, size: 20),
                             ),
                           ),
                         )
@@ -546,7 +545,7 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                             color: widget.primaryTeal.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.article_rounded, color: Color(0xFF2C7B6D), size: 20),
+                          child: Icon(Icons.article_rounded, color: AppColors.primary, size: 20),
                         ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -569,12 +568,12 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
                               postTitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Color(0xFF94A3B8)),
+                      Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.textHint),
                     ],
                   ),
                 ),
@@ -589,11 +588,11 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
   String _formatRelativeTime(DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return '刚刚';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}分钟前';
-    if (diff.inHours < 24 && now.day == dt.day) return '${diff.inHours}小时前';
-    if (diff.inDays < 7) return '${diff.inDays}天前';
-    return '${dt.month}月${dt.day}日';
+    if (diff.inMinutes < 1) return 'time_just_now'.tr;
+    if (diff.inMinutes < 60) return 'time_minutes_ago'.trParams({'count': diff.inMinutes});
+    if (diff.inHours < 24 && now.day == dt.day) return 'time_hours_ago'.trParams({'count': diff.inHours});
+    if (diff.inDays < 7) return 'time_days_ago'.trParams({'count': diff.inDays});
+    return 'time_month_day'.trParams({'month': dt.month, 'day': dt.day});
   }
 }
 
@@ -639,8 +638,8 @@ class _InteractiveAvatarStack extends StatelessWidget {
                 errorBuilder: (_, __, ___) => Container(
                   width: 40,
                   height: 40,
-                  color: const Color(0xFFE2E8F0),
-                  child: const HugeIcon(icon: HugeIcons.strokeRoundedUser, size: 20, color: Color(0xFF94A3B8)),
+                  color: AppColors.divider,
+                  child: HugeIcon(icon: HugeIcons.strokeRoundedUser, size: 20, color: AppColors.textHint),
                 ),
               ),
             ),
@@ -704,8 +703,8 @@ class _InteractiveAvatarStack extends StatelessWidget {
                       errorBuilder: (_, __, ___) => Container(
                         width: 34,
                         height: 34,
-                        color: const Color(0xFFE2E8F0),
-                        child: const HugeIcon(icon: HugeIcons.strokeRoundedUser, size: 16, color: Color(0xFF94A3B8)),
+                        color: AppColors.divider,
+                        child: HugeIcon(icon: HugeIcons.strokeRoundedUser, size: 16, color: AppColors.textHint),
                       ),
                     ),
                   ),
@@ -814,14 +813,13 @@ class _ActorsBottomSheet extends StatelessWidget {
       }
 
       final String actionLabel = currentNotif.actionType.contains('like')
-          ? '赞了'
-          : (currentNotif.actionType.contains('collect') ? '收藏了' : '互动了');
+          ? 'notif_action_liked'.tr
+          : (currentNotif.actionType.contains('collect') ? 'notif_action_collected'.tr : 'notif_action_interacted'.tr);
       final String targetTitle =
-          currentNotif.target['title']?.toString() ?? '文章';
+          currentNotif.target['title']?.toString() ?? 'notif_article_fallback'.tr;
 
       return Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         padding: EdgeInsets.only(
@@ -840,7 +838,7 @@ class _ActorsBottomSheet extends StatelessWidget {
                 width: 38,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
+                  color: AppColors.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -871,22 +869,22 @@ class _ActorsBottomSheet extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              '互动用户清单',
+                            Text(
+                              'notif_actors_title'.tr,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
+                                color: AppColors.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '共 ${currentNotif.actorCount} 位用户$actionLabel《$targetTitle》',
+                              'notif_users_action'.trParams({'count': currentNotif.actorCount, 'action': actionLabel, 'target': targetTitle}),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           ],
@@ -896,9 +894,9 @@ class _ActorsBottomSheet extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.close_rounded,
-                    color: Color(0xFF94A3B8),
+                    color: AppColors.textHint,
                     size: 22,
                   ),
                   onPressed: () => Navigator.pop(context),
@@ -906,7 +904,7 @@ class _ActorsBottomSheet extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            Divider(height: 1, color: AppColors.surfaceAlt),
             const SizedBox(height: 8),
 
             // 动态滚动列表（放宽最大高度并解决 ListTile Material 警告）
@@ -919,12 +917,12 @@ class _ActorsBottomSheet extends StatelessWidget {
                 physics: const BouncingScrollPhysics(),
                 itemCount: currentNotif.latestActors.length,
                 separatorBuilder: (_, __) =>
-                const Divider(height: 1, color: Color(0xFFF8FAFC)),
+                Divider(height: 1, color: AppColors.background),
                 itemBuilder: (context, index) {
                   final actor = currentNotif.latestActors[index];
                   final String userId = actor['user_id']?.toString() ?? '';
                   final String nickname =
-                      actor['nickname']?.toString() ?? '用户';
+                      actor['nickname']?.toString() ?? 'user'.tr;
                   final String avatar = actor['avatar']?.toString() ?? '';
 
                   // 🌟 2. 优先提取学者的真实个性签名与简介，不再全部硬编码
@@ -934,8 +932,8 @@ class _ActorsBottomSheet extends StatelessWidget {
                   final String subtitleText = bio.isNotEmpty
                       ? bio
                       : (location.isNotEmpty
-                      ? '现居 $location'
-                      : '与你互动的用户');
+                      ? 'notif_lives_in'.trParams({'location': location})
+                      : 'notif_users_interacted'.tr);
 
                   return Material(
                     color: Colors.transparent, // 🌟 3. 解决 ListTile 依赖 Material 导致的断言报错
@@ -956,11 +954,11 @@ class _ActorsBottomSheet extends StatelessWidget {
                           errorBuilder: (_, __, ___) => Container(
                             width: 42,
                             height: 42,
-                            color: const Color(0xFFE2E8F0),
-                            child: const HugeIcon(
+                            color: AppColors.divider,
+                            child: HugeIcon(
                               icon: HugeIcons.strokeRoundedUser,
                               size: 20,
-                              color: Color(0xFF94A3B8),
+                              color: AppColors.textHint,
                             ),
                           ),
                         ),
@@ -969,19 +967,19 @@ class _ActorsBottomSheet extends StatelessWidget {
                         nickname,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E293B),
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       subtitle: Text(
                         subtitleText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF94A3B8),
+                          color: AppColors.textHint,
                         ),
                       ),
                       trailing: ElevatedButton(
@@ -992,8 +990,8 @@ class _ActorsBottomSheet extends StatelessWidget {
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF1F5F9),
-                          foregroundColor: const Color(0xFF2C7B6D),
+                          backgroundColor: AppColors.surfaceAlt,
+                          foregroundColor: AppColors.primary,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -1003,9 +1001,9 @@ class _ActorsBottomSheet extends StatelessWidget {
                             vertical: 8,
                           ),
                         ),
-                        child: const Text(
-                          '主页',
-                          style: TextStyle(
+                        child: Text(
+                          'notif_profile_btn'.tr,
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
