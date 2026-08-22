@@ -1058,7 +1058,7 @@ class _PublishViewState extends State<PublishView> with TickerProviderStateMixin
                       const SizedBox(width: 10),
                       Text(
                         _videoUploadProgress < 1.0
-                            ? 'publish_uploading_video'.trParams({'percent': (_videoUploadProgress * 100).toInt()})
+                            ? 'publish_uploading_video'.trParams({'percent': (_videoUploadProgress * 100).toInt().toString()})
                             : 'publish_transcoding'.tr,
                         style: TextStyle(
                           fontSize: 12,

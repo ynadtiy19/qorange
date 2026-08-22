@@ -182,10 +182,10 @@ class NotificationCenterController extends GetxController with GetSingleTickerPr
 
   String _regenerateDisplayTitle(String actionType, int count, List<String> names, String targetTitle) {
     if (actionType == 'like_post') {
-      return count > 1 ? 'notif_like_multi'.trParams({'names': names.join(', '), 'count': count}) : 'notif_like_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
+      return count > 1 ? 'notif_like_multi'.trParams({'names': names.join(', '), 'count': count.toString()}) : 'notif_like_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
     }
     if (actionType == 'collect_post') {
-      return count > 1 ? 'notif_collect_multi'.trParams({'names': names.join(', '), 'count': count}) : 'notif_collect_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
+      return count > 1 ? 'notif_collect_multi'.trParams({'names': names.join(', '), 'count': count.toString()}) : 'notif_collect_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
     }
     if (actionType == 'comment_post') return 'notif_comment_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});
     if (actionType == 'reply_comment') return 'notif_reply_one'.trParams({'name': names.firstOrNull ?? 'user'.tr});

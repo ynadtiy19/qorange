@@ -1463,7 +1463,7 @@ class _ReelsSocialOverlayWidgetState extends State<_ReelsSocialOverlayWidget> {
                           border: Border.all(color: Colors.white24),
                         ),
                         child: Text(
-                          'video_index_in_post'.trParams({'index': widget.currentIndex + 1, 'total': widget.totalVideosInPost}),
+                          'video_index_in_post'.trParams({'index': (widget.currentIndex + 1).toString(), 'total': widget.totalVideosInPost.toString()}),
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 10),
                         ),
@@ -1702,7 +1702,7 @@ class _VideoCommentBottomSheetState extends State<_VideoCommentBottomSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'video_discussion'.trParams({'count': _comments.length}),
+                  'video_discussion'.trParams({'count': _comments.length.toString()}),
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w800),
                 ),

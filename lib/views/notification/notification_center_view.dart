@@ -589,10 +589,10 @@ class _NotificationCardItemState extends State<_NotificationCardItem> {
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inMinutes < 1) return 'time_just_now'.tr;
-    if (diff.inMinutes < 60) return 'time_minutes_ago'.trParams({'count': diff.inMinutes});
-    if (diff.inHours < 24 && now.day == dt.day) return 'time_hours_ago'.trParams({'count': diff.inHours});
-    if (diff.inDays < 7) return 'time_days_ago'.trParams({'count': diff.inDays});
-    return 'time_month_day'.trParams({'month': dt.month, 'day': dt.day});
+    if (diff.inMinutes < 60) return 'time_minutes_ago'.trParams({'count': diff.inMinutes.toString()});
+    if (diff.inHours < 24 && now.day == dt.day) return 'time_hours_ago'.trParams({'count': diff.inHours.toString()});
+    if (diff.inDays < 7) return 'time_days_ago'.trParams({'count': diff.inDays.toString()});
+    return 'time_month_day'.trParams({'month': dt.month.toString(), 'day': dt.day.toString()});
   }
 }
 
@@ -879,7 +879,7 @@ class _ActorsBottomSheet extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'notif_users_action'.trParams({'count': currentNotif.actorCount, 'action': actionLabel, 'target': targetTitle}),
+                              'notif_users_action'.trParams({'count': currentNotif.actorCount.toString(), 'action': actionLabel, 'target': targetTitle}),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

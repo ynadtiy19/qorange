@@ -376,7 +376,7 @@ class _ImChatViewState extends State<ImChatView> {
                     children: [
                       if (newCount > 0) ...[
                         Text(
-                          'im_new_messages'.trParams({'count': newCount}),
+                          'im_new_messages'.trParams({'count': newCount.toString()}),
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white),
                         ),
                         const SizedBox(width: 4),
@@ -1042,7 +1042,7 @@ class _ImChatViewState extends State<ImChatView> {
                   Expanded(
                     child: _buildContextMenuButton(
                       icon: Icons.undo_rounded,
-                      label: 'im_revoke'.trParams({'sec': remainSec}),
+                      label: 'im_revoke'.trParams({'sec': remainSec.toString()}),
                       color: const Color(0xFFEF4444),
                       bgColor: const Color(0xFFFEF2F2),
                       onTap: () {

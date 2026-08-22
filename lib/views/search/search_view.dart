@@ -759,7 +759,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
                       Row(
                         children: [
                           Text(
-                            'search_followers_count'.trParams({'count': followersCount}),
+                            'search_followers_count'.trParams({'count': followersCount.toString()}),
                             style: TextStyle(
                               fontSize: 10.5,
                               color: AppColors.textHint,
