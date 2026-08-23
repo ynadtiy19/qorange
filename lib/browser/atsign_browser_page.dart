@@ -1,12 +1,13 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:at_client/at_client.dart';
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../network/secure_storage_manager.dart';
-import 'atsign_proxy_bridge.dart';
 
 class AtsignBrowserPage extends StatefulWidget {
   final String initialUrl;
 
-  // 🌟 移除 userJwtToken 必传参数，支持 const 构造
   const AtsignBrowserPage({
     super.key,
     this.initialUrl = 'https://news.ycombinator.com',
@@ -18,91 +19,106 @@ class AtsignBrowserPage extends StatefulWidget {
 
 class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
   final TextEditingController _urlController = TextEditingController();
-  late final WebViewController _webViewController;
+  InAppWebViewController? _webViewController;
 
   double _progress = 0.0;
   bool _isLoading = false;
   String _currentDisplayUrl = '';
-  int _localProxyPort = 0;
 
   @override
   void initState() {
     super.initState();
     _currentDisplayUrl = widget.initialUrl;
     _urlController.text = widget.initialUrl;
-
-    // 1. 初始化 webview_flutter 控制器及其代理拦截配置
-    _initWebViewController();
-
-    // 2. 启动本地 AtSign 桥接代理服务
-    _initBridge();
   }
 
-  void _initWebViewController() {
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF0F172A))
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (int progress) {
-            setState(() {
-              _progress = progress / 100.0;
-            });
-          },
-          onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-            });
-          },
-          onPageFinished: (String url) {
-            setState(() {
-              _isLoading = false;
-            });
-          },
-          onWebResourceError: (WebResourceError error) {
-            debugPrint('WebView 资源加载异常: ${error.description}');
-          },
-          // 🌟 核心拦截：拦截网页内部的所有点击跳转，强制重新打包送入 AtSign 代理桥
-          onNavigationRequest: (NavigationRequest request) {
-            final uriStr = request.url;
-            // 如果不是请求本机的代理端口，说明是网页内的外部超链接或重定向
-            if (!uriStr.startsWith('http://127.0.0.1')) {
-              _loadUrl(uriStr);
-              return NavigationDecision.prevent; // 阻止直接发起无代理请求
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      );
-  }
-
-  // 🌟 核心改动：直接从 SecureStorageManager 读取有效 Token
-  Future<void> _initBridge() async {
-    final token = await SecureStorageManager.instance.getAccessToken() ?? '';
-
-    final port = await AtsignProxyBridge.start(userJwtToken: token);
-    setState(() {
-      _localProxyPort = port;
-    });
-    _loadUrl(widget.initialUrl);
-  }
-
-  /// 将真实网址封装为本地代理中转 URL
-  void _loadUrl(String rawUrl) {
+  void _navigateToUrl(String rawUrl) {
     String formattedUrl = rawUrl.trim();
     if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
       formattedUrl = 'https://$formattedUrl';
     }
-
     _urlController.text = formattedUrl;
     _currentDisplayUrl = formattedUrl;
+    _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(formattedUrl)));
+  }
 
-    if (_localProxyPort > 0) {
-      final proxiedUri = Uri.parse(
-        'http://127.0.0.1:$_localProxyPort/proxy?url=${Uri.encodeComponent(formattedUrl)}',
-      );
-      _webViewController.loadRequest(proxiedUri);
+  /// 🌟 核心拦截核心：网页里发出的任意主请求、图片、CSS、JS 全部由 Dart 接管走 AtSign
+  Future<WebResourceResponse?> _handleInterceptedRequest(
+      WebResourceRequest request,
+      ) async {
+    final targetUrl = request.url.toString();
+
+    // 忽略非 HTTP/HTTPS 协议（如 data:, blob:, chrome:）
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      return null;
     }
+
+    try {
+      final token = await SecureStorageManager.instance.getAccessToken() ?? '';
+      final atClient = AtClientManager.getInstance().atClient;
+      final rpcClient = AtRpcClient(
+        atClient: atClient,
+        baseNameSpace: 'atsign',
+        domainNameSpace: 'at_rpc_secure_proxy',
+        serverAtsign: '@absolute3140',
+      );
+
+      // 将 WebView 产生的请求封装为 AtSign 加密包
+      final reqPayload = {
+        'version': '1.0',
+        'action': 'HTTP_REQUEST',
+        'session_id': 'sess_${DateTime.now().millisecondsSinceEpoch}',
+        'auth': {'token': token},
+        'payload': {
+          'method': request.method ?? 'GET',
+          'url': targetUrl,
+          'headers': request.headers ?? {},
+          'timeout_ms': 15000,
+        }
+      };
+
+      // 🌟 物理走 AtSign 远端代理获取数据
+      final rpcResponse = await rpcClient.call(reqPayload);
+      final payload = (rpcResponse['payload'] is Map)
+          ? Map<String, dynamic>.from(rpcResponse['payload'] as Map)
+          : Map<String, dynamic>.from(rpcResponse);
+
+      if (payload['proxy_code'] == 0) {
+        final int statusCode = payload['status_code'] ?? 200;
+        final respHeaders = Map<String, String>.from(payload['headers'] ?? {});
+        final String? bodyBase64 = payload['body_base64'];
+
+        if (bodyBase64 != null && bodyBase64.isNotEmpty) {
+          final Uint8List dataBytes = base64Decode(bodyBase64);
+
+          // 提取真实 Content-Type (如 text/html, image/png, text/css)
+          String contentType = respHeaders['content-type'] ?? 'text/html';
+          if (contentType.contains(';')) {
+            contentType = contentType.split(';').first.trim();
+          }
+
+          // 🌟 将代理抓到的资源以原生响应流喂回给 WebView 渲染！
+          return WebResourceResponse(
+            contentType: contentType,
+            contentEncoding: 'utf-8',
+            data: dataBytes,
+            statusCode: statusCode,
+            reasonPhrase: 'OK',
+            headers: respHeaders,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('🔴 [Proxy Intercept Error] 资源 $targetUrl 加载失败: $e');
+    }
+
+    // 失败时返回空响应，防止直连泄漏
+    return WebResourceResponse(
+      contentType: 'text/plain',
+      data: Uint8List(0),
+      statusCode: 502,
+      reasonPhrase: 'Proxy Failed',
+    );
   }
 
   @override
@@ -114,14 +130,11 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // 深空灰底色
+      backgroundColor: const Color(0xFF0F172A),
       body: SafeArea(
         child: Column(
           children: [
-            // 🌟 1. 顶部极客风/Safari 感浮动地址栏
             _buildTopNavigationBar(),
-
-            // 🌟 2. 细线加载进度条 (带有呼吸发光感)
             if (_isLoading)
               LinearProgressIndicator(
                 value: _progress,
@@ -129,19 +142,39 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
                 backgroundColor: Colors.transparent,
                 valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
               ),
-
-            // 🌟 3. 主 WebView 渲染视口
             Expanded(
-              child: _localProxyPort == 0
-                  ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF2C7B6D)),
-              )
-                  : WebViewWidget(
-                controller: _webViewController,
+              child: InAppWebView(
+                initialUrlRequest: URLRequest(url: WebUri(widget.initialUrl)),
+                initialSettings: InAppWebViewSettings(
+                  isInspectable: true,
+                  // 🌟 启用原生网络拦截引擎
+                  useShouldInterceptRequest: true,
+                  mediaPlaybackRequiresUserGesture: false,
+                  allowsInlineMediaPlayback: true,
+                  cacheEnabled: true,
+                ),
+                onWebViewCreated: (controller) => _webViewController = controller,
+                onLoadStart: (controller, url) {
+                  setState(() {
+                    _isLoading = true;
+                    if (url != null) _urlController.text = url.toString();
+                  });
+                },
+                onProgressChanged: (controller, progress) {
+                  setState(() => _progress = progress / 100.0);
+                },
+                onLoadStop: (controller, url) {
+                  setState(() {
+                    _isLoading = false;
+                    if (url != null) _urlController.text = url.toString();
+                  });
+                },
+                // 🌟🌟 核心魔法：拦截 WebView 发起的所有请求并送入 AtSign 🌟🌟
+                shouldInterceptRequest: (controller, request) async {
+                  return await _handleInterceptedRequest(request);
+                },
               ),
             ),
-
-            // 🌟 4. 底部浏览控制坞 (Bottom Action Dock)
             _buildBottomControlDock(),
           ],
         ),
@@ -149,7 +182,6 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
     );
   }
 
-  /// 顶部精美地址栏组件
   Widget _buildTopNavigationBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -159,7 +191,6 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
       ),
       child: Row(
         children: [
-          // E2EE 加密盾牌徽章
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -171,20 +202,11 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
               children: [
                 Icon(Icons.shield_outlined, size: 13, color: Color(0xFF10B981)),
                 SizedBox(width: 4),
-                Text(
-                  'E2EE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF10B981),
-                  ),
-                ),
+                Text('E2EE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
               ],
             ),
           ),
           const SizedBox(width: 10),
-
-          // 核心胶囊地址输入框
           Expanded(
             child: Container(
               height: 40,
@@ -205,13 +227,13 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
                       textInputAction: TextInputAction.go,
                       style: const TextStyle(fontSize: 13, color: Color(0xFFF8FAFC)),
                       decoration: const InputDecoration(
-                        hintText: '输入网址或搜索内容...',
+                        hintText: '输入网址...',
                         hintStyle: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
-                      onSubmitted: (val) => _loadUrl(val),
+                      onSubmitted: (val) => _navigateToUrl(val),
                     ),
                   ),
                   if (_urlController.text.isNotEmpty)
@@ -227,16 +249,8 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
             ),
           ),
           const SizedBox(width: 10),
-
-          // 刷新 / 停止按钮
           InkWell(
-            onTap: () {
-              if (_isLoading) {
-                _webViewController.reload();
-              } else {
-                _loadUrl(_currentDisplayUrl);
-              }
-            },
+            onTap: () => _webViewController?.reload(),
             borderRadius: BorderRadius.circular(20),
             child: Padding(
               padding: const EdgeInsets.all(6),
@@ -252,7 +266,6 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
     );
   }
 
-  /// 底部控制底栏
   Widget _buildBottomControlDock() {
     return Container(
       height: 52,
@@ -268,8 +281,8 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
             color: const Color(0xFF94A3B8),
             onPressed: () async {
-              if (await _webViewController.canGoBack()) {
-                _webViewController.goBack();
+              if (await _webViewController?.canGoBack() ?? false) {
+                _webViewController?.goBack();
               }
             },
           ),
@@ -277,18 +290,16 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
             color: const Color(0xFF94A3B8),
             onPressed: () async {
-              if (await _webViewController.canGoForward()) {
-                _webViewController.goForward();
+              if (await _webViewController?.canGoForward() ?? false) {
+                _webViewController?.goForward();
               }
             },
           ),
-          // 快捷主页
           IconButton(
             icon: const Icon(Icons.home_rounded, size: 22),
             color: const Color(0xFF94A3B8),
-            onPressed: () => _loadUrl(widget.initialUrl),
+            onPressed: () => _navigateToUrl(widget.initialUrl),
           ),
-          // 代理计费与通道状态指示
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
@@ -300,14 +311,7 @@ class _AtsignBrowserPageState extends State<AtsignBrowserPage> {
               children: [
                 Icon(Icons.bolt_rounded, size: 13, color: Color(0xFFF59E0B)),
                 SizedBox(width: 4),
-                Text(
-                  'AtSign Proxy',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFCBD5E1),
-                  ),
-                ),
+                Text('AtSign Proxy', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFCBD5E1))),
               ],
             ),
           ),
