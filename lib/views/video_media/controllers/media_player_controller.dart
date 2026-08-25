@@ -189,21 +189,35 @@ class MediaPlayerController extends GetxController {
         }
       }
 
-      // 2. 提取最高码率直链
+      // 2. 在线流提取：指定 ytClients 模拟 Android/iOS/VR 移动设备，完美绕过机房限制
       final yt = _getYtClient();
-      final manifest = await yt.videos.streamsClient.getManifest(item.id);
+      final StreamManifest manifest = await yt.videos.streams.getManifest(
+        item.id,
+        ytClients: [
+          YoutubeApiClient.android,
+          YoutubeApiClient.ios,
+          YoutubeApiClient.androidVr,
+          YoutubeApiClient.safari,
+        ],
+      );
       yt.close();
 
       if (isVideoMode.value) {
-        final muxedStream = manifest.muxed.withHighestBitrate();
-        final videoUrl = muxedStream.url.toString();
+        // 优先提取有声音的音画合一流，若无则提取最高画质流
+        final videoStream = manifest.muxed.isNotEmpty
+            ? manifest.muxed.withHighestBitrate()
+            : manifest.video.withHighestBitrate();
+        final videoUrl = videoStream.url.toString();
 
         videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
         await videoPlayerController!.initialize();
         _bindVideoListeners();
         videoPlayerController!.play();
       } else {
-        final audioStream = manifest.audioOnly.withHighestBitrate();
+        // 提取最高码率纯音频流
+        final audioStream = manifest.audioOnly.isNotEmpty
+            ? manifest.audioOnly.withHighestBitrate()
+            : manifest.audio.withHighestBitrate();
         final audioUrl = audioStream.url.toString();
 
         await audioPlayer.play(ap.UrlSource(audioUrl));
@@ -265,8 +279,7 @@ class MediaPlayerController extends GetxController {
       audioPlayer.seek(position);
     }
   }
-
-  /// 本地下载管理器
+  /// 🌟 本地下载管理器（同步加入 ytClients 移动端伪装）
   Future<void> downloadMediaToLocal(MediaItemModel item, {bool downloadVideo = false}) async {
     if (item.isDownloaded.value) {
       Fluttertoast.showToast(msg: "该内容已保存在本地设备");
@@ -301,10 +314,22 @@ class MediaPlayerController extends GetxController {
 
       fileSink = targetFile.openWrite();
 
-      final manifest = await yt.videos.streamsClient.getManifest(item.id);
-      final streamInfo = downloadVideo ? manifest.muxed.withHighestBitrate() : manifest.audioOnly.withHighestBitrate();
-      final stream = yt.videos.streamsClient.get(streamInfo);
+      // 🌟 加入 ytClients 移动端模拟
+      final StreamManifest manifest = await yt.videos.streams.getManifest(
+        item.id,
+        ytClients: [
+          YoutubeApiClient.android,
+          YoutubeApiClient.ios,
+          YoutubeApiClient.androidVr,
+          YoutubeApiClient.safari,
+        ],
+      );
 
+      final streamInfo = downloadVideo
+          ? (manifest.muxed.isNotEmpty ? manifest.muxed.withHighestBitrate() : manifest.video.withHighestBitrate())
+          : (manifest.audioOnly.isNotEmpty ? manifest.audioOnly.withHighestBitrate() : manifest.audio.withHighestBitrate());
+
+      final stream = yt.videos.streams.get(streamInfo);
       final totalBytes = streamInfo.size.totalBytes;
       int receivedBytes = 0;
 
