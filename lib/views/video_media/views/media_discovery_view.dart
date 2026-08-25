@@ -381,7 +381,9 @@ class MediaDiscoveryView extends StatelessWidget {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                '${_formatCount(item.viewsCount)} 播放 · ${item.uploadDate}',
+                                item.viewsCount > 0
+                                    ? '${_formatCount(item.viewsCount)} 播放 · ${item.uploadDate}'
+                                    : '🔥 ${item.uploadDate}',
                                 style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
                               ),
                             ],

@@ -95,14 +95,15 @@ class MediaPlayerController extends GetxController {
     loadCategoryFeeds(chip['query']!);
   }
 
-  /// 依据关键词拉取内容
+  /// 🌟 依据分类或关键词拉取内容
   Future<void> loadCategoryFeeds(String query) async {
     isLoading.value = true;
     try {
-      final searchResults = await _yt.search.getVideos(query);
+      // 🌟 使用 var 或 VideoSearchList 接收返回值
+      final VideoSearchList searchResults = await _yt.search.search(query);
       final List<MediaItemModel> items = [];
 
-      for (var video in searchResults.take(18)) {
+      for (final Video video in searchResults.take(18)) {
         items.add(MediaItemModel.fromYoutubeVideo(video));
       }
 
@@ -115,22 +116,28 @@ class MediaPlayerController extends GetxController {
     }
   }
 
-  /// 搜索框提交强搜索
+  /// 🌟 搜索框提交强搜索
   Future<void> searchMedia(String keyword) async {
     if (keyword.trim().isEmpty) return;
     HapticFeedback.lightImpact();
     isSearching.value = true;
     isLoading.value = true;
     try {
-      final searchResults = await _yt.search.getVideos(keyword.trim());
-      mediaList.assignAll(searchResults.map((v) => MediaItemModel.fromYoutubeVideo(v)).toList());
+      final VideoSearchList searchResults = await _yt.search.search(keyword.trim());
+      final List<MediaItemModel> items = [];
+
+      for (final Video video in searchResults) {
+        items.add(MediaItemModel.fromYoutubeVideo(video));
+      }
+
+      mediaList.assignAll(items);
     } catch (e) {
+      debugPrint("❌ [Media] 搜索异常: $e");
       Fluttertoast.showToast(msg: "搜索异常: $e");
     } finally {
       isLoading.value = false;
     }
   }
-
   /// 🌟 播放媒体（支持本地离线秒开 & 在线流解析）
   Future<void> playMedia(MediaItemModel item, {bool asVideo = false}) async {
     currentPlaying.value = item;

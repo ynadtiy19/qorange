@@ -1,5 +1,6 @@
 // lib/views/video_media/models/media_item_model.dart
 import 'package:get/get.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 class MediaItemModel {
   final String id;
@@ -36,7 +37,27 @@ class MediaItemModel {
     }
   }
 
-  factory MediaItemModel.fromYoutubeVideo(dynamic video) {
+  /// 🌟 完美适配 SearchVideo 实体（修复 views 属性报错）
+  factory MediaItemModel.fromSearchVideo(SearchVideo video) {
+    // 安全提取高清封面
+    final String thumb = video.thumbnails.isNotEmpty
+        ? video.thumbnails.last.url.toString()
+        : 'https://img.youtube.com/vi/${video.id.value}/hqdefault.jpg';
+
+    return MediaItemModel(
+      id: video.id.value,
+      title: video.title,
+      author: video.author,
+      duration: video.duration?.toString() ?? '03:45',
+      thumbnailUrl: thumb,
+      viewsCount: 0, // 🌟 修复：SearchVideo 实体无 views 属性，默认设为 0
+      uploadDate: video.uploadDate ?? '热门推荐',
+      description: video.description,
+    );
+  }
+
+  /// 兼容旧版 Video 实体
+  factory MediaItemModel.fromYoutubeVideo(Video video) {
     final dur = video.duration;
     final minutes = dur != null ? (dur.inMinutes).toString().padLeft(2, '0') : '00';
     final seconds = dur != null ? (dur.inSeconds % 60).toString().padLeft(2, '0') : '00';
