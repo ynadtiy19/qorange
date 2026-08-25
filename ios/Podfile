@@ -1,7 +1,7 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+# 1. 强制要求最低 iOS 14.0（满足 inappwebview 与 audioplayers 的最低版本要求）
+platform :ios, '14.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+# 禁用 CocoaPods 统计警告
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
@@ -28,7 +28,9 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
+  # 🌟 必须开启：支持 Swift 与 Flutter 原生动态插件
   use_frameworks!
+  use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
@@ -39,5 +41,13 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      # 🌟 1. 禁用 Xcode 15/16 脚本沙盒限制
+      config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+      # 🌟 2. 统一所有子插件的最低 iOS 版本为 14.0
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+      # 🌟 3. 解决 Apple Silicon 模拟器架构冲突
+      config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+    end
   end
 end

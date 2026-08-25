@@ -1,4 +1,5 @@
-// lib/views/main/main_nav_view.dart
+// 替换 lib/views/main/main_nav_view.dart 文件
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -12,6 +13,7 @@ import '../im/im_conversation_list_view.dart';
 import '../login/login_view.dart';
 import '../profile/profile_view.dart';
 import '../shop/shop_view.dart';
+import '../video_media/views/media_discovery_view.dart'; // 🌟 引入影音大厅
 
 class MainNavView extends StatefulWidget {
   const MainNavView({super.key});
@@ -25,11 +27,12 @@ class _MainNavViewState extends State<MainNavView> {
   Worker? _navUserWorker;
 
   final List<Widget> _pages = [
-    const HomeView(),
-    const CommunityDiscoveryView(),
-    const ImConversationListView(),
-    const ShopView(),
-    const ProfileView(),
+    const HomeView(),                 // 0. 首页观点
+    const MediaDiscoveryView(),       // 1. 🌟 影音探索与播放大厅
+    const CommunityDiscoveryView(),   // 2. 社群圈子
+    const ImConversationListView(),   // 3. 消息通讯
+    const ShopView(),                 // 4. 商店
+    const ProfileView(),              // 5. 个人主页
   ];
 
   @override
@@ -37,11 +40,8 @@ class _MainNavViewState extends State<MainNavView> {
     super.initState();
     Get.put(ImConversationController());
 
-    // 🌟 用户状态变动时安全重置导航栏索引到首页或个人中心
     _navUserWorker = ever(UserController.to.user, (user) {
-      if (mounted) {
-        setState(() {});
-      }
+      if (mounted) setState(() {});
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,8 +56,8 @@ class _MainNavViewState extends State<MainNavView> {
   }
 
   void _onTap(int index) async {
-    // 对【消息（索引 2）】与【我的（索引 4）】进行登录拦截保护
-    if (index == 2 || index == 4) {
+    // 拦截【消息（索引 3）】与【我的（索引 5）】
+    if (index == 3 || index == 5) {
       if (!UserController.to.isLoggedIn) {
         final bool? loggedIn = await Get.to<bool>(
               () => const LoginView(),
@@ -65,17 +65,13 @@ class _MainNavViewState extends State<MainNavView> {
         );
 
         if (loggedIn == true && mounted) {
-          setState(() {
-            _currentIndex = index;
-          });
+          setState(() => _currentIndex = index);
         }
         return;
       }
     }
     if (mounted) {
-      setState(() {
-        _currentIndex = index;
-      });
+      setState(() => _currentIndex = index);
     }
   }
 
@@ -105,35 +101,28 @@ class _MainNavViewState extends State<MainNavView> {
           showUnselectedLabels: true,
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 11,
+            fontSize: 10,
           ),
           unselectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w500,
-            fontSize: 11,
+            fontSize: 10,
           ),
           elevation: 0,
           type: BottomNavigationBarType.fixed,
           items: [
             BottomNavigationBarItem(
-              icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedHome01,
-                color: Colors.grey.shade400,
-              ),
-              activeIcon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedHome01,
-                color: themeColor,
-              ),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedHome01, color: Colors.grey),
+              activeIcon: const HugeIcon(icon: HugeIcons.strokeRoundedHome01, color: themeColor),
               label: 'nav_home'.tr,
             ),
             BottomNavigationBarItem(
-              icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedUserGroup,
-                color: Colors.grey.shade400,
-              ),
-              activeIcon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedUserGroup,
-                color: themeColor,
-              ),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedPlayList, color: Colors.grey),
+              activeIcon: const HugeIcon(icon: HugeIcons.strokeRoundedPlayList, color: themeColor),
+              label: '视频',
+            ),
+            BottomNavigationBarItem(
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: Colors.grey),
+              activeIcon: const HugeIcon(icon: HugeIcons.strokeRoundedUserGroup, color: themeColor),
               label: 'nav_community'.tr,
             ),
             BottomNavigationBarItem(
@@ -150,25 +139,13 @@ class _MainNavViewState extends State<MainNavView> {
               label: '消息',
             ),
             BottomNavigationBarItem(
-              icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedShoppingBag01,
-                color: Colors.grey.shade400,
-              ),
-              activeIcon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedShoppingBag01,
-                color: themeColor,
-              ),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedShoppingBag01, color: Colors.grey),
+              activeIcon: const HugeIcon(icon: HugeIcons.strokeRoundedShoppingBag01, color: themeColor),
               label: 'nav_shop'.tr,
             ),
             BottomNavigationBarItem(
-              icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedUser,
-                color: Colors.grey.shade400,
-              ),
-              activeIcon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedUser,
-                color: themeColor,
-              ),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedUser, color: Colors.grey),
+              activeIcon: const HugeIcon(icon: HugeIcons.strokeRoundedUser, color: themeColor),
               label: 'nav_profile'.tr,
             ),
           ],

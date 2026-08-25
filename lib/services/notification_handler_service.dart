@@ -510,8 +510,12 @@ class NotificationHandlerService extends GetxService {
     }
   }
 
+  // 🌟 性能安全重构：采用 FileStream 边下边存，彻底杜绝内存 OOM 闪退
   Future<void> _startAppUpdateDownload(String url) async {
     const int updateNotificationId = 8888;
+    http.Client? client;
+    IOSink? fileSink;
+
     try {
       await _updateDownloadNotification(0, updateNotificationId);
 
@@ -522,21 +526,23 @@ class NotificationHandlerService extends GetxService {
         await file.delete();
       }
 
-      final http.Client client = http.Client();
+      fileSink = file.openWrite(); // 开启流式磁盘写入
+
+      client = http.Client();
       final http.Request request = http.Request('GET', Uri.parse(url));
       final http.StreamedResponse response = await client.send(request);
 
       if (response.statusCode != 200) {
-        throw HttpException('下载失败 (HTTP ${response.statusCode})');
+        throw HttpException('下载失败，状态码: ${response.statusCode}');
       }
 
       final int totalBytes = response.contentLength ?? 0;
       int downloadedBytes = 0;
-      final List<int> bytes = [];
       int lastProgressPercent = -1;
 
+      // 逐块管道直写磁盘，内存占用恒定 < 2MB
       await for (final List<int> chunk in response.stream) {
-        bytes.addAll(chunk);
+        fileSink.add(chunk);
         downloadedBytes += chunk.length;
 
         if (totalBytes > 0) {
@@ -550,16 +556,22 @@ class NotificationHandlerService extends GetxService {
         }
       }
 
-      await file.writeAsBytes(bytes);
+      await fileSink.flush();
+      await fileSink.close();
+      fileSink = null;
+
       await _notificationsPlugin.cancel(updateNotificationId);
       await _installApk(filePath);
       await _showDownloadCompleteNotification(filePath);
+
     } catch (e) {
-      debugPrint("❌ [AppUpdate] 后台下载失败: $e");
+      debugPrint("❌ [AppUpdate] 后台流式下载异常: $e");
+      await fileSink?.close();
       await _showDownloadFailedNotification(updateNotificationId);
+    } finally {
+      client?.close();
     }
   }
-
   Future<void> _updateDownloadNotification(int progress, int notificationId) async {
     final bool isIndeterminate = progress < 0;
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(

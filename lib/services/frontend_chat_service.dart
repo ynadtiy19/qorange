@@ -19,6 +19,7 @@ import '../../controllers/im_chat_controller.dart';
 import '../../controllers/im_conversation_controller.dart';
 import '../../controllers/notification_center_controller.dart';
 import '../../user_controller.dart';
+import '../network/app_ssh_tunnel_service.dart';
 import 'notification_handler_service.dart';
 
 class FrontendChatService extends GetxService {
@@ -111,6 +112,10 @@ class FrontendChatService extends GetxService {
         debugPrint("✅ [Frontend] 公共通道认证成功");
         _atClient = AtClientManager.getInstance().atClient;
         _startFrontendMonitor(_atClient!);
+
+        // 🌟🌟 核心新增：认证成功后在后台自动打通零端口 SSH SOCKS5 动态隧道 🌟🌟
+        final tunnelService = Get.put(AppSshTunnelService(), permanent: true);
+        await tunnelService.startTunnel(_atClient!);
       }
     } catch (e) {
       debugPrint("AtSign Auth Error: $e");
