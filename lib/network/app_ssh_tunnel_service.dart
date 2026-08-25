@@ -8,8 +8,6 @@ import 'package:noports_core/npt.dart';
 
 import 'app_http_overrides.dart';
 import 'http_proxy_server.dart';
-import 'socks5_server.dart';
-
 class AppSshTunnelService extends GetxService {
   static AppSshTunnelService get to => Get.find<AppSshTunnelService>();
 
