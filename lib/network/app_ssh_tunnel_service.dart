@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:noports_core/npt.dart';
 
 import 'app_http_overrides.dart';
+import 'http_proxy_server.dart';
 import 'socks5_server.dart';
 
 class AppSshTunnelService extends GetxService {
@@ -23,7 +24,7 @@ class AppSshTunnelService extends GetxService {
 
   Npt? _npt;
   SSHClient? _sshClient;
-  Socks5Server? _socks5Server;
+  HttpProxyServer? _proxyServer;
 
   /// 动态寻找未占用端口
   Future<int> _findFreePort() async {
@@ -116,15 +117,15 @@ class AppSshTunnelService extends GetxService {
 
       // 🌟 4. 启动应用内本地 SOCKS5 代理
       if (_sshClient != null) {
-        _socks5Server = Socks5Server(sshClient: _sshClient!);
-        final int socksPort = await _socks5Server!.start();
-        currentSocks5Port.value = socksPort;
+        _proxyServer = HttpProxyServer(sshClient: _sshClient!);
+        final int proxyPort = await _proxyServer!.start();
+        currentSocks5Port.value = proxyPort;
 
-        // 挂载全局网络拦截
-        HttpOverrides.global = AppHttpOverrides(socksPort: socksPort);
+        // 🌟 4. 挂载全局网络拦截
+        HttpOverrides.global = AppHttpOverrides(proxyPort: proxyPort);
         isTunnelActive.value = true;
 
-        debugPrint("🎉 [AppSshTunnel] 全局安全隧道已就绪 (SOCKS5 端口: $socksPort)！所有海外媒体/YouTube请求将无感代理！");
+        debugPrint("🎉 [AppSshTunnel] 全局安全隧道已就绪 (代理端口: 127.0.0.1:$proxyPort)！所有海外媒体/YouTube请求将无感代理！");
         return true;
       }
       return false;
@@ -137,8 +138,8 @@ class AppSshTunnelService extends GetxService {
   /// 关闭并释放隧道
   Future<void> stopTunnel() async {
     HttpOverrides.global = null;
-    await _socks5Server?.stop();
-    _socks5Server = null;
+    await _proxyServer?.stop();
+    _proxyServer = null;
 
     _sshClient?.close();
     _sshClient = null;
