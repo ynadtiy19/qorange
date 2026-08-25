@@ -10,8 +10,8 @@ class AppHttpOverrides extends HttpOverrides {
   HttpClient createHttpClient(SecurityContext? context) {
     return super.createHttpClient(context)
       ..findProxy = (uri) {
-        // 🌟 核心：Dart 原生标准的 HTTP/HTTPS 代理语法，100% 强制拦截所有请求走隧道！
-        return "PROXY 127.0.0.1:$proxyPort; DIRECT";
+        // 🌟 强制走本地代理隧道，不给任何直连泄露的机会
+        return "PROXY 127.0.0.1:$proxyPort";
       }
       ..badCertificateCallback = (cert, host, port) => true;
   }
