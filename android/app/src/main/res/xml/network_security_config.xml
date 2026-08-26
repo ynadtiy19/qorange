@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- 🌟 核心：必须使用 base-config 才能对 127.0.0.1 纯 IP 明文生效 -->
+    <!-- 1. 全局明文放行：支持所有纯数字 IP (包含 127.0.0.1) -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
             <certificates src="user" />
         </trust-anchors>
     </base-config>
+
+    <!-- 2. 域名白名单：明确放行 localhost -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
 </network-security-config>

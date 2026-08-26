@@ -12,7 +12,7 @@ class YouTubeListPage extends StatelessWidget {
     final controller = Get.put(YouTubeListController());
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBF7), // 清亮晨曦米白
+      backgroundColor: const Color(0xFFFBFBF7),
       body: SafeArea(
         child: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) => [
@@ -27,13 +27,13 @@ class YouTubeListPage extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF1D6), // 柔和淡黄色容器
+                      color: const Color(0xFFFFF1D6),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFFFE5A3)),
                     ),
                     child: const Icon(
                       Icons.play_circle_filled_rounded,
-                      color: Color(0xFFE59819), // 暖蜂蜜金图标
+                      color: Color(0xFFE59819),
                       size: 22,
                     ),
                   ),
@@ -66,7 +66,6 @@ class YouTubeListPage extends StatelessWidget {
                 preferredSize: const Size.fromHeight(122),
                 child: Column(
                   children: [
-                    // 1. 简约纯白淡黄色搜索框
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       child: Material(
@@ -125,8 +124,6 @@ class YouTubeListPage extends StatelessWidget {
                         ),
                       ),
                     ),
-
-                    // 2. 淡黄色滑动胶囊标签
                     SizedBox(
                       height: 52,
                       child: ListView.separated(
@@ -251,13 +248,13 @@ class _CleanVideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 🌟 核心：使用本地流媒体中继构建安全链接，杜绝转圈
+    // 🌟 核心：无论图片来自 YouTube 还是 IPFS (ipfs.dweb.link)，全部走本地流中继
     final proxiedThumbUrl = LocalMediaProxyServer.instance.buildPlayUrl(video.thumbnail);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white, // 纯白卡片底
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFECE6D8)),
         boxShadow: [
@@ -278,7 +275,6 @@ class _CleanVideoCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 封面图与时长标签
               Stack(
                 children: [
                   AspectRatio(
@@ -329,8 +325,6 @@ class _CleanVideoCard extends StatelessWidget {
                   ),
                 ],
               ),
-
-              // 标题与作者
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Row(

@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:at_client/at_client.dart';
 import 'package:dartssh2/dartssh2.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:noports_core/npt.dart';
@@ -23,6 +26,7 @@ class AppSshTunnelService extends GetxService {
   Npt? _npt;
   SSHClient? _sshClient;
   SSHDynamicForward? _dynamicForward;
+  Timer? _heartbeatTimer;
 
   void _showToast(String msg, Color bgColor, {Toast length = Toast.LENGTH_SHORT}) {
     Fluttertoast.cancel();
@@ -36,7 +40,17 @@ class AppSshTunnelService extends GetxService {
     );
   }
 
-  /// 🌟 启动与 Mac 终端 -D 100% 一致的标准 SOCKS5 隧道
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      if (isTunnelActive.value && _sshClient != null) {
+        try {
+          await _sshClient?.ping();
+        } catch (_) {}
+      }
+    });
+  }
+
   Future<bool> startTunnel(AtClient atClient) async {
     if (isTunnelActive.value) return true;
 
@@ -81,7 +95,6 @@ class AppSshTunnelService extends GetxService {
         throw Exception("未获取到有效的本地端口");
       }
 
-      // 1. 连接 SSH
       SSHSocket? sshSocket;
       for (int attempt = 1; attempt <= 6; attempt++) {
         try {
@@ -108,7 +121,6 @@ class AppSshTunnelService extends GetxService {
       await _sshClient?.authenticated;
       debugPrint("✅ [AppSshTunnel] SSH 鉴权成功！");
 
-      // 🌟 2. 开启 dartssh2 内置的 RFC 标准 SOCKS5 端口
       _dynamicForward = await _sshClient!.forwardDynamic(
         bindHost: '127.0.0.1',
         bindPort: 0,
@@ -116,16 +128,35 @@ class AppSshTunnelService extends GetxService {
 
       final int socksPort = _dynamicForward!.port;
       currentSocks5Port.value = socksPort;
-      debugPrint("🚀 [AppSshTunnel] 原生 SOCKS5 代理已就绪: 127.0.0.1:$socksPort");
+      debugPrint("🚀 [AppSshTunnel] SOCKS5 代理已启动: 127.0.0.1:$socksPort");
 
-      // 🌟 3. 使用 socks5_proxy 接管全局 Dart 网络
+      // 🌟 注入原生 WebView SOCKS5 代理（全量接管 Chromium 网络）
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final isSupported = await WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE);
+        if (isSupported) {
+          final proxyController = ProxyController.instance();
+          await proxyController.setProxyOverride(
+            settings: ProxySettings(
+              proxyRules: [
+                ProxyRule(url: "socks5://127.0.0.1:$socksPort"),
+              ],
+              bypassRules: [],
+            ),
+          );
+          debugPrint("🌐 [AppSshTunnel] Android WebView 代理注入成功！");
+        }
+      }
+
       HttpOverrides.global = AppHttpOverrides(socks5Port: socksPort);
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
 
-      // 🌟 4. 启动本地媒体中继
       await LocalMediaProxyServer.instance.start();
 
       isTunnelActive.value = true;
-      _showToast("✅ SOCKS5 极速隧道已就绪！", const Color(0xFF2E7D32), length: Toast.LENGTH_LONG);
+      _startHeartbeat();
+
+      _showToast("✅ 全端 SOCKS5 隧道已就绪！", const Color(0xFF2E7D32), length: Toast.LENGTH_LONG);
       return true;
     } catch (e, stackTrace) {
       debugPrint("❌ [AppSshTunnel] 启动失败: $e\n$stackTrace");
@@ -135,9 +166,20 @@ class AppSshTunnelService extends GetxService {
     }
   }
 
-  /// 关闭并释放隧道
   Future<void> stopTunnel() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+
     HttpOverrides.global = null;
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final isSupported = await WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE);
+        if (isSupported) {
+          await ProxyController.instance().clearProxyOverride();
+        }
+      } catch (_) {}
+    }
 
     _dynamicForward?.close();
     _dynamicForward = null;
