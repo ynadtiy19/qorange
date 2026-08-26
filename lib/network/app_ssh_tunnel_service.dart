@@ -1,14 +1,12 @@
 // lib/network/app_ssh_tunnel_service.dart
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:at_client/at_client.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_v2ray_client/flutter_v2ray.dart';
 import 'package:get/get.dart';
 import 'package:noports_core/npt.dart';
 
+import 'app_http_overrides.dart';
 import 'http_proxy_server.dart';
 
 class AppSshTunnelService extends GetxService {
@@ -18,58 +16,39 @@ class AppSshTunnelService extends GetxService {
   static const String remoteDeviceAtsign = '@absolute3140';
   static const String deviceName = 'zeabur';
   static const String srvdAtsign = '@rv_am';
-  static const int remoteSshPort = 22;
+  static const int remoteSshPort = 22; // 容器内默认 SSH 端口
 
   final RxBool isTunnelActive = false.obs;
-  final RxBool isVpnConnected = false.obs;
   final RxInt currentSocks5Port = 0.obs;
-  final Rx<V2RayStatus> v2rayStatus = V2RayStatus().obs;
 
   Npt? _npt;
   SSHClient? _sshClient;
   HttpProxyServer? _proxyServer;
 
-  // 🌟 声明 flutter_v2ray_client 核心实例
-  late final V2ray _v2ray = V2ray(
-    onStatusChanged: (status) {
-      v2rayStatus.value = status;
-      isVpnConnected.value = status.state == 'CONNECTED';
-      debugPrint("🛡️ [V2Ray VPN] 状态更新: ${status.state} (上行: ${status.uploadSpeed} | 下行: ${status.downloadSpeed})");
-    },
-  );
-
-  @override
-  void onInit() {
-    super.onInit();
-    // 初始化 V2Ray 核心与通知栏图标
-    _v2ray
-        .initialize(
-      notificationIconResourceType: "mipmap",
-      notificationIconResourceName: "ic_launcher",
-    )
-        .then((_) async {
-      final version = await _v2ray.getCoreVersion();
-      debugPrint("✅ [V2Ray Core] 初始化完成，核心版本: $version");
-    })
-        .catchError((e) {
-      debugPrint("⚠️ [V2Ray Core] 初始化异常: $e");
-    });
+  /// 动态寻找未占用端口
+  Future<int> _findFreePort() async {
+    final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final freePort = socket.port;
+    await socket.close();
+    return freePort;
   }
 
-  /// 🌟 启动 SSH 动态隧道并自动开启底层 VPN 网卡接管全流量
+  /// 🌟 启动 SSH 动态隧道（全流程空安全加固版）
   Future<bool> startTunnel(AtClient atClient) async {
-    if (isTunnelActive.value && isVpnConnected.value) return true;
+    if (isTunnelActive.value) return true;
 
     try {
+      // 🌟 1. 彻底防空：安全提取 clientAtSign，若为空则自动回退为 @gemini2banana
       final String clientSign = atClient.getCurrentAtSign() ?? '@gemini2banana';
-      debugPrint("🚀 [AppSshTunnel] 正在向 $remoteDeviceAtsign:$remoteSshPort 发起 Atsign 隧道握手 (客户端: $clientSign)...");
+
+      debugPrint("🚀 [AppSshTunnel] 正在向 $remoteDeviceAtsign:$remoteSshPort 发起 Atsign 加密隧道握手 (客户端: $clientSign)...");
 
       final nptParams = NptParams(
         clientAtSign: clientSign,
         sshnpdAtSign: remoteDeviceAtsign,
         srvdAtSign: srvdAtsign,
         device: deviceName,
-        localPort: 0,
+        localPort: 0, // 0 代表让系统自动分配空闲端口
         remotePort: remoteSshPort,
         remoteHost: 'localhost',
         localHost: '127.0.0.1',
@@ -79,6 +58,8 @@ class AppSshTunnelService extends GetxService {
       );
 
       _npt = Npt.create(params: nptParams, atClient: atClient);
+
+      // 🌟 2. 安全执行隧道并在空安全下解析端口
       final dynamic runResult = await _npt?.run();
 
       int actualPort = 0;
@@ -90,6 +71,7 @@ class AppSshTunnelService extends GetxService {
         } catch (_) {}
       }
 
+      // 如果依然没拿到端口，尝试从 _npt 属性读取
       if (actualPort <= 0 && _npt != null) {
         try {
           actualPort = (_npt as dynamic).port ?? (_npt as dynamic).localPort ?? 0;
@@ -97,125 +79,65 @@ class AppSshTunnelService extends GetxService {
       }
 
       if (actualPort <= 0) {
-        throw Exception("未能从 Atsign Npt 获取到有效的本地监听端口");
+        throw Exception("未能从 Atsign Npt 获取到有效的本地监听端口 (runResult: $runResult)");
       }
 
-      debugPrint("🔑 [AppSshTunnel] Atsign 隧道建立成功！监听端口: 127.0.0.1:$actualPort，正在建立 SSH 连接...");
+      debugPrint("🔑 [AppSshTunnel] Atsign 隧道已打通！真实监听端口: $actualPort，正在进行 SSH 免密/密码鉴权握手...");
 
-      // 连接本地 SSH Socket
+      // 🌟 3. 安全连接 SSH（带平滑重试）
       SSHSocket? sshSocket;
       for (int attempt = 1; attempt <= 6; attempt++) {
         try {
           await Future.delayed(Duration(milliseconds: attempt == 1 ? 500 : 800));
-          sshSocket = await SSHSocket.connect('127.0.0.1', actualPort, timeout: const Duration(seconds: 5));
+          sshSocket = await SSHSocket.connect(
+            '127.0.0.1',
+            actualPort,
+            timeout: const Duration(seconds: 5),
+          );
           break;
         } catch (e) {
+          debugPrint("⏳ [AppSshTunnel] 等待 127.0.0.1:$actualPort 就绪 (尝试 $attempt/6)...");
           if (attempt == 6) rethrow;
         }
       }
 
+      if (sshSocket == null) {
+        throw Exception("SSH 套接字连接失败");
+      }
+
       _sshClient = SSHClient(
-        sshSocket!,
+        sshSocket,
         username: 'root',
         onPasswordRequest: () => 'noports123',
       );
-      await _sshClient?.authenticated;
 
+      await _sshClient?.authenticated;
+      debugPrint("✅ [AppSshTunnel] SSH 鉴权成功！");
+
+      // 🌟 4. 启动应用内本地 SOCKS5 代理
       if (_sshClient != null) {
         _proxyServer = HttpProxyServer(sshClient: _sshClient!);
         final int proxyPort = await _proxyServer!.start();
         currentSocks5Port.value = proxyPort;
+
+        // 🌟 5. 挂载全局网络代理拦截（由 AppHttpOverrides 精准按白名单分流）
+        HttpOverrides.global = AppHttpOverrides(proxyPort: proxyPort);
         isTunnelActive.value = true;
 
-        debugPrint("🎉 [AppSshTunnel] SSH 代理已就绪 (127.0.0.1:$proxyPort)，正在启动 flutter_v2ray_client VPN 全局接管...");
-
-        // 🌟 自动启动系统级 VPN，将全 App 原生流量导入 127.0.0.1:$proxyPort
-        await _startVpnService(proxyPort);
-
+        debugPrint("🎉 [AppSshTunnel] 全局安全隧道已就绪 (代理端口: 127.0.0.1:$proxyPort)！所有海外媒体/YouTube请求将无感代理！");
         return true;
       }
       return false;
     } catch (e, stackTrace) {
-      debugPrint("❌ [AppSshTunnel] 隧道/VPN启动失败: $e\n$stackTrace");
+      debugPrint("❌ [AppSshTunnel] 隧道启动失败: $e\n$stackTrace");
       await stopTunnel();
       return false;
     }
   }
 
-  /// 🌟 将 V2Ray 出口对准本地 SSH 代理端口并启动 TUN 网卡
-  Future<void> _startVpnService(int proxyPort) async {
-    try {
-      final hasPermission = await _v2ray.requestPermission();
-      if (!hasPermission) {
-        debugPrint("⚠️ [V2Ray VPN] 用户拒绝了 VPN 授权申请");
-        return;
-      }
-
-      // 构造将全局流量导入 127.0.0.1:$proxyPort 的标准 V2Ray 路由配置
-      final Map<String, dynamic> configJson = {
-        "log": {"loglevel": "warning"},
-        "inbounds": [
-          {
-            "tag": "socks-in",
-            "port": 10808,
-            "listen": "127.0.0.1",
-            "protocol": "socks",
-            "settings": {"auth": "noauth", "udp": true},
-            "sniffing": {
-              "enabled": true,
-              "destOverride": ["http", "tls"]
-            }
-          }
-        ],
-        "outbounds": [
-          {
-            "tag": "proxy",
-            "protocol": "http", // HttpProxyServer 接收 HTTP/CONNECT 流量
-            "settings": {
-              "servers": [
-                {
-                  "address": "127.0.0.1",
-                  "port": proxyPort
-                }
-              ]
-            }
-          },
-          {
-            "tag": "direct",
-            "protocol": "freedom"
-          }
-        ],
-        "routing": {
-          "domainStrategy": "AsIs",
-          "rules": [
-            {
-              "type": "field",
-              "outboundTag": "proxy",
-              "network": "tcp,udp"
-            }
-          ]
-        }
-      };
-
-      await _v2ray.startV2Ray(
-        remark: "QOrange Global Stream Tunnel",
-        config: jsonEncode(configJson),
-        proxyOnly: false, // 🌟 false 代表开启系统级 VPN 模式（全 App 原生接管）
-        notificationDisconnectButtonName: "DISCONNECT",
-      );
-
-      debugPrint("🚀 [V2Ray VPN] 系统 VPN 网卡已启动！所有原生 ExoPlayer/AVPlayer/WebView 均已无感出海！");
-    } catch (e) {
-      debugPrint("🔴 [V2Ray VPN] 启动异常: $e");
-    }
-  }
-
-  /// 关闭并释放隧道与 VPN 网卡
+  /// 关闭并释放隧道
   Future<void> stopTunnel() async {
-    try {
-      await _v2ray.stopV2Ray();
-    } catch (_) {}
-
+    HttpOverrides.global = null;
     await _proxyServer?.stop();
     _proxyServer = null;
 
@@ -226,9 +148,8 @@ class AppSshTunnelService extends GetxService {
     _npt = null;
 
     isTunnelActive.value = false;
-    isVpnConnected.value = false;
     currentSocks5Port.value = 0;
-    debugPrint("🔌 [AppSshTunnel] 隧道与 V2Ray VPN 已安全关闭");
+    debugPrint("🔌 [AppSshTunnel] 隧道已彻底关闭并释放内存资源");
   }
 
   @override

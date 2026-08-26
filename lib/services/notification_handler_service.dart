@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -68,8 +67,9 @@ class NotificationHandlerService extends GetxService {
       iOS: initializationSettingsDarwin,
     );
 
+    // 🌟 修复：新版使用命名参数 settings:
     await _notificationsPlugin.initialize(
-      initializationSettings,
+      settings: initializationSettings,
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
 
@@ -229,7 +229,7 @@ class NotificationHandlerService extends GetxService {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF2C7B6D).withOpacity(0.12),
+                  color: const Color(0xFF2C7B6D).withValues(alpha: 0.12),
                   blurRadius: 30,
                   offset: const Offset(0, 10),
                 )
@@ -369,11 +369,12 @@ class NotificationHandlerService extends GetxService {
       iOS: iosDetails,
     );
 
+    // 🌟 修复：show 改用命名参数
     await _notificationsPlugin.show(
-      updateNoticeId,
-      title,
-      body,
-      platformDetails,
+      id: updateNoticeId,
+      title: title,
+      body: body,
+      notificationDetails: platformDetails,
       payload: jsonEncode({
         'type': 'appUpdate',
         'target_id': tag,
@@ -495,7 +496,8 @@ class NotificationHandlerService extends GetxService {
       fileSink = null;
       channel.sink.close();
 
-      await _notificationsPlugin.cancel(updateNotificationId);
+      // 🌟 修复：cancel 改用命名参数
+      await _notificationsPlugin.cancel(id: updateNotificationId);
       await _installApk(filePath);
       await _showDownloadCompleteNotification(filePath);
     } catch (e) {
@@ -560,10 +562,10 @@ class NotificationHandlerService extends GetxService {
       await fileSink.close();
       fileSink = null;
 
-      await _notificationsPlugin.cancel(updateNotificationId);
+      // 🌟 修复：cancel 改用命名参数
+      await _notificationsPlugin.cancel(id: updateNotificationId);
       await _installApk(filePath);
       await _showDownloadCompleteNotification(filePath);
-
     } catch (e) {
       debugPrint("❌ [AppUpdate] 后台流式下载异常: $e");
       await fileSink?.close();
@@ -572,6 +574,7 @@ class NotificationHandlerService extends GetxService {
       client?.close();
     }
   }
+
   Future<void> _updateDownloadNotification(int progress, int notificationId) async {
     final bool isIndeterminate = progress < 0;
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
@@ -589,11 +592,12 @@ class NotificationHandlerService extends GetxService {
     );
 
     final NotificationDetails platformDetails = NotificationDetails(android: androidDetails);
+    // 🌟 修复：show 改用命名参数
     await _notificationsPlugin.show(
-      notificationId,
-      'notif_downloading_update'.tr,
-      isIndeterminate ? 'notif_downloading'.tr : 'notif_download_percent'.trParams({'progress': '$progress'}),
-      platformDetails,
+      id: notificationId,
+      title: 'notif_downloading_update'.tr,
+      body: isIndeterminate ? 'notif_downloading'.tr : 'notif_download_percent'.trParams({'progress': '$progress'}),
+      notificationDetails: platformDetails,
     );
   }
 
@@ -619,11 +623,12 @@ class NotificationHandlerService extends GetxService {
       ongoing: false,
     );
 
+    // 🌟 修复：show 改用命名参数
     await _notificationsPlugin.show(
-      8889,
-      'notif_update_ready'.tr,
-      'notif_update_ready_body'.tr,
-      NotificationDetails(android: androidDetails),
+      id: 8889,
+      title: 'notif_update_ready'.tr,
+      body: 'notif_update_ready_body'.tr,
+      notificationDetails: NotificationDetails(android: androidDetails),
       payload: jsonEncode({
         'type': 'installApk',
         'file_path': filePath,
@@ -632,11 +637,12 @@ class NotificationHandlerService extends GetxService {
   }
 
   Future<void> _showDownloadFailedNotification(int notificationId) async {
+    // 🌟 修复：show 改用命名参数
     await _notificationsPlugin.show(
-      notificationId,
-      'notif_update_failed'.tr,
-      'notif_update_failed_body'.tr,
-      NotificationDetails(
+      id: notificationId,
+      title: 'notif_update_failed'.tr,
+      body: 'notif_update_failed_body'.tr,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           'app_update_channel',
           'notif_channel_update'.tr,
@@ -791,13 +797,13 @@ class NotificationHandlerService extends GetxService {
         'wss_url': note.customData['wss_url'] ?? '',
       });
 
-      // 🌟 核心保护：若附件导致 iOS/Android 弹出异常，自动降级为无附件纯文本展示，绝不崩溃
+      // 🌟 修复：show 改用命名参数并增加降级保护
       try {
         await _notificationsPlugin.show(
-          notifId,
-          title,
-          body,
-          NotificationDetails(android: androidDetails, iOS: iosDetails),
+          id: notifId,
+          title: title,
+          body: body,
+          notificationDetails: NotificationDetails(android: androidDetails, iOS: iosDetails),
           payload: payloadStr,
         );
       } catch (innerError) {
@@ -814,10 +820,10 @@ class NotificationHandlerService extends GetxService {
           presentSound: true,
         );
         await _notificationsPlugin.show(
-          notifId,
-          title,
-          body,
-          NotificationDetails(android: fallbackAndroid, iOS: fallbackIos),
+          id: notifId,
+          title: title,
+          body: body,
+          notificationDetails: NotificationDetails(android: fallbackAndroid, iOS: fallbackIos),
           payload: payloadStr,
         );
       }
