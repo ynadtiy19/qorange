@@ -12,7 +12,6 @@ class YouTubePlayerController extends GetxController {
   YouTubePlayerController({required this.initialVideo});
 
   final YouTubeService _service = YouTubeService();
-
   OmniPlaybackController? omniController;
 
   final Rx<YouTubeVideoModel> videoDetail = Rx<YouTubeVideoModel>(
@@ -28,8 +27,6 @@ class YouTubePlayerController extends GetxController {
 
   final RxList<YouTubeVideoModel> relatedVideos = <YouTubeVideoModel>[].obs;
   final RxBool isPlaying = false.obs;
-  final RxBool isFullScreen = false.obs;
-  final RxString currentVideoUrl = ''.obs;
 
   @override
   void onInit() {
@@ -37,9 +34,6 @@ class YouTubePlayerController extends GetxController {
     videoDetail.value = initialVideo;
     AppHttpOverrides.enableProxy();
     LocalMediaProxyServer.instance.start();
-
-    final vid = initialVideo.videoId.isNotEmpty ? initialVideo.videoId : 'dQw4w9WgXcQ';
-    currentVideoUrl.value = 'https://www.youtube.com/watch?v=$vid';
 
     _loadRelatedVideos(initialVideo.author.isNotEmpty ? initialVideo.author : 'Trending');
   }
@@ -54,26 +48,10 @@ class YouTubePlayerController extends GetxController {
     }
   }
 
-  void togglePlayPause() {
-    if (omniController == null) return;
-    if (omniController!.isPlaying) {
-      omniController!.pause();
-    } else {
-      omniController!.play();
-    }
-  }
-
-  void playNewVideo(YouTubeVideoModel video) {
-    videoDetail.value = video;
-    final vid = video.videoId.isNotEmpty ? video.videoId : 'dQw4w9WgXcQ';
-    currentVideoUrl.value = 'https://www.youtube.com/watch?v=$vid';
-    _loadRelatedVideos(video.author);
-  }
-
   Future<void> _loadRelatedVideos(String author) async {
     try {
       final results = await _service.searchVideos(author, limit: 12);
-      relatedVideos.assignAll(results.where((v) => v.videoId != videoDetail.value.videoId).toList());
+      relatedVideos.assignAll(results.where((v) => v.videoId != initialVideo.videoId).toList());
     } catch (_) {}
   }
 
