@@ -29,34 +29,42 @@ class LocalMediaProxyServer {
     }
 
     try {
-      // 🌟 在 Dart 虚拟机内部发起请求（自动受 AppHttpOverrides 代理保护）
-      final client = HttpClient()..autoUncompress = false;
+      // 🌟 修复级联解析歧义：单独配置 HttpClient 属性
+      final client = HttpClient();
+      client.badCertificateCallback = (cert, host, port) => true;
+      client.connectionTimeout = const Duration(seconds: 15);
 
       final upstreamReq = await client.getUrl(Uri.parse(targetUrl));
 
-      // 透传 Range 请求头以支持播放器拖拽
+      // 透传 Range 请求头以支持播放器快进与图片分片
       final range = clientReq.headers.value(HttpHeaders.rangeHeader);
       if (range != null) {
         upstreamReq.headers.set(HttpHeaders.rangeHeader, range);
       }
-      upstreamReq.headers.set(HttpHeaders.userAgentHeader, 'Mozilla/5.0');
-      upstreamReq.headers.set('accept-encoding', 'identity');
+      upstreamReq.headers.set(
+        HttpHeaders.userAgentHeader,
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      );
 
       final upstreamResp = await upstreamReq.close();
 
-      // 将响应头与状态码回拷给本地组件
+      // 复制正确的 HTTP 响应状态
       clientReq.response.statusCode = upstreamResp.statusCode;
+
+      // 复制必要的响应头（忽略传输编码头避免冲突）
       upstreamResp.headers.forEach((name, values) {
-        for (var v in values) {
-          clientReq.response.headers.add(name, v);
+        if (name.toLowerCase() != 'transfer-encoding') {
+          for (var v in values) {
+            clientReq.response.headers.add(name, v);
+          }
         }
       });
 
-      // 零内存拷贝直接管道输出
+      // 零拷贝直通推流
       await clientReq.response.addStream(upstreamResp);
       await clientReq.response.close();
     } catch (e) {
-      debugPrint("🔴 [LocalMediaProxy] 中继流传输异常: $e");
+      debugPrint("🔴 [LocalMediaProxy] 中继流传输异常: $e, url = $targetUrl");
       try {
         clientReq.response.statusCode = HttpStatus.badGateway;
         await clientReq.response.close();
