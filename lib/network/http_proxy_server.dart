@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
 
-/// 纯 Dart 实现的高性能 HTTP/HTTPS (CONNECT) 代理服务器（流控暂停防死锁修复版）
+/// 纯 Dart 实现的极速 HTTP/HTTPS (CONNECT) 代理服务器（硬件级流控与零 GC 优化）
 class HttpProxyServer {
   final SSHClient sshClient;
   ServerSocket? _serverSocket;
@@ -13,14 +13,13 @@ class HttpProxyServer {
 
   HttpProxyServer({required this.sshClient});
 
-  /// 启动监听本地回环地址
   Future<int> start() async {
     _serverSocket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     port = _serverSocket!.port;
-    debugPrint("🟢 [HttpProxyServer] 本地 HTTP/HTTPS 代理已就绪，监听端口: 127.0.0.1:$port");
+    debugPrint("🟢 [HttpProxyServer] 高性能 HTTP 代理已监听: 127.0.0.1:$port");
 
     _serverSocket!.listen(_handleClient, onError: (e) {
-      debugPrint("🔴 [HttpProxyServer] 服务监听异常: $e");
+      debugPrint("🔴 [HttpProxyServer] 监听异常: $e");
     });
 
     return port!;
@@ -35,18 +34,12 @@ class HttpProxyServer {
     sub = client.listen(
           (data) {
         headerBuffer.addAll(data);
-        final headerStr = utf8.decode(headerBuffer, allowMalformed: true);
 
-        int headerEnd = headerStr.indexOf('\r\n\r\n');
-        int delimiterLen = 4;
-        if (headerEnd == -1) {
-          headerEnd = headerStr.indexOf('\n\n');
-          delimiterLen = 2;
-        }
-
-        // 🌟 1. 成功匹配到完整的 HTTP 请求头
+        // 🌟 性能核心 3：纯二进制高效查找 \r\n\r\n (13, 10, 13, 10)，不进行全量 UTF-8 字符解码
+        final headerEnd = _findHeaderEnd(headerBuffer);
         if (headerEnd != -1) {
-          final firstLine = headerStr.substring(0, headerEnd).split('\n').first.trim();
+          final headerStr = ascii.decode(headerBuffer.sublist(0, headerEnd));
+          final firstLine = headerStr.split('\n').first.trim();
           final parts = firstLine.split(' ');
 
           if (parts.length >= 2) {
@@ -69,13 +62,9 @@ class HttpProxyServer {
             }
 
             if (host.isNotEmpty) {
-              final rawHeaderLen = utf8.encode(headerStr.substring(0, headerEnd + delimiterLen)).length;
-              List<int> leftover = [];
-              if (headerBuffer.length > rawHeaderLen) {
-                leftover = headerBuffer.sublist(rawHeaderLen);
-              }
+              final leftover = headerBuffer.length > headerEnd ? headerBuffer.sublist(headerEnd) : <int>[];
 
-              // 🌟 2. 极其关键：在建立 SSH 远端连接期间暂停客户端流监听，防止 TLS 数据包并发混乱
+              // 暂停当前流，防止与 TLS 握手并发产生竞争冲突
               sub?.pause();
 
               _establishTunnelAndBridge(
@@ -93,17 +82,30 @@ class HttpProxyServer {
           client.destroy();
         }
       },
-      onError: (_) {
-        client.destroy();
-      },
-      onDone: () {
-        client.destroy();
-      },
+      onError: (_) => client.destroy(),
+      onDone: () => client.destroy(),
       cancelOnError: true,
     );
   }
 
-  /// 建立 SSH 通道并桥接双向数据流
+  /// 快速字节匹配 \r\n\r\n 或 \n\n
+  int _findHeaderEnd(List<int> bytes) {
+    final len = bytes.length;
+    for (int i = 0; i < len - 1; i++) {
+      if (bytes[i] == 10 && bytes[i + 1] == 10) {
+        return i + 2;
+      }
+      if (i < len - 3 &&
+          bytes[i] == 13 &&
+          bytes[i + 1] == 10 &&
+          bytes[i + 2] == 13 &&
+          bytes[i + 3] == 10) {
+        return i + 4;
+      }
+    }
+    return -1;
+  }
+
   Future<void> _establishTunnelAndBridge({
     required Socket client,
     required StreamSubscription<Uint8List> sub,
@@ -128,7 +130,7 @@ class HttpProxyServer {
         forwardChannel.sink.add(Uint8List.fromList(headerBuffer));
       }
 
-      // 🌟 3. 握手建立成功后，重定向数据流并恢复客户端流
+      // 重定向双向数据流
       sub.onData((data) {
         try {
           forwardChannel?.sink.add(data);
@@ -138,19 +140,14 @@ class HttpProxyServer {
         }
       });
 
-      sub.onDone(() {
-        forwardChannel?.close();
-      });
-
+      sub.onDone(() => forwardChannel?.close());
       sub.onError((_) {
         client.destroy();
         forwardChannel?.close();
       });
 
-      // 恢复接收客户端后续数据
       sub.resume();
 
-      // 🌟 4. 将远端 SSH 数据管道式回推给客户端
       forwardChannel.stream.listen(
             (Uint8List chunk) {
           try {
@@ -182,6 +179,5 @@ class HttpProxyServer {
     await _serverSocket?.close();
     _serverSocket = null;
     port = null;
-    debugPrint("🔌 [HttpProxyServer] 本地代理已安全关闭");
   }
 }

@@ -8,13 +8,28 @@ class LocalMediaProxyServer {
   HttpServer? _server;
   int? localPort;
 
+  // 🌟 性能核心 1：全局单例连接池，复用 TLS 会话与 SSH 通道，杜绝反复建连开销
+  HttpClient? _sharedClient;
+
+  HttpClient get _client {
+    if (_sharedClient == null) {
+      _sharedClient = HttpClient()
+        ..badCertificateCallback = ((cert, host, port) => true)
+        ..connectionTimeout = const Duration(seconds: 10)
+        ..idleTimeout = const Duration(seconds: 60)
+        ..maxConnectionsPerHost = 20
+        ..autoUncompress = true;
+    }
+    return _sharedClient!;
+  }
+
   /// 启动本地微型流分发服务器
   Future<int> start() async {
     if (_server != null) return localPort!;
 
     _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     localPort = _server!.port;
-    debugPrint("🎬 [LocalMediaProxy] 本地播放流中继服务器已就绪: http://127.0.0.1:$localPort");
+    debugPrint("🚀 [LocalMediaProxy] 本地高性能中继就绪: http://127.0.0.1:$localPort");
 
     _server!.listen(_handleRequest);
     return localPort!;
@@ -29,14 +44,10 @@ class LocalMediaProxyServer {
     }
 
     try {
-      // 🌟 修复级联解析歧义：单独配置 HttpClient 属性
-      final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
-      client.connectionTimeout = const Duration(seconds: 15);
+      // 🌟 性能核心 2：复用单例 client，由底层连接池自动分发 Keep-Alive
+      final upstreamReq = await _client.getUrl(Uri.parse(targetUrl));
 
-      final upstreamReq = await client.getUrl(Uri.parse(targetUrl));
-
-      // 透传 Range 请求头以支持播放器快进与图片分片
+      // 透传 Range 请求头以支持音视频分片与拖拽
       final range = clientReq.headers.value(HttpHeaders.rangeHeader);
       if (range != null) {
         upstreamReq.headers.set(HttpHeaders.rangeHeader, range);
@@ -48,7 +59,6 @@ class LocalMediaProxyServer {
 
       final upstreamResp = await upstreamReq.close();
 
-      // 复制正确的 HTTP 响应状态
       clientReq.response.statusCode = upstreamResp.statusCode;
 
       // 复制必要的响应头（忽略传输编码头避免冲突）
@@ -60,11 +70,11 @@ class LocalMediaProxyServer {
         }
       });
 
-      // 零拷贝直通推流
+      // 零拷贝直接管道推流
       await clientReq.response.addStream(upstreamResp);
       await clientReq.response.close();
     } catch (e) {
-      debugPrint("🔴 [LocalMediaProxy] 中继流传输异常: $e, url = $targetUrl");
+      debugPrint("🔴 [LocalMediaProxy] 流传输异常: $e");
       try {
         clientReq.response.statusCode = HttpStatus.badGateway;
         await clientReq.response.close();
@@ -79,6 +89,8 @@ class LocalMediaProxyServer {
   }
 
   Future<void> stop() async {
+    _sharedClient?.close(force: true);
+    _sharedClient = null;
     await _server?.close(force: true);
     _server = null;
     localPort = null;
