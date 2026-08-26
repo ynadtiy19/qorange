@@ -49,8 +49,18 @@ class YouTubePlayerController extends GetxController {
     } catch (_) {}
   }
 
+  /// 🌟 核心：立即停止并暂停底层音视频播放流
+  void stopPlayback() {
+    try {
+      omniController?.pause();
+    } catch (_) {}
+  }
+
   @override
   void onClose() {
+    // 🌟 1. 退出时立即暂停播放，杜绝后台声音
+    stopPlayback();
+    // 🌟 2. 移除监听并恢复屏幕方向
     omniController?.removeListener(_onPlayerUpdate);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

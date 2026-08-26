@@ -85,192 +85,205 @@ class YouTubePlayerPage extends StatelessWidget {
       ),
     );
 
-    return OrientationBuilder(
-      builder: (context, orientation) {
-        final isLandscape = orientation == Orientation.landscape;
-
-        // 🌟 1. 横屏全屏模式：直接铺满播放器，不加载底部信息列表，彻底消除 40px 溢出
-        if (isLandscape) {
-          return Scaffold(
-            backgroundColor: Colors.black,
-            resizeToAvoidBottomInset: false,
-            body: Center(
-              child: playerWidget,
-            ),
-          );
+    // 🌟 外层包裹 PopScope 拦截所有手势/物理返回并立即静音暂停
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          controller.stopPlayback();
+          Get.delete<YouTubePlayerController>(tag: videoItem.videoId);
         }
+      },
+      child: OrientationBuilder(
+        builder: (context, orientation) {
+          final isLandscape = orientation == Orientation.landscape;
 
-        // 🌟 2. 竖屏常规模式：标准 16:9 + 推荐信息滑动列表
-        return Scaffold(
-          backgroundColor: const Color(0xFFFBFBF7), // 清爽晨曦米白
-          resizeToAvoidBottomInset: false,
-          body: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. 播放器视口
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Container(
-                    color: Colors.black,
-                    child: playerWidget,
+          // 🌟 1. 横屏全屏模式：直接铺满播放器，不加载底部信息列表
+          if (isLandscape) {
+            return Scaffold(
+              backgroundColor: Colors.black,
+              resizeToAvoidBottomInset: false,
+              body: Center(
+                child: playerWidget,
+              ),
+            );
+          }
+
+          // 🌟 2. 竖屏常规模式：标准 16:9 + 推荐信息滑动列表
+          return Scaffold(
+            backgroundColor: const Color(0xFFFBFBF7), // 清爽晨曦米白
+            resizeToAvoidBottomInset: false,
+            body: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. 播放器视口
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Container(
+                      color: Colors.black,
+                      child: playerWidget,
+                    ),
                   ),
-                ),
 
-                // 2. 视频信息与推荐列表（仅局部使用 Obx 响应数据）
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    children: [
-                      // 返回按钮与小标题栏
-                      Row(
-                        children: [
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(20),
-                              onTap: () => Get.back(),
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Color(0xFFE59819)),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      '返回列表',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFFE59819),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // 视频标题（局部响应）
-                      Obx(() => Text(
-                        controller.videoDetail.value.title.isNotEmpty
-                            ? controller.videoDetail.value.title
-                            : videoItem.title,
-                        style: const TextStyle(
-                          color: Color(0xFF2C2416),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          height: 1.4,
-                        ),
-                      )),
-                      const SizedBox(height: 10),
-
-                      // 作者卡片（局部响应）
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFECE6D8)),
-                        ),
-                        child: Row(
+                  // 2. 视频信息与推荐列表（仅局部使用 Obx 响应数据）
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      children: [
+                        // 返回按钮与小标题栏
+                        Row(
                           children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor: const Color(0xFFFFF1D6),
-                              child: Obx(() {
-                                final author = controller.videoDetail.value.author.isNotEmpty
-                                    ? controller.videoDetail.value.author
-                                    : videoItem.author;
-                                return Text(
-                                  author.isNotEmpty ? author[0].toUpperCase() : 'Y',
-                                  style: const TextStyle(
-                                    color: Color(0xFFB57400),
-                                    fontWeight: FontWeight.bold,
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () {
+                                  controller.stopPlayback();
+                                  Get.back();
+                                },
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Color(0xFFE59819)),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        '返回列表',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFFE59819),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                );
-                              }),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Obx(() => Text(
-                                    controller.videoDetail.value.author.isNotEmpty
-                                        ? controller.videoDetail.value.author
-                                        : videoItem.author,
-                                    style: const TextStyle(
-                                      color: Color(0xFF2C2416),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  )),
-                                  Obx(() => Text(
-                                    controller.videoDetail.value.views.isNotEmpty
-                                        ? controller.videoDetail.value.views
-                                        : videoItem.views,
-                                    style: const TextStyle(
-                                      color: Color(0xFF8C806D),
-                                      fontSize: 11,
-                                    ),
-                                  )),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF5DE),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFFFE099)),
-                              ),
-                              child: const Text(
-                                'Omni Player',
-                                style: TextStyle(
-                                  color: Color(0xFF996100),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
                           ],
                         ),
-                      ),
+                        const SizedBox(height: 10),
 
-                      const Divider(color: Color(0xFFECE6D8), height: 30),
+                        // 视频标题（局部响应）
+                        Obx(() => Text(
+                          controller.videoDetail.value.title.isNotEmpty
+                              ? controller.videoDetail.value.title
+                              : videoItem.title,
+                          style: const TextStyle(
+                            color: Color(0xFF2C2416),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            height: 1.4,
+                          ),
+                        )),
+                        const SizedBox(height: 10),
 
-                      // 推荐列表标题
-                      const Text(
-                        '推荐流媒体',
-                        style: TextStyle(
-                          color: Color(0xFF2C2416),
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+                        // 作者卡片（局部响应）
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFECE6D8)),
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: const Color(0xFFFFF1D6),
+                                child: Obx(() {
+                                  final author = controller.videoDetail.value.author.isNotEmpty
+                                      ? controller.videoDetail.value.author
+                                      : videoItem.author;
+                                  return Text(
+                                    author.isNotEmpty ? author[0].toUpperCase() : 'Y',
+                                    style: const TextStyle(
+                                      color: Color(0xFFB57400),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                }),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Obx(() => Text(
+                                      controller.videoDetail.value.author.isNotEmpty
+                                          ? controller.videoDetail.value.author
+                                          : videoItem.author,
+                                      style: const TextStyle(
+                                        color: Color(0xFF2C2416),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    )),
+                                    Obx(() => Text(
+                                      controller.videoDetail.value.views.isNotEmpty
+                                          ? controller.videoDetail.value.views
+                                          : videoItem.views,
+                                      style: const TextStyle(
+                                        color: Color(0xFF8C806D),
+                                        fontSize: 11,
+                                      ),
+                                    )),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF5DE),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFFFFE099)),
+                                ),
+                                child: const Text(
+                                  'Omni Player',
+                                  style: TextStyle(
+                                    color: Color(0xFF996100),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
 
-                      // 推荐视频卡片列表（局部响应）
-                      Obx(() => Column(
-                        children: controller.relatedVideos
-                            .map((item) => _buildCleanRelatedItem(item))
-                            .toList(),
-                      )),
-                    ],
+                        const Divider(color: Color(0xFFECE6D8), height: 30),
+
+                        // 推荐列表标题
+                        const Text(
+                          '推荐流媒体',
+                          style: TextStyle(
+                            color: Color(0xFF2C2416),
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 推荐视频卡片列表（局部响应）
+                        Obx(() => Column(
+                          children: controller.relatedVideos
+                              .map((item) => _buildCleanRelatedItem(controller, item))
+                              .toList(),
+                        )),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildCleanRelatedItem(YouTubeVideoModel item) {
+  Widget _buildCleanRelatedItem(YouTubePlayerController controller, YouTubeVideoModel item) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -292,7 +305,8 @@ class YouTubePlayerPage extends StatelessWidget {
           splashColor: const Color(0xFFFFEAA7).withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(14),
           onTap: () {
-            // 🌟 使用 Get.off 进行规范页面流转，彻底避免旧播放器堆叠冲突
+            // 🌟 切换视频前先停止当前播放，杜绝声音重叠
+            controller.stopPlayback();
             Get.off(
                   () => YouTubePlayerPage(videoItem: item),
               preventDuplicates: false,
