@@ -1,28 +1,65 @@
 // lib/network/app_http_overrides.dart
 import 'dart:io';
 
-/// 具备智能域名分流的全局网络拦截器
 class AppHttpOverrides extends HttpOverrides {
   final int proxyPort;
 
+  // 引用计数管理
+  static int _activeProxyConsumers = 0;
+  static bool get proxyEnabled => _activeProxyConsumers > 0;
+
+  static void enableProxy() {
+    _activeProxyConsumers++;
+  }
+
+  static void disableProxy() {
+    if (_activeProxyConsumers > 0) {
+      _activeProxyConsumers--;
+    }
+  }
+
+  static set proxyEnabled(bool value) {
+    if (value) {
+      if (_activeProxyConsumers == 0) _activeProxyConsumers = 1;
+    } else {
+      _activeProxyConsumers = 0;
+    }
+  }
+
   AppHttpOverrides({required this.proxyPort});
 
-  // 🌟 需要强制走海外代理隧道的域名白名单
   static const List<String> _proxyDomainWhitelist = [
-    // YouTube 核心服务
+    // YouTube 核心服务及媒体流与图片 CDN
     'youtube.com',
     'youtu.be',
     'youtube-nocookie.com',
-
-    // YouTube 视频与音频分片传输核心域名（关键）
     'googlevideo.com',
-
-    // 封面图、头像等静态资源
     'ytimg.com',
     'ggpht.com',
     'googleusercontent.com',
 
-    // Google API 基础链路
+    // 🌟 解析 API 节点池与公共中继域名 (必须加入白名单以防直连超时)
+    'cobalt.tools',
+    'api.cobalt.tools',
+    'kwiatekm.pl',
+    'co.wuk.sh',
+    'savefrom.net',
+    'savefrom.in.net',
+
+    // 🌟 Invidious / Piped 分布式节点
+    'pipedapi.kavin.rocks',
+    'api.piped.private.coffee',
+    'pipedapi.tokhmi.xyz',
+    'invidious.nerdvpn.de',
+    'inv.tux.pizza',
+    'yt.artemislena.eu',
+    'invidious.jing.rocks',
+    'invidious.privacydev.net',
+    'invidious.drgns.space',
+
+    // 基础海外与 Google API 链路
+    'gstatic.com',
+    'google.com',
     'googleapis.com',
     'gvt1.com',
     '1e100.net',
@@ -32,19 +69,15 @@ class AppHttpOverrides extends HttpOverrides {
   HttpClient createHttpClient(SecurityContext? context) {
     return super.createHttpClient(context)
       ..findProxy = (Uri uri) {
-        final host = uri.host.toLowerCase();
-
-        // 🌟 1. 检查当前请求的域名是否命中海外白名单
-        final bool shouldProxy = _proxyDomainWhitelist.any((domain) {
-          return host == domain || host.endsWith('.$domain');
-        });
-
-        if (shouldProxy) {
-          // 命中白名单：走本地 Atsign SSH 隧道代理出口
-          return "PROXY 127.0.0.1:$proxyPort";
+        if (proxyEnabled && proxyPort > 0) {
+          final host = uri.host.toLowerCase();
+          final bool shouldProxy = _proxyDomainWhitelist.any((domain) {
+            return host == domain || host.endsWith('.$domain');
+          });
+          if (shouldProxy) {
+            return "PROXY 127.0.0.1:$proxyPort";
+          }
         }
-
-        // 🌟 2. 其余所有流量（如你的 Zeabur 业务API、Cloudinary、支付等）一律走原生系统网络直连！
         return "DIRECT";
       }
       ..badCertificateCallback = (cert, host, port) => true;

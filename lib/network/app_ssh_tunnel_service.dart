@@ -8,6 +8,7 @@ import 'package:noports_core/npt.dart';
 
 import 'app_http_overrides.dart';
 import 'http_proxy_server.dart';
+
 class AppSshTunnelService extends GetxService {
   static AppSshTunnelService get to => Get.find<AppSshTunnelService>();
 
@@ -119,7 +120,7 @@ class AppSshTunnelService extends GetxService {
         final int proxyPort = await _proxyServer!.start();
         currentSocks5Port.value = proxyPort;
 
-        // 🌟 4. 挂载全局网络拦截
+        // 🌟 5. 挂载全局网络代理拦截（由 AppHttpOverrides 精准按白名单分流）
         HttpOverrides.global = AppHttpOverrides(proxyPort: proxyPort);
         isTunnelActive.value = true;
 
@@ -133,6 +134,7 @@ class AppSshTunnelService extends GetxService {
       return false;
     }
   }
+
   /// 关闭并释放隧道
   Future<void> stopTunnel() async {
     HttpOverrides.global = null;

@@ -13,7 +13,7 @@ import '../im/im_conversation_list_view.dart';
 import '../login/login_view.dart';
 import '../profile/profile_view.dart';
 import '../shop/shop_view.dart';
-import '../video_media/views/media_discovery_view.dart'; // 🌟 引入影音大厅
+import '../video_media/views/youtube_list_page.dart';
 
 class MainNavView extends StatefulWidget {
   const MainNavView({super.key});
@@ -28,7 +28,7 @@ class _MainNavViewState extends State<MainNavView> {
 
   final List<Widget> _pages = [
     const HomeView(),                 // 0. 首页观点
-    const MediaDiscoveryView(),       // 1. 🌟 影音探索与播放大厅
+    const YouTubeListPage(),       // 1. 🌟 影音探索与播放大厅
     const CommunityDiscoveryView(),   // 2. 社群圈子
     const ImConversationListView(),   // 3. 消息通讯
     const ShopView(),                 // 4. 商店
