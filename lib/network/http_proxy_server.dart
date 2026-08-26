@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
 
-/// 纯 Dart 实现的高性能 HTTP/HTTPS (CONNECT) 代理服务器
+/// 纯 Dart 实现的高性能 HTTP/HTTPS (CONNECT) 代理服务器（彻底修复 TLS 粘包与死锁）
 class HttpProxyServer {
   final SSHClient sshClient;
   ServerSocket? _serverSocket;
@@ -39,8 +39,15 @@ class HttpProxyServer {
           headerBuffer.addAll(data);
           final headerStr = utf8.decode(headerBuffer, allowMalformed: true);
 
-          if (headerStr.contains('\r\n\r\n') || headerStr.contains('\n\n')) {
-            final firstLine = headerStr.split('\n').first.trim();
+          int headerEnd = headerStr.indexOf('\r\n\r\n');
+          int delimiterLen = 4;
+          if (headerEnd == -1) {
+            headerEnd = headerStr.indexOf('\n\n');
+            delimiterLen = 2;
+          }
+
+          if (headerEnd != -1) {
+            final firstLine = headerStr.substring(0, headerEnd).split('\n').first.trim();
             final parts = firstLine.split(' ');
 
             if (parts.length >= 2) {
@@ -51,12 +58,10 @@ class HttpProxyServer {
               int targetPort = 443;
 
               if (method == 'CONNECT') {
-                // HTTPS 请求: CONNECT i.ytimg.com:443 HTTP/1.1
                 final hostParts = target.split(':');
                 host = hostParts[0];
                 targetPort = hostParts.length > 1 ? (int.tryParse(hostParts[1]) ?? 443) : 443;
               } else {
-                // 普通 HTTP 请求
                 final uri = Uri.tryParse(target);
                 if (uri != null && uri.host.isNotEmpty) {
                   host = uri.host;
@@ -71,13 +76,20 @@ class HttpProxyServer {
                   if (method == 'CONNECT') {
                     client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
                     await client.flush();
+
+                    // 🌟 核心修复：提取 CONNECT 请求头后面粘连的 TLS ClientHello 握手包，杜绝永远转圈
+                    final rawHeaderLen = utf8.encode(headerStr.substring(0, headerEnd + delimiterLen)).length;
+                    if (headerBuffer.length > rawHeaderLen) {
+                      final leftover = headerBuffer.sublist(rawHeaderLen);
+                      forwardChannel!.sink.add(Uint8List.fromList(leftover));
+                    }
                   } else {
                     forwardChannel!.sink.add(Uint8List.fromList(headerBuffer));
                   }
 
                   isConnected = true;
 
-                  // 双向管道数据直通
+                  // 双向内存管道直连
                   forwardChannel!.stream.listen(
                         (Uint8List chunk) {
                       try {

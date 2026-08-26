@@ -29,12 +29,12 @@ class LocalMediaProxyServer {
     }
 
     try {
-      // 🌟 核心：在 Dart 虚拟机内部发起请求（自动受 AppHttpOverrides 代理保护）
+      // 🌟 在 Dart 虚拟机内部发起请求（自动受 AppHttpOverrides 代理保护）
       final client = HttpClient()..autoUncompress = false;
 
       final upstreamReq = await client.getUrl(Uri.parse(targetUrl));
 
-      // 透传 Range 请求头以支持播放器快进拖拽
+      // 透传 Range 请求头以支持播放器拖拽
       final range = clientReq.headers.value(HttpHeaders.rangeHeader);
       if (range != null) {
         upstreamReq.headers.set(HttpHeaders.rangeHeader, range);
@@ -44,7 +44,7 @@ class LocalMediaProxyServer {
 
       final upstreamResp = await upstreamReq.close();
 
-      // 将远端响应头回拷给本地原生播放器
+      // 将响应头与状态码回拷给本地组件
       clientReq.response.statusCode = upstreamResp.statusCode;
       upstreamResp.headers.forEach((name, values) {
         for (var v in values) {
@@ -52,7 +52,7 @@ class LocalMediaProxyServer {
         }
       });
 
-      // 零内存拷贝：管道直通输出给 ExoPlayer/AVPlayer
+      // 零内存拷贝直接管道输出
       await clientReq.response.addStream(upstreamResp);
       await clientReq.response.close();
     } catch (e) {

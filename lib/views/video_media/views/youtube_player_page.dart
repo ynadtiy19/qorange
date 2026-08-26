@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:omni_video_player/omni_video_player.dart';
+import '../../../network/local_media_proxy_server.dart';
 import '../controllers/youtube_player_controller.dart';
 import '../models/youtube_model.dart';
 
@@ -284,6 +285,9 @@ class YouTubePlayerPage extends StatelessWidget {
   }
 
   Widget _buildCleanRelatedItem(YouTubePlayerController controller, YouTubeVideoModel item) {
+    // 🌟 推荐项封面图同样经由本地代理中继
+    final proxiedThumb = LocalMediaProxyServer.instance.buildPlayUrl(item.thumbnail);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -305,7 +309,6 @@ class YouTubePlayerPage extends StatelessWidget {
           splashColor: const Color(0xFFFFEAA7).withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(14),
           onTap: () {
-            // 🌟 切换视频前先停止当前播放，杜绝声音重叠
             controller.stopPlayback();
             Get.off(
                   () => YouTubePlayerPage(videoItem: item),
@@ -322,7 +325,7 @@ class YouTubePlayerPage extends StatelessWidget {
                     width: 110,
                     height: 65,
                     child: Image.network(
-                      item.thumbnail,
+                      proxiedThumb,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: const Color(0xFFF7F3E9),
