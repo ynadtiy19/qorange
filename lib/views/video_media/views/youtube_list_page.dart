@@ -1,7 +1,5 @@
-// lib/modules/youtube/views/youtube_list_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../../network/local_media_proxy_server.dart';
 import '../controllers/youtube_list_controller.dart';
 import 'youtube_player_page.dart';
 
@@ -252,8 +250,6 @@ class _CleanVideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final proxiedThumbUrl = LocalMediaProxyServer.instance.buildPlayUrl(video.thumbnail);
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -284,7 +280,7 @@ class _CleanVideoCard extends StatelessWidget {
                   AspectRatio(
                     aspectRatio: 16 / 9,
                     child: Image.network(
-                      proxiedThumbUrl,
+                      video.thumbnail,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: const Color(0xFFF7F3E9),

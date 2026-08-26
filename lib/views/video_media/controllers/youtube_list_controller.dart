@@ -1,9 +1,6 @@
-// lib/modules/youtube/controllers/youtube_list_controller.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../../network/app_http_overrides.dart';
-import '../../../network/local_media_proxy_server.dart';
 import '../../../services/youtube_service.dart';
 import '../models/youtube_model.dart';
 
@@ -31,8 +28,6 @@ class YouTubeListController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    AppHttpOverrides.enableProxy();
-    LocalMediaProxyServer.instance.start();
     fetchVideosByTag(currentTag.value);
   }
 
@@ -83,7 +78,6 @@ class YouTubeListController extends GetxController {
 
   @override
   void onClose() {
-    AppHttpOverrides.disableProxy();
     _debounceTimer?.cancel();
     searchTextController.dispose();
     super.onClose();

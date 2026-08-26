@@ -1,9 +1,6 @@
-// lib/modules/youtube/controllers/youtube_player_controller.dart
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:omni_video_player/omni_video_player.dart';
-import '../../../network/app_http_overrides.dart';
-import '../../../network/local_media_proxy_server.dart';
 import '../../../services/youtube_service.dart';
 import '../models/youtube_model.dart';
 
@@ -32,9 +29,6 @@ class YouTubePlayerController extends GetxController {
   void onInit() {
     super.onInit();
     videoDetail.value = initialVideo;
-    AppHttpOverrides.enableProxy();
-    LocalMediaProxyServer.instance.start();
-
     _loadRelatedVideos(initialVideo.author.isNotEmpty ? initialVideo.author : 'Trending');
   }
 
@@ -57,7 +51,6 @@ class YouTubePlayerController extends GetxController {
 
   @override
   void onClose() {
-    AppHttpOverrides.disableProxy();
     omniController?.removeListener(_onPlayerUpdate);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

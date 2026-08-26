@@ -1,13 +1,11 @@
-// lib/network/app_ssh_tunnel_service.dart
+import 'dart:convert';
 import 'dart:io';
-import 'package:at_client/at_client.dart';
-import 'package:dartssh2/dartssh2.dart';
+// 🌟 核心修复 1：hide NotificationConfig 避免与 singbox 的通知类冲突
+import 'package:at_client/at_client.dart' hide NotificationConfig;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_singbox_client/flutter_singbox_client.dart';
 import 'package:get/get.dart';
 import 'package:noports_core/npt.dart';
-
-import 'app_http_overrides.dart';
-import 'http_proxy_server.dart';
 
 class AppSshTunnelService extends GetxService {
   static AppSshTunnelService get to => Get.find<AppSshTunnelService>();
@@ -19,26 +17,39 @@ class AppSshTunnelService extends GetxService {
   static const int remoteSshPort = 22; // 容器内默认 SSH 端口
 
   final RxBool isTunnelActive = false.obs;
-  final RxInt currentSocks5Port = 0.obs;
 
   Npt? _npt;
-  SSHClient? _sshClient;
-  HttpProxyServer? _proxyServer;
+  final SingboxClient _singboxClient = SingboxClient();
 
-  /// 动态寻找未占用端口
-  Future<int> _findFreePort() async {
-    final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-    final freePort = socket.port;
-    await socket.close();
-    return freePort;
+  @override
+  void onInit() {
+    super.onInit();
+    _initSingbox();
   }
 
-  /// 🌟 启动 SSH 动态隧道（全流程空安全加固版）
+  Future<void> _initSingbox() async {
+    try {
+      await _singboxClient.initialize();
+      _singboxClient.serviceStateStream.listen((state) {
+        debugPrint("📡 [SingBox State] 状态变更: $state");
+        // 🌟 核心修复 2：使用正确的 ServiceState 枚举值 (started / stopped)
+        if (state == ServiceState.started) {
+          isTunnelActive.value = true;
+        } else if (state == ServiceState.stopped) {
+          isTunnelActive.value = false;
+        }
+      });
+    } catch (e) {
+      debugPrint("🔴 [SingBox Init] 初始化失败: $e");
+    }
+  }
+
+  /// 🌟 启动 Atsign + Singbox 核心 SSH 全局 TUN 隧道
   Future<bool> startTunnel(AtClient atClient) async {
     if (isTunnelActive.value) return true;
 
     try {
-      // 🌟 1. 彻底防空：安全提取 clientAtSign，若为空则自动回退为 @gemini2banana
+      // 🌟 1. 提取 clientAtSign
       final String clientSign = atClient.getCurrentAtSign() ?? '@gemini2banana';
 
       debugPrint("🚀 [AppSshTunnel] 正在向 $remoteDeviceAtsign:$remoteSshPort 发起 Atsign 加密隧道握手 (客户端: $clientSign)...");
@@ -59,7 +70,7 @@ class AppSshTunnelService extends GetxService {
 
       _npt = Npt.create(params: nptParams, atClient: atClient);
 
-      // 🌟 2. 安全执行隧道并在空安全下解析端口
+      // 🌟 2. 握手并在空安全下解析真实监听端口
       final dynamic runResult = await _npt?.run();
 
       int actualPort = 0;
@@ -71,7 +82,6 @@ class AppSshTunnelService extends GetxService {
         } catch (_) {}
       }
 
-      // 如果依然没拿到端口，尝试从 _npt 属性读取
       if (actualPort <= 0 && _npt != null) {
         try {
           actualPort = (_npt as dynamic).port ?? (_npt as dynamic).localPort ?? 0;
@@ -82,52 +92,77 @@ class AppSshTunnelService extends GetxService {
         throw Exception("未能从 Atsign Npt 获取到有效的本地监听端口 (runResult: $runResult)");
       }
 
-      debugPrint("🔑 [AppSshTunnel] Atsign 隧道已打通！真实监听端口: $actualPort，正在进行 SSH 免密/密码鉴权握手...");
+      debugPrint("🔑 [AppSshTunnel] Atsign 隧道已打通！真实监听端口: $actualPort，正在通过 Sing-box 建立全局 TUN 路由...");
 
-      // 🌟 3. 安全连接 SSH（带平滑重试）
-      SSHSocket? sshSocket;
-      for (int attempt = 1; attempt <= 6; attempt++) {
-        try {
-          await Future.delayed(Duration(milliseconds: attempt == 1 ? 500 : 800));
-          sshSocket = await SSHSocket.connect(
-            '127.0.0.1',
-            actualPort,
-            timeout: const Duration(seconds: 5),
-          );
-          break;
-        } catch (e) {
-          debugPrint("⏳ [AppSshTunnel] 等待 127.0.0.1:$actualPort 就绪 (尝试 $attempt/6)...");
-          if (attempt == 6) rethrow;
+      // 🌟 3. 申请系统 VPN 权限 (仅在 VPN 模式下必须)
+      final hasPermission = await _singboxClient.requestVPNPermission();
+      if (!hasPermission) {
+        throw Exception("用户拒绝了 VPN 授权申请");
+      }
+
+      // 🌟 4. 构造 Sing-box 内核配置 (TUN 入站 + SSH 出站)
+      final configMap = {
+        "log": {
+          "level": "warn",
+          "timestamp": true
+        },
+        "dns": {
+          "servers": [
+            {
+              "tag": "google-dns",
+              "address": "tls://8.8.8.8"
+            }
+          ]
+        },
+        "inbounds": [
+          {
+            "type": "tun",
+            "tag": "tun-in",
+            "interface_name": "tun0",
+            "inet4_address": "172.19.0.1/30",
+            "auto_route": true,
+            "strict_route": false,
+            "stack": "system",
+            "sniff": true,
+            "sniff_override_destination": true
+          }
+        ],
+        "outbounds": [
+          {
+            "type": "ssh",
+            "tag": "ssh-out",
+            "server": "127.0.0.1",
+            "server_port": actualPort,
+            "user": "root",
+            "password": "noports123"
+          }
+        ],
+        "route": {
+          "auto_detect_interface": true,
+          "final": "ssh-out"
         }
-      }
+      };
 
-      if (sshSocket == null) {
-        throw Exception("SSH 套接字连接失败");
-      }
+      final configJson = jsonEncode(configMap);
 
-      _sshClient = SSHClient(
-        sshSocket,
-        username: 'root',
-        onPasswordRequest: () => 'noports123',
-      );
+      // 校验配置
+      await _singboxClient.checkConfig(configJson);
 
-      await _sshClient?.authenticated;
-      debugPrint("✅ [AppSshTunnel] SSH 鉴权成功！");
+      // 🌟 5. 连接并开启全局 VPN 模式
+      await _singboxClient.connect(SessionOptions(
+        config: configJson,
+        networkMode: NetworkMode.vpn,
+        notification: const NotificationConfig(
+          title: 'Omni Stream 安全连接',
+          channelName: 'VPN Service',
+          showTrafficStats: true,
+          showStopButton: false,
+        ),
+      ));
 
-      // 🌟 4. 启动应用内本地 SOCKS5 代理
-      if (_sshClient != null) {
-        _proxyServer = HttpProxyServer(sshClient: _sshClient!);
-        final int proxyPort = await _proxyServer!.start();
-        currentSocks5Port.value = proxyPort;
-
-        // 🌟 5. 挂载全局网络代理拦截（由 AppHttpOverrides 精准按白名单分流）
-        HttpOverrides.global = AppHttpOverrides(proxyPort: proxyPort);
-        isTunnelActive.value = true;
-
-        debugPrint("🎉 [AppSshTunnel] 全局安全隧道已就绪 (代理端口: 127.0.0.1:$proxyPort)！所有海外媒体/YouTube请求将无感代理！");
-        return true;
-      }
-      return false;
+      isTunnelActive.value = true;
+      debugPrint("🎉 [AppSshTunnel] Sing-box 全局 VPN 隧道已就绪！原生播放器及 Dart 层所有流量已全面接管！");
+      return true;
     } catch (e, stackTrace) {
       debugPrint("❌ [AppSshTunnel] 隧道启动失败: $e\n$stackTrace");
       await stopTunnel();
@@ -137,18 +172,14 @@ class AppSshTunnelService extends GetxService {
 
   /// 关闭并释放隧道
   Future<void> stopTunnel() async {
-    HttpOverrides.global = null;
-    await _proxyServer?.stop();
-    _proxyServer = null;
-
-    _sshClient?.close();
-    _sshClient = null;
+    try {
+      await _singboxClient.disconnect();
+    } catch (_) {}
 
     await _npt?.close();
     _npt = null;
 
     isTunnelActive.value = false;
-    currentSocks5Port.value = 0;
     debugPrint("🔌 [AppSshTunnel] 隧道已彻底关闭并释放内存资源");
   }
 
