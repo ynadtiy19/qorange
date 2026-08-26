@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
-// 🌟 核心修复 1：hide NotificationConfig 避免与 singbox 的通知类冲突
+// 🌟 隐藏 at_client 的 NotificationConfig，防止与 singbox 冲突
 import 'package:at_client/at_client.dart' hide NotificationConfig;
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_singbox_client/flutter_singbox_client.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:noports_core/npt.dart';
 
@@ -27,12 +28,30 @@ class AppSshTunnelService extends GetxService {
     _initSingbox();
   }
 
+  /// 🌟 使用 fluttertoast 统一封装的 Toast 提示
+  void _showAppToast({
+    required String message,
+    required Color backgroundColor,
+    Color textColor = Colors.white,
+    Toast toastLength = Toast.LENGTH_SHORT,
+  }) {
+    Fluttertoast.cancel(); // 先取消上一条，避免堆叠延迟
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: toastLength,
+      gravity: ToastGravity.BOTTOM,
+      timeInSecForIosWeb: toastLength == Toast.LENGTH_LONG ? 3 : 2,
+      backgroundColor: backgroundColor,
+      textColor: textColor,
+      fontSize: 13.0,
+    );
+  }
+
   Future<void> _initSingbox() async {
     try {
       await _singboxClient.initialize();
       _singboxClient.serviceStateStream.listen((state) {
         debugPrint("📡 [SingBox State] 状态变更: $state");
-        // 🌟 核心修复 2：使用正确的 ServiceState 枚举值 (started / stopped)
         if (state == ServiceState.started) {
           isTunnelActive.value = true;
         } else if (state == ServiceState.stopped) {
@@ -49,9 +68,13 @@ class AppSshTunnelService extends GetxService {
     if (isTunnelActive.value) return true;
 
     try {
-      // 🌟 1. 提取 clientAtSign
-      final String clientSign = atClient.getCurrentAtSign() ?? '@gemini2banana';
+      // 🌟 Toast 1：开始握手
+      _showAppToast(
+        message: "🔄 正在向 Atsign 节点发起加密握手...",
+        backgroundColor: const Color(0xFFE59819),
+      );
 
+      final String clientSign = atClient.getCurrentAtSign() ?? '@gemini2banana';
       debugPrint("🚀 [AppSshTunnel] 正在向 $remoteDeviceAtsign:$remoteSshPort 发起 Atsign 加密隧道握手 (客户端: $clientSign)...");
 
       final nptParams = NptParams(
@@ -59,7 +82,7 @@ class AppSshTunnelService extends GetxService {
         sshnpdAtSign: remoteDeviceAtsign,
         srvdAtSign: srvdAtsign,
         device: deviceName,
-        localPort: 0, // 0 代表让系统自动分配空闲端口
+        localPort: 0,
         remotePort: remoteSshPort,
         remoteHost: 'localhost',
         localHost: '127.0.0.1',
@@ -70,7 +93,6 @@ class AppSshTunnelService extends GetxService {
 
       _npt = Npt.create(params: nptParams, atClient: atClient);
 
-      // 🌟 2. 握手并在空安全下解析真实监听端口
       final dynamic runResult = await _npt?.run();
 
       int actualPort = 0;
@@ -92,15 +114,21 @@ class AppSshTunnelService extends GetxService {
         throw Exception("未能从 Atsign Npt 获取到有效的本地监听端口 (runResult: $runResult)");
       }
 
-      debugPrint("🔑 [AppSshTunnel] Atsign 隧道已打通！真实监听端口: $actualPort，正在通过 Sing-box 建立全局 TUN 路由...");
+      debugPrint("🔑 [AppSshTunnel] Atsign 隧道已打通！真实监听端口: $actualPort，正在请求 VPN 授权...");
 
-      // 🌟 3. 申请系统 VPN 权限 (仅在 VPN 模式下必须)
+      // 🌟 Toast 2：提示系统授权
+      _showAppToast(
+        message: "🔑 节点已就绪，正在拉起 VPN 授权...",
+        backgroundColor: const Color(0xFF3F72AF),
+      );
+
+      // 🌟 3. 申请系统 VPN 权限 (若已授权则直接返回 true)
       final hasPermission = await _singboxClient.requestVPNPermission();
       if (!hasPermission) {
         throw Exception("用户拒绝了 VPN 授权申请");
       }
 
-      // 🌟 4. 构造 Sing-box 内核配置 (TUN 入站 + SSH 出站)
+      // 🌟 4. 构造 Sing-box 内核配置
       final configMap = {
         "log": {
           "level": "warn",
@@ -145,7 +173,7 @@ class AppSshTunnelService extends GetxService {
 
       final configJson = jsonEncode(configMap);
 
-      // 校验配置
+      // 校验配置有效性
       await _singboxClient.checkConfig(configJson);
 
       // 🌟 5. 连接并开启全局 VPN 模式
@@ -161,10 +189,28 @@ class AppSshTunnelService extends GetxService {
       ));
 
       isTunnelActive.value = true;
-      debugPrint("🎉 [AppSshTunnel] Sing-box 全局 VPN 隧道已就绪！原生播放器及 Dart 层所有流量已全面接管！");
+      debugPrint("🎉 [AppSshTunnel] Sing-box 全局 VPN 隧道已就绪！");
+
+      // 🌟 Toast 3：成功连通
+      _showAppToast(
+        message: "✅ 全局安全隧道已就绪，已接管所有媒体流！",
+        backgroundColor: const Color(0xFF2E7D32),
+        toastLength: Toast.LENGTH_LONG,
+      );
+
       return true;
     } catch (e, stackTrace) {
       debugPrint("❌ [AppSshTunnel] 隧道启动失败: $e\n$stackTrace");
+
+      // 🌟 Toast 4：错误告警
+      _showAppToast(
+        message: e.toString().contains('MissingPluginException')
+            ? "❌ 插件未重新编译，请先完全重启 App"
+            : "❌ 连接失败: ${e.toString().replaceAll('Exception:', '').trim()}",
+        backgroundColor: const Color(0xFFC62828),
+        toastLength: Toast.LENGTH_LONG,
+      );
+
       await stopTunnel();
       return false;
     }
@@ -181,6 +227,12 @@ class AppSshTunnelService extends GetxService {
 
     isTunnelActive.value = false;
     debugPrint("🔌 [AppSshTunnel] 隧道已彻底关闭并释放内存资源");
+
+    // 🌟 Toast 5：断开提示
+    _showAppToast(
+      message: "🔌 专用安全隧道已断开",
+      backgroundColor: const Color(0xFF424242),
+    );
   }
 
   @override
