@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import '../../../network/local_media_proxy_server.dart';
 import '../../../services/youtube_service.dart';
 import '../controllers/youtube_player_controller.dart';
@@ -390,7 +390,7 @@ class YouTubePlayerPage extends StatelessWidget {
           );
         }
 
-        if (controller.isError.value || controller.videoPlayerController == null) {
+        if (controller.isError.value) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -418,15 +418,14 @@ class YouTubePlayerPage extends StatelessWidget {
           );
         }
 
-        final playerCtrl = controller.videoPlayerController!;
-
         return Stack(
           alignment: Alignment.center,
           children: [
             Center(
-              child: AspectRatio(
-                aspectRatio: playerCtrl.value.aspectRatio > 0 ? playerCtrl.value.aspectRatio : 16 / 9,
-                child: VideoPlayer(playerCtrl),
+              child: Video(
+                controller: controller.playerVideoController,
+                controls: NoVideoControls,
+                fit: BoxFit.contain,
               ),
             ),
             Positioned.fill(
@@ -711,6 +710,7 @@ class YouTubePlayerPage extends StatelessWidget {
     );
   }
 
+  // 🌟 核心修复：根据唯一 s.itag 进行单选对勾判断，杜绝重复与多选
   void _showQualitySheet(BuildContext context, YouTubePlayerController controller) {
     final streams = controller.allAvailableStreams;
     if (streams.isEmpty) return;
@@ -764,7 +764,8 @@ class YouTubePlayerPage extends StatelessWidget {
                     separatorBuilder: (_, __) => const SizedBox(height: 4),
                     itemBuilder: (_, index) {
                       final s = streams[index];
-                      final isCurrent = controller.currentQualityLabel.value == s.qualityLabel;
+                      // 🌟 唯一精准单选：对比 itag
+                      final isCurrent = controller.selectedStreamItag.value == s.itag;
 
                       return ListTile(
                         dense: true,
@@ -776,7 +777,7 @@ class YouTubePlayerPage extends StatelessWidget {
                           size: 18,
                         ),
                         title: Text(
-                          '${s.qualityLabel} ${s.container.isNotEmpty ? "(${s.container.toUpperCase()})" : ""}',
+                          '${s.qualityLabel} (${s.container.toUpperCase()})',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
@@ -784,7 +785,7 @@ class YouTubePlayerPage extends StatelessWidget {
                           ),
                         ),
                         subtitle: Text(
-                          s.isAdaptive ? '高清分片 (音画本地合流)' : '标准复合流',
+                          s.isAdaptive ? '超高清硬件级合流' : '标准复合流 (原声立体声)',
                           style: TextStyle(
                             fontSize: 11,
                             color: isCurrent ? const Color(0xFFB57400).withValues(alpha: 0.8) : const Color(0xFF8C806D),

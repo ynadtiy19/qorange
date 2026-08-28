@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:get/get.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:qorange/l10n/app_translations.dart';
 import 'package:qorange/services/frontend_chat_service.dart';
 import 'package:qorange/services/language_service.dart';
@@ -22,6 +23,8 @@ void main() async {
     // 将 debugPrint 重写为空函数，这样所有的 debugPrint 都会被静音
     debugPrint = (String? message, {int? wrapWidth}) {};
   }
+
+  MediaKit.ensureInitialized();
 
   // 初始化多语言服务
   await Get.putAsync(() => LanguageService().init());
