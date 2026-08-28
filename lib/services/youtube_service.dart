@@ -1,3 +1,4 @@
+// lib/services/youtube_service.dart
 import '../network/http_client.dart';
 import '../views/video_media/models/youtube_model.dart';
 
@@ -12,6 +13,7 @@ class VideoStreamQualityModel {
   final String size;
   final String bitrate;
   final String url;
+  final bool isHls;
 
   VideoStreamQualityModel({
     required this.itag,
@@ -24,9 +26,10 @@ class VideoStreamQualityModel {
     required this.size,
     required this.bitrate,
     required this.url,
+    this.isHls = false,
   });
 
-  factory VideoStreamQualityModel.fromJson(Map<String, dynamic> json) {
+  factory VideoStreamQualityModel.fromJson(Map<String, dynamic> json, {bool isHls = false}) {
     return VideoStreamQualityModel(
       itag: json['itag']?.toString() ?? '',
       quality: json['quality']?.toString() ?? '',
@@ -38,6 +41,27 @@ class VideoStreamQualityModel {
       size: json['size']?.toString() ?? '',
       bitrate: json['bitrate']?.toString() ?? '',
       url: json['url']?.toString() ?? '',
+      isHls: isHls,
+    );
+  }
+}
+
+class VideoCaptionModel {
+  final String label;
+  final String languageCode;
+  final String url;
+
+  VideoCaptionModel({
+    required this.label,
+    required this.languageCode,
+    required this.url,
+  });
+
+  factory VideoCaptionModel.fromJson(Map<String, dynamic> json) {
+    return VideoCaptionModel(
+      label: json['label']?.toString() ?? '',
+      languageCode: json['language_code']?.toString() ?? '',
+      url: json['url']?.toString() ?? '',
     );
   }
 }
@@ -45,39 +69,96 @@ class VideoStreamQualityModel {
 class VideoDetailStreamResult {
   final String videoId;
   final String title;
+  final String description;
   final String author;
+  final String authorId;
+  final bool authorVerified;
+  final String authorAvatar;
+  final String subCountText;
   final String duration;
+  final int lengthSeconds;
+  final bool isLive;
+  final String viewCount;
+  final String likeCount;
+  final String publishedText;
   final String thumbnail;
+  final String hlsUrl;
   final String rawVideoUrl;
   final String rawAudioUrl;
   final List<VideoStreamQualityModel> formatStreams;
+  final List<VideoStreamQualityModel> adaptiveVideoStreams;
+  final List<VideoCaptionModel> captions;
+  final List<YouTubeVideoModel> recommendedVideos;
 
   VideoDetailStreamResult({
     required this.videoId,
     required this.title,
+    required this.description,
     required this.author,
+    required this.authorId,
+    required this.authorVerified,
+    required this.authorAvatar,
+    required this.subCountText,
     required this.duration,
+    required this.lengthSeconds,
+    required this.isLive,
+    required this.viewCount,
+    required this.likeCount,
+    required this.publishedText,
     required this.thumbnail,
+    required this.hlsUrl,
     required this.rawVideoUrl,
     required this.rawAudioUrl,
     required this.formatStreams,
+    required this.adaptiveVideoStreams,
+    required this.captions,
+    required this.recommendedVideos,
   });
 
   factory VideoDetailStreamResult.fromJson(Map<String, dynamic> json) {
-    final rawStreams = json['format_streams'] as List? ?? [];
-    final streams = rawStreams
-        .map((s) => VideoStreamQualityModel.fromJson(s as Map<String, dynamic>))
+    final rawFormat = json['format_streams'] as List? ?? [];
+    final formats = rawFormat
+        .map((s) => VideoStreamQualityModel.fromJson(s as Map<String, dynamic>, isHls: false))
+        .toList();
+
+    final rawAdaptive = json['adaptive_video_streams'] as List? ?? [];
+    final adaptives = rawAdaptive
+        .map((s) => VideoStreamQualityModel.fromJson(s as Map<String, dynamic>, isHls: false))
+        .toList();
+
+    final rawCaps = json['captions'] as List? ?? [];
+    final caps = rawCaps
+        .map((c) => VideoCaptionModel.fromJson(c as Map<String, dynamic>))
+        .toList();
+
+    final rawRecs = json['recommended_videos'] as List? ?? [];
+    final recs = rawRecs
+        .map((r) => YouTubeVideoModel.fromJson(r as Map<String, dynamic>))
         .toList();
 
     return VideoDetailStreamResult(
       videoId: json['video_id']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
       author: json['author']?.toString() ?? '',
+      authorId: json['author_id']?.toString() ?? '',
+      authorVerified: json['author_verified'] == true,
+      authorAvatar: json['author_avatar']?.toString() ?? '',
+      subCountText: json['sub_count_text']?.toString() ?? '',
       duration: json['duration']?.toString() ?? '',
+      lengthSeconds: (json['length_seconds'] as num?)?.toInt() ?? 0,
+      isLive: json['is_live'] == true,
+      viewCount: json['view_count']?.toString() ?? '',
+      likeCount: json['like_count']?.toString() ?? '',
+      publishedText: json['published_text']?.toString() ?? '',
       thumbnail: json['thumbnail']?.toString() ?? '',
+      hlsUrl: json['hls_url']?.toString() ?? '',
       rawVideoUrl: json['raw_video_url']?.toString() ?? '',
       rawAudioUrl: json['raw_audio_url']?.toString() ?? '',
-      formatStreams: streams,
+      formatStreams: formats,
+      adaptiveVideoStreams: adaptives,
+      captions: caps,
+      recommendedVideos: recs,
     );
   }
 }
@@ -87,7 +168,6 @@ class YouTubeService {
   factory YouTubeService() => _instance;
   YouTubeService._internal();
 
-  /// 1. 列表搜索：请求 Zeabur 后端
   Future<List<YouTubeVideoModel>> searchVideos(String query, {int limit = 15}) async {
     final res = await HttpClient.instance.get<dynamic>(
       '/api-youtube/search',
@@ -108,7 +188,6 @@ class YouTubeService {
     return [];
   }
 
-  /// 2. 详情提取：直接请求 Dart Frog 的 /api-youtube/[id] 路由获取各画质直链
   Future<VideoDetailStreamResult?> fetchVideoDetail(String videoId) async {
     final res = await HttpClient.instance.get<dynamic>(
       '/api-youtube/$videoId',

@@ -1,3 +1,5 @@
+// lib/network/local_media_proxy_server.dart
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
@@ -14,19 +16,17 @@ class LocalMediaProxyServer {
       ..badCertificateCallback = ((cert, host, port) => true)
       ..connectionTimeout = const Duration(seconds: 15)
       ..idleTimeout = const Duration(seconds: 60)
-      ..maxConnectionsPerHost = 30
+      ..maxConnectionsPerHost = 40
       ..autoUncompress = false;
     return _sharedClient!;
   }
 
-  /// 启动本地微型流分发服务器
   Future<int> start() async {
     if (_server != null) return localPort!;
 
     _sharedClient?.close(force: true);
     _sharedClient = null;
 
-    // 依然绑定 loopback 环回地址 (127.0.0.1)
     _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     localPort = _server!.port;
     debugPrint("🚀 [LocalMediaProxy] 本地流中继就绪: http://localhost:$localPort");
@@ -44,25 +44,58 @@ class LocalMediaProxyServer {
     }
 
     try {
-      final upstreamReq = await _client.getUrl(Uri.parse(targetUrl));
+      final targetUri = Uri.parse(targetUrl);
+      final upstreamReq = await _client.getUrl(targetUri);
 
-      // 透传 Range 请求头（支持 ExoPlayer 播放器分片拉取与快进）
       final range = clientReq.headers.value(HttpHeaders.rangeHeader);
       if (range != null) {
         upstreamReq.headers.set(HttpHeaders.rangeHeader, range);
       }
       upstreamReq.headers.set(
         HttpHeaders.userAgentHeader,
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       );
 
       final upstreamResp = await upstreamReq.close();
+      final contentType = upstreamResp.headers.contentType?.toString().toLowerCase() ?? '';
+      final isM3u8 = targetUrl.contains('.m3u8') || contentType.contains('mpegurl');
 
-      debugPrint("📥 [LocalMediaProxy] 中继成功 -> 状态: ${upstreamResp.statusCode}, 长度: ${upstreamResp.contentLength}, URL: $targetUrl");
+      // 🌟 核心：递归重写 M3U8 内的所有子清单与音视频分片切片
+      if (isM3u8 && upstreamResp.statusCode == 200) {
+        final m3u8RawContent = await upstreamResp.transform(utf8.decoder).join();
+        final lines = m3u8RawContent.split('\n');
+        final rewrittenLines = <String>[];
+
+        final baseUrl = '${targetUri.scheme}://${targetUri.authority}';
+
+        for (var line in lines) {
+          final trimmed = line.trim();
+          if (trimmed.isEmpty || trimmed.startsWith('#')) {
+            rewrittenLines.add(line);
+          } else {
+            String fullSegmentUrl = trimmed;
+            if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+              if (trimmed.startsWith('/')) {
+                fullSegmentUrl = '$baseUrl$trimmed';
+              } else {
+                final parentPath = targetUri.pathSegments.sublist(0, targetUri.pathSegments.length - 1).join('/');
+                fullSegmentUrl = '$baseUrl/$parentPath/$trimmed';
+              }
+            }
+            rewrittenLines.add(buildPlayUrl(fullSegmentUrl));
+          }
+        }
+
+        final rewrittenBody = utf8.encode(rewrittenLines.join('\n'));
+        clientReq.response.statusCode = HttpStatus.ok;
+        clientReq.response.headers.set(HttpHeaders.contentTypeHeader, 'application/vnd.apple.mpegurl');
+        clientReq.response.headers.set(HttpHeaders.contentLengthHeader, rewrittenBody.length);
+        clientReq.response.add(rewrittenBody);
+        await clientReq.response.close();
+        return;
+      }
 
       clientReq.response.statusCode = upstreamResp.statusCode;
-
-      // 复制响应头（忽略 hop-by-hop 逐跳头）
       upstreamResp.headers.forEach((name, values) {
         final lower = name.toLowerCase();
         if (lower != 'transfer-encoding' && lower != 'connection' && lower != 'keep-alive') {
@@ -72,13 +105,9 @@ class LocalMediaProxyServer {
         }
       });
 
-      // 零拷贝直通推流
       await clientReq.response.addStream(upstreamResp);
       await clientReq.response.close();
     } catch (e) {
-      if (e is! SocketException) {
-        debugPrint("🔴 [LocalMediaProxy] 传输异常: $e, URL: $targetUrl");
-      }
       try {
         clientReq.response.statusCode = HttpStatus.badGateway;
         await clientReq.response.close();
@@ -86,7 +115,6 @@ class LocalMediaProxyServer {
     }
   }
 
-  /// 🌟 构造原生播放器可直接加载的 localhost 代理链接
   String buildPlayUrl(String remoteUrl) {
     if (localPort == null || remoteUrl.isEmpty) return remoteUrl;
     return 'http://localhost:$localPort/stream?url=${Uri.encodeComponent(remoteUrl)}';

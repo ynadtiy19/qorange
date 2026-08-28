@@ -1,3 +1,4 @@
+// lib/controllers/youtube_player_controller.dart
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -29,22 +30,23 @@ class YouTubePlayerController extends GetxController {
   final RxList<YouTubeVideoModel> relatedVideos = <YouTubeVideoModel>[].obs;
   final Rx<VideoDetailStreamResult?> streamDetail = Rx<VideoDetailStreamResult?>(null);
 
-  // 播放状态响应式变量
+  final RxList<VideoStreamQualityModel> allAvailableStreams = <VideoStreamQualityModel>[].obs;
+
   final RxBool isLoading = true.obs;
   final RxBool isPlaying = false.obs;
   final RxBool isBuffering = false.obs;
   final RxBool isError = false.obs;
   final RxBool showControls = true.obs;
   final RxBool isFullScreen = false.obs;
+  final RxBool isDescriptionExpanded = false.obs;
 
   final Rx<Duration> currentPosition = Duration.zero.obs;
   final Rx<Duration> totalDuration = Duration.zero.obs;
   final Rx<Duration> bufferedPosition = Duration.zero.obs;
 
-  final RxString currentQualityLabel = '720p'.obs;
+  final RxString currentQualityLabel = 'Auto (HLS)'.obs;
   final RxDouble playbackSpeed = 1.0.obs;
 
-  // 双击快进/快退动画反馈标记
   final RxBool isForwardingRipple = false.obs;
   final RxBool isRewindingRipple = false.obs;
 
@@ -52,20 +54,17 @@ class YouTubePlayerController extends GetxController {
   void onInit() {
     super.onInit();
     videoDetail.value = initialVideo;
-    _loadRelatedVideos(initialVideo.author.isNotEmpty ? initialVideo.author : 'Trending');
     initVideoPlayer(initialVideo.videoId);
   }
 
-  /// 初始化视频流媒体
   Future<void> initVideoPlayer(String videoId) async {
     if (videoId.isEmpty) return;
     try {
       isLoading.value = true;
       isError.value = false;
 
-      // 1. 请求 Dart Frog 后端获取格式化直链
       final result = await _service.fetchVideoDetail(videoId);
-      if (result == null || (result.rawVideoUrl.isEmpty && result.formatStreams.isEmpty)) {
+      if (result == null) {
         isError.value = true;
         isLoading.value = false;
         return;
@@ -73,31 +72,68 @@ class YouTubePlayerController extends GetxController {
 
       streamDetail.value = result;
 
-      // 同步标题与时长
       videoDetail.value = YouTubeVideoModel(
         videoId: videoId,
         title: result.title.isNotEmpty ? result.title : videoDetail.value.title,
         author: result.author.isNotEmpty ? result.author : videoDetail.value.author,
-        duration: result.duration.isNotEmpty ? result.duration : videoDetail.value.duration,
+        duration: result.isLive ? 'LIVE' : (result.duration.isNotEmpty ? result.duration : videoDetail.value.duration),
         thumbnail: result.thumbnail.isNotEmpty ? result.thumbnail : videoDetail.value.thumbnail,
-        views: videoDetail.value.views,
+        views: result.viewCount.isNotEmpty ? '${result.viewCount}次观看' : videoDetail.value.views,
       );
 
-      // 2. 匹配默认清晰度 (优先 720p，其次 360p 或第一项)
-      VideoStreamQualityModel? defaultStream;
-      if (result.formatStreams.isNotEmpty) {
-        defaultStream = result.formatStreams.firstWhereOrNull((s) => s.qualityLabel.contains('720')) ??
-            result.formatStreams.firstWhereOrNull((s) => s.qualityLabel.contains('360')) ??
-            result.formatStreams.first;
+      if (result.recommendedVideos.isNotEmpty) {
+        relatedVideos.assignAll(result.recommendedVideos);
+      } else {
+        _loadFallbackRelatedVideos(result.author.isNotEmpty ? result.author : 'Trending');
       }
 
-      final rawTargetUrl = defaultStream != null ? defaultStream.url : result.rawVideoUrl;
-      currentQualityLabel.value = defaultStream?.qualityLabel ?? 'Default';
+      final qualityOptions = <VideoStreamQualityModel>[];
 
-      // 3. 构建本地代理中继地址
-      final proxiedPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(rawTargetUrl);
+      if (result.hlsUrl.isNotEmpty) {
+        qualityOptions.add(VideoStreamQualityModel(
+          itag: 'hls_auto',
+          quality: 'auto',
+          qualityLabel: 'Auto (最高画质+音频)',
+          resolution: '1080p',
+          container: 'HLS',
+          encoding: 'h264+aac',
+          fps: 60,
+          size: '',
+          bitrate: '',
+          url: result.hlsUrl,
+          isHls: true,
+        ));
+      }
 
-      // 4. 启动 video_player 原生播放
+      for (final s in result.formatStreams) {
+        qualityOptions.add(s);
+      }
+
+      for (final s in result.adaptiveVideoStreams) {
+        if (!qualityOptions.any((e) => e.qualityLabel == s.qualityLabel)) {
+          qualityOptions.add(s);
+        }
+      }
+
+      allAvailableStreams.assignAll(qualityOptions);
+
+      String targetPlayUrl = result.hlsUrl;
+      if (targetPlayUrl.isEmpty && result.formatStreams.isNotEmpty) {
+        targetPlayUrl = result.formatStreams.first.url;
+      }
+      if (targetPlayUrl.isEmpty) {
+        targetPlayUrl = result.rawVideoUrl;
+      }
+
+      if (targetPlayUrl.isEmpty) {
+        isError.value = true;
+        isLoading.value = false;
+        return;
+      }
+
+      currentQualityLabel.value = result.hlsUrl.isNotEmpty ? 'Auto (1080p)' : '720p';
+
+      final proxiedPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(targetPlayUrl);
       await _setupPlayerInstance(proxiedPlayUrl, Duration.zero);
     } catch (_) {
       isError.value = true;
@@ -106,10 +142,18 @@ class YouTubePlayerController extends GetxController {
     }
   }
 
-  /// 实例化并监听 video_player
+  /// 🌟 关键修复：实例化前立即静音并销毁旧播放器，彻底杜绝声音叠加
   Future<void> _setupPlayerInstance(String url, Duration seekTo) async {
     final oldController = videoPlayerController;
-    oldController?.removeListener(_playerListener);
+    videoPlayerController = null; // 立即切断引用
+
+    if (oldController != null) {
+      oldController.removeListener(_playerListener);
+      try {
+        await oldController.pause(); // 🌟 立即暂停，旧音频瞬间停止！
+        await oldController.dispose(); // 🌟 立即从底层释放 ExoPlayer 实例
+      } catch (_) {}
+    }
 
     final newController = VideoPlayerController.networkUrl(
       Uri.parse(url),
@@ -130,8 +174,6 @@ class YouTubePlayerController extends GetxController {
     newController.addListener(_playerListener);
 
     videoPlayerController = newController;
-    await oldController?.dispose();
-
     _startControlsTimer();
   }
 
@@ -149,24 +191,31 @@ class YouTubePlayerController extends GetxController {
     }
   }
 
-  /// 切换清晰度（保留当前播放进度）
+  /// 切换清晰度（记录进度 ➡️ 立即静音旧画面 ➡️ 载入新清晰度续播）
   Future<void> switchQuality(VideoStreamQualityModel stream) async {
     final currentPos = currentPosition.value;
     currentQualityLabel.value = stream.qualityLabel;
     isLoading.value = true;
 
-    final proxiedPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(stream.url);
+    // 立即暂停当前画面
+    try {
+      await videoPlayerController?.pause();
+    } catch (_) {}
+
+    final targetUrl = stream.isHls
+        ? stream.url
+        : (stream.url.isNotEmpty ? stream.url : (streamDetail.value?.hlsUrl ?? ''));
+
+    final proxiedPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(targetUrl);
     await _setupPlayerInstance(proxiedPlayUrl, currentPos);
     isLoading.value = false;
   }
 
-  /// 切换播放速度
   void setSpeed(double speed) {
     playbackSpeed.value = speed;
     videoPlayerController?.setPlaybackSpeed(speed);
   }
 
-  /// 播放/暂停
   void togglePlay() {
     final ctrl = videoPlayerController;
     if (ctrl == null) return;
@@ -180,12 +229,10 @@ class YouTubePlayerController extends GetxController {
     }
   }
 
-  /// 跳转进度
   void seekTo(Duration position) {
     videoPlayerController?.seekTo(position);
   }
 
-  /// 双击快退 10 秒
   void rewind10Seconds() {
     final newPos = currentPosition.value - const Duration(seconds: 10);
     seekTo(newPos > Duration.zero ? newPos : Duration.zero);
@@ -194,7 +241,6 @@ class YouTubePlayerController extends GetxController {
     _startControlsTimer();
   }
 
-  /// 双击快进 10 秒
   void forward10Seconds() {
     final newPos = currentPosition.value + const Duration(seconds: 10);
     seekTo(newPos < totalDuration.value ? newPos : totalDuration.value);
@@ -203,7 +249,6 @@ class YouTubePlayerController extends GetxController {
     _startControlsTimer();
   }
 
-  /// 切换控制栏显隐
   void toggleControls() {
     showControls.value = !showControls.value;
     if (showControls.value && isPlaying.value) {
@@ -213,7 +258,6 @@ class YouTubePlayerController extends GetxController {
     }
   }
 
-  /// 切换横竖屏全屏
   void toggleFullScreen() {
     isFullScreen.value = !isFullScreen.value;
     if (isFullScreen.value) {
@@ -226,6 +270,10 @@ class YouTubePlayerController extends GetxController {
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
+  }
+
+  void toggleDescription() {
+    isDescriptionExpanded.value = !isDescriptionExpanded.value;
   }
 
   void _startControlsTimer() {
@@ -242,7 +290,7 @@ class YouTubePlayerController extends GetxController {
     _controlsTimer = null;
   }
 
-  Future<void> _loadRelatedVideos(String author) async {
+  Future<void> _loadFallbackRelatedVideos(String author) async {
     try {
       final results = await _service.searchVideos(author, limit: 12);
       relatedVideos.assignAll(results.where((v) => v.videoId != initialVideo.videoId).toList());
