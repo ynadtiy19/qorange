@@ -11,6 +11,9 @@ class LocalMediaProxyServer {
   int? localPort;
   HttpClient? _sharedClient;
 
+  // 🌟 单次向上游拉取的最大分块限制为 2.5 MB（实现按需流式拉取，细水长流）
+  static const int kMaxChunkSliceBytes = 2621440; // 2.5 MB
+
   HttpClient get _client {
     _sharedClient ??= HttpClient()
       ..badCertificateCallback = ((cert, host, port) => true)
@@ -36,75 +39,6 @@ class LocalMediaProxyServer {
   }
 
   void _handleRequest(HttpRequest clientReq) async {
-    final path = clientReq.uri.path;
-
-    // 🌟 1. 核心特性：动态生成标准 MPEG-DASH (.mpd) 音画合流清单（解决 1080p/720p 画面+音频同步）
-    if (path == '/manifest.mpd') {
-      final vUrl = clientReq.uri.queryParameters['v_url'] ?? '';
-      final aUrl = clientReq.uri.queryParameters['a_url'] ?? '';
-      final vInit = clientReq.uri.queryParameters['v_init'] ?? '0-740';
-      final vIndex = clientReq.uri.queryParameters['v_index'] ?? '741-1100';
-      final aInit = clientReq.uri.queryParameters['a_init'] ?? '0-600';
-      final aIndex = clientReq.uri.queryParameters['a_index'] ?? '601-900';
-      final vBitrate = clientReq.uri.queryParameters['v_bitrate'] ?? '2500000';
-      final aBitrate = clientReq.uri.queryParameters['a_bitrate'] ?? '130000';
-      final vCodec = clientReq.uri.queryParameters['v_codec'] ?? 'avc1.640028';
-      final aCodec = clientReq.uri.queryParameters['a_codec'] ?? 'mp4a.40.2';
-      final width = clientReq.uri.queryParameters['w'] ?? '1920';
-      final height = clientReq.uri.queryParameters['h'] ?? '1080';
-      final duration = double.tryParse(clientReq.uri.queryParameters['dur'] ?? '3600') ?? 3600.0;
-
-      if (vUrl.isEmpty) {
-        clientReq.response.statusCode = HttpStatus.badRequest;
-        await clientReq.response.close();
-        return;
-      }
-
-      final proxiedVUrl = buildPlayUrl(vUrl);
-      final hasAudio = aUrl.isNotEmpty;
-      final proxiedAUrl = hasAudio ? buildPlayUrl(aUrl) : '';
-
-      final mpdXml = '''<?xml version="1.0" encoding="UTF-8"?>
-<MPD xmlns="urn:mpeg:dash:schema:mpd:2011"
-     profiles="urn:mpeg:dash:profile:isoff-on-demand:2011"
-     type="static"
-     mediaPresentationDuration="PT${duration.toStringAsFixed(3)}S"
-     minBufferTime="PT2.0S">
-  <Period>
-    <AdaptationSet id="0" contentType="video" mimeType="video/mp4" subsegmentAlignment="true">
-      <Representation id="video_track" bandwidth="$vBitrate" width="$width" height="$height" codecs="$vCodec">
-        <BaseURL>$proxiedVUrl</BaseURL>
-        <SegmentBase indexRange="$vIndex">
-          <Initialization range="$vInit"/>
-        </SegmentBase>
-      </Representation>
-    </AdaptationSet>
-${hasAudio ? '''
-    <AdaptationSet id="1" contentType="audio" mimeType="audio/mp4" subsegmentAlignment="true">
-      <Representation id="audio_track" bandwidth="$aBitrate" codecs="$aCodec">
-        <BaseURL>$proxiedAUrl</BaseURL>
-        <SegmentBase indexRange="$aIndex">
-          <Initialization range="$aInit"/>
-        </SegmentBase>
-      </Representation>
-    </AdaptationSet>
-''' : ''}
-  </Period>
-</MPD>''';
-
-      final bodyBytes = utf8.encode(mpdXml);
-      clientReq.response.statusCode = HttpStatus.ok;
-      clientReq.response.headers.set(HttpHeaders.contentTypeHeader, 'application/dash+xml; charset=utf-8');
-      clientReq.response.headers.set(HttpHeaders.contentLengthHeader, bodyBytes.length);
-      clientReq.response.add(bodyBytes);
-      try {
-        await clientReq.response.close();
-      } catch (_) {}
-      debugPrint("🎬 [LocalMediaProxy] 成功动态合成 MPEG-DASH (.mpd) 音画合流清单 (画质: ${height}p)");
-      return;
-    }
-
-    // 🌟 2. 处理常规视频/音频切片/直播流代理请求
     final targetUrl = clientReq.uri.queryParameters['url'];
     if (targetUrl == null || targetUrl.isEmpty) {
       clientReq.response.statusCode = HttpStatus.badRequest;
@@ -118,10 +52,27 @@ ${hasAudio ? '''
       final targetUri = Uri.parse(targetUrl);
       final upstreamReq = await _client.getUrl(targetUri);
 
-      // 透传 Range 请求头（ExoPlayer 原生按需小块拉取的核心）
-      final range = clientReq.headers.value(HttpHeaders.rangeHeader);
-      if (range != null) {
-        upstreamReq.headers.set(HttpHeaders.rangeHeader, range);
+      final clientRange = clientReq.headers.value(HttpHeaders.rangeHeader);
+      final isVideoOrAudio = targetUrl.contains('videoplayback') ||
+          targetUrl.contains('.mp4') ||
+          targetUrl.contains('.webm') ||
+          targetUrl.contains('.m4a');
+
+      // 🌟 1. 核心机制：对音视频大文件启用 2.5MB 分块截断保护（细水长流）
+      if (isVideoOrAudio && clientRange != null && clientRange.startsWith('bytes=')) {
+        final rangeSpec = clientRange.replaceAll('bytes=', '').trim();
+        final parts = rangeSpec.split('-');
+        final startByte = int.tryParse(parts[0]) ?? 0;
+        int? endByte = parts.length > 1 && parts[1].isNotEmpty ? int.tryParse(parts[1]) : null;
+
+        // 如果客户端未指定结束字节（如 bytes=0-）或请求范围超过 2.5MB，强行截断为 2.5MB 小块
+        if (endByte == null || (endByte - startByte) > kMaxChunkSliceBytes) {
+          endByte = startByte + kMaxChunkSliceBytes - 1;
+        }
+
+        upstreamReq.headers.set(HttpHeaders.rangeHeader, 'bytes=$startByte-$endByte');
+      } else if (clientRange != null) {
+        upstreamReq.headers.set(HttpHeaders.rangeHeader, clientRange);
       }
 
       upstreamReq.headers.set(
@@ -136,7 +87,7 @@ ${hasAudio ? '''
 
       final mediaTag = _detectMediaType(targetUrl, contentType);
 
-      // 直播 HLS M3U8 清单递归重写
+      // 🌟 2. 处理直播 HLS 清单递归重写
       if (isM3u8 && upstreamResp.statusCode == 200) {
         final m3u8RawContent = await upstreamResp.transform(utf8.decoder).join();
         final lines = m3u8RawContent.split('\n');
@@ -181,6 +132,7 @@ ${hasAudio ? '''
         return;
       }
 
+      // 🌟 3. 普通流直通推流
       clientReq.response.statusCode = upstreamResp.statusCode;
 
       upstreamResp.headers.forEach((name, values) {
@@ -198,10 +150,10 @@ ${hasAudio ? '''
 
       final length = upstreamResp.contentLength;
       debugPrint(
-        "📥 [LocalMediaProxy] $mediaTag 中继成功 -> 状态: ${upstreamResp.statusCode} | 长度: ${_formatBytes(length)}",
+        "📥 [LocalMediaProxy] $mediaTag 按需拉取 -> 状态: ${upstreamResp.statusCode} | 块大小: ${_formatBytes(length)} | 源站: ${targetUri.host}",
       );
 
-      // 安全传输，忽略客户端 Range 关闭时的 Connection reset (errno 54 / 32)
+      // 安全传输，自动捕获播放器由于跳帧/暂停导致的断流
       await clientReq.response.addStream(upstreamResp).catchError((_) {});
       try {
         await clientReq.response.close();
@@ -212,44 +164,6 @@ ${hasAudio ? '''
         await clientReq.response.close();
       } catch (_) {}
     }
-  }
-
-  /// 🌟 构建本地 MPEG-DASH (.mpd) 音画双轨合流链接
-  String buildDashManifestUrl({
-    required String videoUrl,
-    required String audioUrl,
-    required String videoInit,
-    required String videoIndex,
-    required String audioInit,
-    required String audioIndex,
-    required String videoBitrate,
-    required String audioBitrate,
-    required String videoCodec,
-    required String audioCodec,
-    required String width,
-    required String height,
-    required double duration,
-  }) {
-    if (localPort == null) return videoUrl;
-
-    final params = {
-      'v_url': videoUrl,
-      'a_url': audioUrl,
-      'v_init': videoInit,
-      'v_index': videoIndex,
-      'a_init': audioInit,
-      'a_index': audioIndex,
-      'v_bitrate': videoBitrate,
-      'a_bitrate': audioBitrate,
-      'v_codec': videoCodec,
-      'a_codec': audioCodec,
-      'w': width,
-      'h': height,
-      'dur': duration.toString(),
-    };
-
-    final query = params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
-    return 'http://localhost:$localPort/manifest.mpd?$query';
   }
 
   String buildPlayUrl(String remoteUrl) {

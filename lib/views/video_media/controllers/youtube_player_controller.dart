@@ -62,11 +62,10 @@ class YouTubePlayerController extends GetxController {
     super.onInit();
     videoDetail.value = initialVideo;
 
-    // 🌟 1. 核心修复：配置声卡自动选择策略，彻底消除 Could not open audio device
+    // 🌟 1. 配置播放器 16MB 滑动缓冲区
     player = Player(
       configuration: const PlayerConfiguration(
-        bufferSize: 32 * 1024 * 1024,
-        pitch: true,
+        bufferSize: 16 * 1024 * 1024,
       ),
     );
     playerVideoController = VideoController(player);
@@ -138,18 +137,23 @@ class YouTubePlayerController extends GetxController {
         _loadFallbackRelatedVideos(result.author.isNotEmpty ? result.author : 'Trending');
       }
 
-      // 🌟 2. 核心去重算法：每个分辨率（如 1080p, 720p, 480p）只保留 1 个最佳选项
+      // 🌟 2. 核心去重算法：每个分辨率（如 1080p, 720p, 480p）严格只保留 1 个最佳选项
       final Map<String, VideoStreamQualityModel> uniqueStreamsMap = {};
 
-      // 优先存入复合流（360p / 720p 复合流自带音频）
+      // 优先存入复合流（360p 复合流自带音频）
       for (final s in result.formatStreams) {
         uniqueStreamsMap[s.qualityLabel] = s;
       }
 
-      // 再存入高清流（若未包含则添加）
+      // 再存入高清流（若已有 WebM，优先替换为兼容性更好的 MP4）
       for (final s in result.adaptiveVideoStreams) {
         if (!uniqueStreamsMap.containsKey(s.qualityLabel)) {
           uniqueStreamsMap[s.qualityLabel] = s;
+        } else {
+          final existing = uniqueStreamsMap[s.qualityLabel]!;
+          if (existing.container.toLowerCase() == 'webm' && s.container.toLowerCase() == 'mp4') {
+            uniqueStreamsMap[s.qualityLabel] = s;
+          }
         }
       }
 
@@ -171,9 +175,9 @@ class YouTubePlayerController extends GetxController {
         await player.setVolume(100.0);
         await player.open(Media(proxiedHls), play: true);
       } else if (allAvailableStreams.isNotEmpty) {
-        // 优先默认播放自带音频的 360p/720p 或第一个
-        final defaultStream = allAvailableStreams.firstWhereOrNull((s) => !s.isAdaptive) ??
-            allAvailableStreams.firstWhereOrNull((s) => s.qualityLabel.contains('720')) ??
+        // 默认优先启动 720p / 1080p 或 360p 复合流
+        final defaultStream = allAvailableStreams.firstWhereOrNull((s) => s.qualityLabel.contains('720')) ??
+            allAvailableStreams.firstWhereOrNull((s) => s.qualityLabel.contains('1080')) ??
             allAvailableStreams.first;
         await _playStreamWithAudio(defaultStream, Duration.zero);
       } else if (result.rawVideoUrl.isNotEmpty) {
@@ -192,7 +196,7 @@ class YouTubePlayerController extends GetxController {
     }
   }
 
-  /// 🌟 核心播放逻辑：强行激活音量，保证声音正常流出
+  /// 🌟 核心播放逻辑：强行激活音量，双轨合流
   Future<void> _playStreamWithAudio(VideoStreamQualityModel stream, Duration startPos) async {
     selectedStreamItag.value = stream.itag;
     currentQualityLabel.value = stream.qualityLabel;
@@ -200,16 +204,16 @@ class YouTubePlayerController extends GetxController {
     final proxiedVideoUrl = LocalMediaProxyServer.instance.buildPlayUrl(stream.url);
     final rawAudio = streamDetail.value?.primaryAudioTrack?.url ?? (streamDetail.value?.rawAudioUrl ?? '');
 
-    // 打开视频轨
+    // 打开视频主轨道
     await player.open(
       Media(proxiedVideoUrl),
       play: true,
     );
 
-    // 强制音量 100%
+    // 确保满格音量
     await player.setVolume(100.0);
 
-    // 挂载独立音轨
+    // 🌟 如果是高清分离画面轨，挂载独立立体声音轨
     if (stream.isAdaptive && rawAudio.isNotEmpty) {
       final proxiedAudioUrl = LocalMediaProxyServer.instance.buildPlayUrl(rawAudio);
       await player.setAudioTrack(
