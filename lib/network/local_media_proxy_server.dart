@@ -12,7 +12,7 @@ class LocalMediaProxyServer {
   HttpClient? _sharedClient;
 
   // 🌟 单次向上游拉取的最大分块限制为 2.5 MB（实现按需流式拉取，细水长流）
-  static const int kMaxChunkSliceBytes = 2621440; // 2.5 MB
+  static const int kMaxChunkSliceBytes = 8621440; // 2.5 MB
 
   HttpClient get _client {
     _sharedClient ??= HttpClient()

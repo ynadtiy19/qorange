@@ -223,11 +223,13 @@ class YouTubeService {
   factory YouTubeService() => _instance;
   YouTubeService._internal();
 
-  Future<List<YouTubeVideoModel>> searchVideos(String query, {int limit = 15}) async {
+  /// 🌟 1. 搜索接口：支持分页（page）与条数限制（limit）
+  Future<List<YouTubeVideoModel>> searchVideos(String query, {int page = 1, int limit = 20}) async {
     final res = await HttpClient.instance.get<dynamic>(
       '/api-youtube/search',
       queryParameters: {
         'q': query,
+        'page': page,
         'limit': limit,
       },
     );
@@ -243,6 +245,27 @@ class YouTubeService {
     return [];
   }
 
+  /// 🌟 2. 热门发现接口：获取实时全球 Trending 推荐流
+  Future<List<YouTubeVideoModel>> fetchTrendingVideos({String type = 'default'}) async {
+    final res = await HttpClient.instance.get<dynamic>(
+      '/api-youtube/trending',
+      queryParameters: {
+        'type': type,
+      },
+    );
+
+    if (res.respCode == 0 && res.datas != null) {
+      if (res.datas is List) {
+        final list = res.datas as List;
+        return list
+            .map((item) => YouTubeVideoModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    }
+    return [];
+  }
+
+  /// 🌟 3. 详情提取接口
   Future<VideoDetailStreamResult?> fetchVideoDetail(String videoId) async {
     final res = await HttpClient.instance.get<dynamic>(
       '/api-youtube/$videoId',
