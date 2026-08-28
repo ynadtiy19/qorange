@@ -30,19 +30,18 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
   SSHDynamicForward? _dynamicForward;
   Timer? _heartbeatTimer;
   AtClient? _cachedAtClient;
+  int _consecutivePingFails = 0; // 连续失败计数器
 
   @override
   void onInit() {
     super.onInit();
-    // 🌟 注册应用生命周期监听器
     WidgetsBinding.instance.addObserver(this);
   }
 
-  /// 🌟 监听 App 前后台切换：当从后台切回前台时，自动检测并重连
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      debugPrint("📱 [AppSshTunnel] 应用回到前台，执行隧道健康自检...");
+      debugPrint("📱 [AppSshTunnel] 应用切回前台，执行健康自检...");
       _checkAndHealTunnel();
     }
   }
@@ -59,40 +58,46 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
     );
   }
 
-  /// 🌟 增强型心跳：探测到断开立即触发重连
+  /// 🌟 增强心跳：超时放宽至 15 秒，连续 2 次失败才触发自愈（防止大流量阻塞时误判）
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-      if (isTunnelActive.value && _sshClient != null) {
+    _consecutivePingFails = 0;
+
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      if (isTunnelActive.value && _sshClient != null && !isReconnecting.value) {
         try {
-          // 向上游发送 SSH ping 报文探测活性
-          await _sshClient?.ping().timeout(const Duration(seconds: 5));
+          await _sshClient?.ping().timeout(const Duration(seconds: 15));
+          _consecutivePingFails = 0; // 成功即重置
         } catch (e) {
-          debugPrint("⚠️ [AppSshTunnel] 心跳探测失败，隧道已失效: $e");
-          _checkAndHealTunnel();
+          _consecutivePingFails++;
+          debugPrint("⚠️ [AppSshTunnel] 心跳探测超时 ($_consecutivePingFails/2): $e");
+          if (_consecutivePingFails >= 2) {
+            _checkAndHealTunnel();
+          }
         }
       }
     });
   }
 
-  /// 🌟 自愈检测：若隧道假死或失效，自动静默拉起重连
+  /// 🌟 安全自愈互斥锁：防止并发重复拉起引发 Future already completed
   Future<void> _checkAndHealTunnel() async {
     if (_cachedAtClient == null || isReconnecting.value) return;
 
     bool isAlive = false;
     try {
       if (_sshClient != null && isTunnelActive.value) {
-        await _sshClient!.ping().timeout(const Duration(seconds: 3));
+        await _sshClient!.ping().timeout(const Duration(seconds: 5));
         isAlive = true;
       }
     } catch (_) {
       isAlive = false;
     }
 
-    if (!isAlive) {
-      debugPrint("🔄 [AppSshTunnel] 触发自动重连自愈流程...");
+    if (!isAlive && !isReconnecting.value) {
       isReconnecting.value = true;
+      debugPrint("🔄 [AppSshTunnel] 触发平滑静默重连...");
       await stopTunnel(silent: true);
+      await Future.delayed(const Duration(milliseconds: 500));
       await startTunnel(_cachedAtClient!, silent: true);
       isReconnecting.value = false;
     }
@@ -254,7 +259,7 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
 
     isTunnelActive.value = false;
     currentSocks5Port.value = 0;
-    debugPrint("🔌 [AppSshTunnel] 隧道已彻底关闭");
+    debugPrint("🔌 [AppSshTunnel] 隧道已安全释放");
     if (!silent) {
       _showToast("🔌 专用安全隧道已断开", const Color(0xFF424242));
     }

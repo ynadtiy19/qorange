@@ -44,7 +44,7 @@ class YouTubePlayerController extends GetxController {
   final Rx<Duration> totalDuration = Duration.zero.obs;
   final Rx<Duration> bufferedPosition = Duration.zero.obs;
 
-  final RxString currentQualityLabel = 'Auto (HLS)'.obs;
+  final RxString currentQualityLabel = '360p'.obs;
   final RxDouble playbackSpeed = 1.0.obs;
 
   final RxBool isForwardingRipple = false.obs;
@@ -87,28 +87,12 @@ class YouTubePlayerController extends GetxController {
         _loadFallbackRelatedVideos(result.author.isNotEmpty ? result.author : 'Trending');
       }
 
+      // 1. 组装画质面板
       final qualityOptions = <VideoStreamQualityModel>[];
-
-      if (result.hlsUrl.isNotEmpty) {
-        qualityOptions.add(VideoStreamQualityModel(
-          itag: 'hls_auto',
-          quality: 'auto',
-          qualityLabel: 'Auto (最高画质+音频)',
-          resolution: '1080p',
-          container: 'HLS',
-          encoding: 'h264+aac',
-          fps: 60,
-          size: '',
-          bitrate: '',
-          url: result.hlsUrl,
-          isHls: true,
-        ));
-      }
 
       for (final s in result.formatStreams) {
         qualityOptions.add(s);
       }
-
       for (final s in result.adaptiveVideoStreams) {
         if (!qualityOptions.any((e) => e.qualityLabel == s.qualityLabel)) {
           qualityOptions.add(s);
@@ -117,12 +101,41 @@ class YouTubePlayerController extends GetxController {
 
       allAvailableStreams.assignAll(qualityOptions);
 
-      String targetPlayUrl = result.hlsUrl;
-      if (targetPlayUrl.isEmpty && result.formatStreams.isNotEmpty) {
-        targetPlayUrl = result.formatStreams.first.url;
-      }
-      if (targetPlayUrl.isEmpty) {
-        targetPlayUrl = result.rawVideoUrl;
+      // 🌟 2. 核心启动策略：
+      // 直播 -> 走 HLS (.m3u8)
+      // 点播 -> 默认 360p 复合流秒开（0秒启动，100%有立体声）
+      String targetPlayUrl = '';
+      VideoFormat formatHint = VideoFormat.other;
+
+      if (result.isLive && result.hlsUrl.isNotEmpty) {
+        targetPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(result.hlsUrl);
+        currentQualityLabel.value = 'LIVE';
+        formatHint = VideoFormat.hls;
+      } else if (result.formatStreams.isNotEmpty) {
+        targetPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(result.formatStreams.first.url);
+        currentQualityLabel.value = result.formatStreams.first.qualityLabel;
+        formatHint = VideoFormat.other;
+      } else if (result.adaptiveVideoStreams.isNotEmpty) {
+        // 只有分片流时，生成本地 MPEG-DASH (.mpd) 合流清单（带上音频）
+        final v = result.adaptiveVideoStreams.first;
+        final a = result.primaryAudioTrack;
+        targetPlayUrl = LocalMediaProxyServer.instance.buildDashManifestUrl(
+          videoUrl: v.url,
+          audioUrl: a?.url ?? result.rawAudioUrl,
+          videoInit: v.init,
+          videoIndex: v.index,
+          audioInit: a?.init ?? '0-600',
+          audioIndex: a?.index ?? '601-900',
+          videoBitrate: v.bitrate,
+          audioBitrate: a?.bitrate ?? '130000',
+          videoCodec: 'avc1.640028',
+          audioCodec: 'mp4a.40.2',
+          width: v.width,
+          height: v.height,
+          duration: result.lengthSeconds.toDouble(),
+        );
+        currentQualityLabel.value = v.qualityLabel;
+        formatHint = VideoFormat.dash;
       }
 
       if (targetPlayUrl.isEmpty) {
@@ -131,10 +144,7 @@ class YouTubePlayerController extends GetxController {
         return;
       }
 
-      currentQualityLabel.value = result.hlsUrl.isNotEmpty ? 'Auto (1080p)' : '720p';
-
-      final proxiedPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(targetPlayUrl);
-      await _setupPlayerInstance(proxiedPlayUrl, Duration.zero);
+      await _setupPlayerInstance(targetPlayUrl, Duration.zero, formatHint: formatHint);
     } catch (_) {
       isError.value = true;
     } finally {
@@ -142,21 +152,21 @@ class YouTubePlayerController extends GetxController {
     }
   }
 
-  /// 🌟 关键修复：实例化前立即静音并销毁旧播放器，彻底杜绝声音叠加
-  Future<void> _setupPlayerInstance(String url, Duration seekTo) async {
+  Future<void> _setupPlayerInstance(String url, Duration seekTo, {VideoFormat formatHint = VideoFormat.other}) async {
     final oldController = videoPlayerController;
-    videoPlayerController = null; // 立即切断引用
+    videoPlayerController = null;
 
     if (oldController != null) {
       oldController.removeListener(_playerListener);
       try {
-        await oldController.pause(); // 🌟 立即暂停，旧音频瞬间停止！
-        await oldController.dispose(); // 🌟 立即从底层释放 ExoPlayer 实例
+        await oldController.pause();
+        await oldController.dispose();
       } catch (_) {}
     }
 
     final newController = VideoPlayerController.networkUrl(
       Uri.parse(url),
+      formatHint: formatHint,
       httpHeaders: {
         'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -191,23 +201,45 @@ class YouTubePlayerController extends GetxController {
     }
   }
 
-  /// 切换清晰度（记录进度 ➡️ 立即静音旧画面 ➡️ 载入新清晰度续播）
+  /// 🌟 切换清晰度（如果是 720p/1080p 分片流，自动生成 DASH 双轨合流清单，确保 100% 有立体声声音）
   Future<void> switchQuality(VideoStreamQualityModel stream) async {
     final currentPos = currentPosition.value;
     currentQualityLabel.value = stream.qualityLabel;
     isLoading.value = true;
 
-    // 立即暂停当前画面
     try {
       await videoPlayerController?.pause();
     } catch (_) {}
 
-    final targetUrl = stream.isHls
-        ? stream.url
-        : (stream.url.isNotEmpty ? stream.url : (streamDetail.value?.hlsUrl ?? ''));
+    String targetPlayUrl = '';
+    VideoFormat formatHint = VideoFormat.other;
 
-    final proxiedPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(targetUrl);
-    await _setupPlayerInstance(proxiedPlayUrl, currentPos);
+    if (stream.isAdaptive) {
+      // 1080p / 720p / 480p 分片流：动态生成 MPEG-DASH (.mpd) 合流清单
+      final a = streamDetail.value?.primaryAudioTrack;
+      targetPlayUrl = LocalMediaProxyServer.instance.buildDashManifestUrl(
+        videoUrl: stream.url,
+        audioUrl: a?.url ?? (streamDetail.value?.rawAudioUrl ?? ''),
+        videoInit: stream.init,
+        videoIndex: stream.index,
+        audioInit: a?.init ?? '0-600',
+        audioIndex: a?.index ?? '601-900',
+        videoBitrate: stream.bitrate,
+        audioBitrate: a?.bitrate ?? '130000',
+        videoCodec: 'avc1.640028',
+        audioCodec: 'mp4a.40.2',
+        width: stream.width,
+        height: stream.height,
+        duration: (streamDetail.value?.lengthSeconds ?? 3600).toDouble(),
+      );
+      formatHint = VideoFormat.dash;
+    } else {
+      // 360p 复合流直接播放
+      targetPlayUrl = LocalMediaProxyServer.instance.buildPlayUrl(stream.url);
+      formatHint = VideoFormat.other;
+    }
+
+    await _setupPlayerInstance(targetPlayUrl, currentPos, formatHint: formatHint);
     isLoading.value = false;
   }
 

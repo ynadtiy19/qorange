@@ -13,7 +13,12 @@ class VideoStreamQualityModel {
   final String size;
   final String bitrate;
   final String url;
-  final bool isHls;
+  final String clen;
+  final String init;
+  final String index;
+  final String width;
+  final String height;
+  final bool isAdaptive;
 
   VideoStreamQualityModel({
     required this.itag,
@@ -26,10 +31,15 @@ class VideoStreamQualityModel {
     required this.size,
     required this.bitrate,
     required this.url,
-    this.isHls = false,
+    this.clen = '',
+    this.init = '0-740',
+    this.index = '741-1100',
+    this.width = '1280',
+    this.height = '720',
+    this.isAdaptive = false,
   });
 
-  factory VideoStreamQualityModel.fromJson(Map<String, dynamic> json, {bool isHls = false}) {
+  factory VideoStreamQualityModel.fromJson(Map<String, dynamic> json, {bool isAdaptive = false}) {
     return VideoStreamQualityModel(
       itag: json['itag']?.toString() ?? '',
       quality: json['quality']?.toString() ?? '',
@@ -39,9 +49,46 @@ class VideoStreamQualityModel {
       encoding: json['encoding']?.toString() ?? 'h264',
       fps: (json['fps'] as num?)?.toInt() ?? 30,
       size: json['size']?.toString() ?? '',
-      bitrate: json['bitrate']?.toString() ?? '',
+      bitrate: json['bitrate']?.toString() ?? '2500000',
       url: json['url']?.toString() ?? '',
-      isHls: isHls,
+      clen: json['clen']?.toString() ?? '',
+      init: json['init']?.toString() ?? '0-740',
+      index: json['index']?.toString() ?? '741-1100',
+      width: json['width']?.toString() ?? '1280',
+      height: json['height']?.toString() ?? '720',
+      isAdaptive: isAdaptive,
+    );
+  }
+}
+
+class AudioStreamQualityModel {
+  final String itag;
+  final String container;
+  final String encoding;
+  final String bitrate;
+  final String init;
+  final String index;
+  final String url;
+
+  AudioStreamQualityModel({
+    required this.itag,
+    required this.container,
+    required this.encoding,
+    required this.bitrate,
+    required this.init,
+    required this.index,
+    required this.url,
+  });
+
+  factory AudioStreamQualityModel.fromJson(Map<String, dynamic> json) {
+    return AudioStreamQualityModel(
+      itag: json['itag']?.toString() ?? '',
+      container: json['container']?.toString() ?? 'm4a',
+      encoding: json['encoding']?.toString() ?? 'aac',
+      bitrate: json['bitrate']?.toString() ?? '130000',
+      init: json['init']?.toString() ?? '0-600',
+      index: json['index']?.toString() ?? '601-900',
+      url: json['url']?.toString() ?? '',
     );
   }
 }
@@ -85,6 +132,7 @@ class VideoDetailStreamResult {
   final String hlsUrl;
   final String rawVideoUrl;
   final String rawAudioUrl;
+  final AudioStreamQualityModel? primaryAudioTrack;
   final List<VideoStreamQualityModel> formatStreams;
   final List<VideoStreamQualityModel> adaptiveVideoStreams;
   final List<VideoCaptionModel> captions;
@@ -109,6 +157,7 @@ class VideoDetailStreamResult {
     required this.hlsUrl,
     required this.rawVideoUrl,
     required this.rawAudioUrl,
+    required this.primaryAudioTrack,
     required this.formatStreams,
     required this.adaptiveVideoStreams,
     required this.captions,
@@ -118,12 +167,12 @@ class VideoDetailStreamResult {
   factory VideoDetailStreamResult.fromJson(Map<String, dynamic> json) {
     final rawFormat = json['format_streams'] as List? ?? [];
     final formats = rawFormat
-        .map((s) => VideoStreamQualityModel.fromJson(s as Map<String, dynamic>, isHls: false))
+        .map((s) => VideoStreamQualityModel.fromJson(s as Map<String, dynamic>, isAdaptive: false))
         .toList();
 
     final rawAdaptive = json['adaptive_video_streams'] as List? ?? [];
     final adaptives = rawAdaptive
-        .map((s) => VideoStreamQualityModel.fromJson(s as Map<String, dynamic>, isHls: false))
+        .map((s) => VideoStreamQualityModel.fromJson(s as Map<String, dynamic>, isAdaptive: true))
         .toList();
 
     final rawCaps = json['captions'] as List? ?? [];
@@ -135,6 +184,11 @@ class VideoDetailStreamResult {
     final recs = rawRecs
         .map((r) => YouTubeVideoModel.fromJson(r as Map<String, dynamic>))
         .toList();
+
+    AudioStreamQualityModel? primaryAudio;
+    if (json['primary_audio_track'] != null && json['primary_audio_track'] is Map) {
+      primaryAudio = AudioStreamQualityModel.fromJson(json['primary_audio_track'] as Map<String, dynamic>);
+    }
 
     return VideoDetailStreamResult(
       videoId: json['video_id']?.toString() ?? '',
@@ -155,6 +209,7 @@ class VideoDetailStreamResult {
       hlsUrl: json['hls_url']?.toString() ?? '',
       rawVideoUrl: json['raw_video_url']?.toString() ?? '',
       rawAudioUrl: json['raw_audio_url']?.toString() ?? '',
+      primaryAudioTrack: primaryAudio,
       formatStreams: formats,
       adaptiveVideoStreams: adaptives,
       captions: caps,

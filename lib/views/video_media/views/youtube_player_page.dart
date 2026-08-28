@@ -41,23 +41,19 @@ class YouTubePlayerPage extends StatelessWidget {
           }
 
           return Scaffold(
-            backgroundColor: const Color(0xFFFBFBF7), // 清亮晨曦米白
+            backgroundColor: const Color(0xFFFBFBF7),
             body: SafeArea(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. 播放器核心视口 (16:9)
                   AspectRatio(
                     aspectRatio: 16 / 9,
                     child: playerView,
                   ),
-
-                  // 2. 视频信息与推荐列表
                   Expanded(
                     child: ListView(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       children: [
-                        // 返回按钮
                         Row(
                           children: [
                             Material(
@@ -94,8 +90,6 @@ class YouTubePlayerPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
-
-                        // 视频主标题
                         Obx(() => Text(
                           controller.videoDetail.value.title.isNotEmpty
                               ? controller.videoDetail.value.title
@@ -108,8 +102,6 @@ class YouTubePlayerPage extends StatelessWidget {
                           ),
                         )),
                         const SizedBox(height: 8),
-
-                        // 核心数据统计指标行 (播放量 / 点赞数 / 发布日期)
                         Obx(() {
                           final detail = controller.streamDetail.value;
                           final viewCount = detail?.viewCount.isNotEmpty == true ? detail!.viewCount : videoItem.views;
@@ -140,8 +132,6 @@ class YouTubePlayerPage extends StatelessWidget {
                           );
                         }),
                         const SizedBox(height: 12),
-
-                        // 作者频道卡片
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -262,8 +252,6 @@ class YouTubePlayerPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 10),
-
-                        // 可展开式视频描述卡片
                         Obx(() {
                           final desc = controller.streamDetail.value?.description ?? '';
                           if (desc.isEmpty) return const SizedBox.shrink();
@@ -310,10 +298,7 @@ class YouTubePlayerPage extends StatelessWidget {
                             ),
                           );
                         }),
-
                         const Divider(color: Color(0xFFECE6D8), height: 28),
-
-                        // 推荐列表标题
                         const Text(
                           '精彩推荐',
                           style: TextStyle(
@@ -323,8 +308,6 @@ class YouTubePlayerPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 12),
-
-                        // 推荐视频卡片列表
                         Obx(() => Column(
                           children: controller.relatedVideos
                               .map((item) => _buildCleanRelatedItem(controller, item))
@@ -665,11 +648,13 @@ class YouTubePlayerPage extends StatelessWidget {
           Row(
             children: [
               Obx(() => Text(
-                '${_formatDuration(controller.currentPosition.value)} / ${_formatDuration(controller.totalDuration.value)}',
-                style: const TextStyle(
-                  color: Colors.white70,
+                controller.streamDetail.value?.isLive == true
+                    ? '🔴 直播中 (LIVE)'
+                    : '${_formatDuration(controller.currentPosition.value)} / ${_formatDuration(controller.totalDuration.value)}',
+                style: TextStyle(
+                  color: controller.streamDetail.value?.isLive == true ? const Color(0xFFFF4D4F) : Colors.white70,
                   fontSize: 11,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
               )),
               const Spacer(),
@@ -726,7 +711,6 @@ class YouTubePlayerPage extends StatelessWidget {
     );
   }
 
-  // 🌟 修复画质选择弹窗像素溢出：加入弹性滚动与高度约束
   void _showQualitySheet(BuildContext context, YouTubePlayerController controller) {
     final streams = controller.allAvailableStreams;
     if (streams.isEmpty) return;
@@ -770,7 +754,6 @@ class YouTubePlayerPage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // 🌟 限制最大高度并支持平滑滚动，解决溢出
                 ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.of(context).size.height * 0.55,
@@ -801,7 +784,7 @@ class YouTubePlayerPage extends StatelessWidget {
                           ),
                         ),
                         subtitle: Text(
-                          s.isHls ? '音画同步自适应流' : (s.fps > 30 ? '${s.fps} FPS 高帧率' : '标准流'),
+                          s.isAdaptive ? '高清分片 (音画本地合流)' : '标准复合流',
                           style: TextStyle(
                             fontSize: 11,
                             color: isCurrent ? const Color(0xFFB57400).withValues(alpha: 0.8) : const Color(0xFF8C806D),
@@ -826,7 +809,6 @@ class YouTubePlayerPage extends StatelessWidget {
     );
   }
 
-  // 🌟 修复倍速选择弹窗像素溢出：加入弹性滚动与高度约束
   void _showSpeedSheet(BuildContext context, YouTubePlayerController controller) {
     const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
@@ -847,9 +829,9 @@ class YouTubePlayerPage extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    HugeIcon(
+                    const HugeIcon(
                       icon: HugeIcons.strokeRoundedDashboardSpeed01,
-                      color: const Color(0xFFE59819),
+                      color: Color(0xFFE59819),
                       size: 20,
                     ),
                     const SizedBox(width: 8),
@@ -885,9 +867,9 @@ class YouTubePlayerPage extends StatelessWidget {
                         dense: true,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         tileColor: isCurrent ? const Color(0xFFFFF7E6) : null,
-                        leading: HugeIcon(
+                        leading: const HugeIcon(
                           icon: HugeIcons.strokeRoundedDashboardSpeed01,
-                          color: const Color(0xFFE59819),
+                          color: Color(0xFFE59819),
                           size: 18,
                         ),
                         title: Text(
