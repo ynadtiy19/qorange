@@ -1,12 +1,14 @@
+// lib/network/app_http_overrides.dart
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:socks5_proxy/socks_client.dart';
 
 class AppHttpOverrides extends HttpOverrides {
-  final int socks5Port;
+  // 🌟 核心改进：传入动态端口回调函数，避免端口变化后走失效的老端口
+  final ValueGetter<int> getSocks5Port;
 
-  AppHttpOverrides({required this.socks5Port});
+  AppHttpOverrides({required this.getSocks5Port});
 
-  // 🌟 核心修复：补全 YouTube 播放必须的 DoubleClick 探针与 Google 服务域名，彻底消除 152-4 报错
   static const List<String> _youtubeDomainWhitelist = [
     'youtube.com',
     'youtu.be',
@@ -17,11 +19,12 @@ class AppHttpOverrides extends HttpOverrides {
     'googleusercontent.com',
     'googleapis.com',
     'gstatic.com',
-    // 🌟 解决 Error 152-4 必须的域名：
-    'doubleclick.net',          // 核心：static.doubleclick.net 探针脚本
-    'googlesyndication.com',    // Google 媒体聚合校验
-    'googleadservices.com',     // 广告状态回执
-    'google.com',               // Google 账户与安全基础服务
+    'doubleclick.net',
+    'googlesyndication.com',
+    'googleadservices.com',
+    'google.com',
+    'invidious.io',
+    'omada.cafe',
   ];
 
   static bool isYouTubeHost(String host) {
@@ -35,11 +38,12 @@ class AppHttpOverrides extends HttpOverrides {
       ..badCertificateCallback = ((cert, host, port) => true)
       ..connectionTimeout = const Duration(seconds: 15)
       ..idleTimeout = const Duration(seconds: 60)
-      ..maxConnectionsPerHost = 20;
+      ..maxConnectionsPerHost = 30;
 
-    if (socks5Port > 0) {
+    final currentPort = getSocks5Port();
+    if (currentPort > 0) {
       final proxies = [
-        ProxySettings(InternetAddress.loopbackIPv4, socks5Port),
+        ProxySettings(InternetAddress.loopbackIPv4, currentPort),
       ];
       SocksTCPClient.assignToHttpClient(client, proxies);
     }

@@ -75,6 +75,7 @@ dependencies:
   media_kit: ^1.2.6
   media_kit_video: ^2.0.1
   media_kit_libs_video: ^1.0.7
+  connectivity_plus: ^7.3.1
 
   flutter_local_notifications: ^22.3.0
   at_client: ^3.10.0

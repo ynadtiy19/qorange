@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:at_client/at_client.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -29,19 +30,54 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
   SSHClient? _sshClient;
   SSHDynamicForward? _dynamicForward;
   Timer? _heartbeatTimer;
+  Timer? _networkDebounceTimer;
   AtClient? _cachedAtClient;
-  int _consecutivePingFails = 0; // 连续失败计数器
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  int _consecutivePingFails = 0;
 
   @override
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
+    _initNetworkConnectivityListener();
+
+    // 🌟 全局注册动态端口代理拦截器
+    HttpOverrides.global = AppHttpOverrides(
+      getSocks5Port: () => currentSocks5Port.value,
+    );
   }
 
+  /// 🌟 1. 核心特性：监听 Wi-Fi ↔ 4G/5G 物理网络切换事件
+  void _initNetworkConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      _onNetworkChanged(results);
+    });
+  }
+
+  void _onNetworkChanged(List<ConnectivityResult> results) {
+    final hasConnection = results.any((r) => r != ConnectivityResult.none);
+    if (!hasConnection) {
+      debugPrint("📶 [AppSshTunnel] 设备处于断网状态...");
+      return;
+    }
+
+    debugPrint("📶 [AppSshTunnel] 监测到物理网络切换 (Wi-Fi/流量): $results");
+
+    // 防抖 800ms：等待手机操作系统完成新网卡的 IP 分配和路由表刷新
+    _networkDebounceTimer?.cancel();
+    _networkDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+      if (_cachedAtClient != null) {
+        debugPrint("🔄 [AppSshTunnel] 网络已切换就绪，立即重塑 SSH/Atsign 隧道...");
+        _forceReconnectTunnel(reason: "网络切换自愈");
+      }
+    });
+  }
+
+  /// 🌟 2. 监听 App 切回前台
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      debugPrint("📱 [AppSshTunnel] 应用切回前台，执行健康自检...");
+      debugPrint("📱 [AppSshTunnel] 应用切回前台，执行隧道活性巡检...");
       _checkAndHealTunnel();
     }
   }
@@ -58,7 +94,7 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
     );
   }
 
-  /// 🌟 增强心跳：超时放宽至 15 秒，连续 2 次失败才触发自愈（防止大流量阻塞时误判）
+  /// 心跳探活
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
     _consecutivePingFails = 0;
@@ -66,8 +102,8 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
       if (isTunnelActive.value && _sshClient != null && !isReconnecting.value) {
         try {
-          await _sshClient?.ping().timeout(const Duration(seconds: 15));
-          _consecutivePingFails = 0; // 成功即重置
+          await _sshClient?.ping().timeout(const Duration(seconds: 10));
+          _consecutivePingFails = 0;
         } catch (e) {
           _consecutivePingFails++;
           debugPrint("⚠️ [AppSshTunnel] 心跳探测超时 ($_consecutivePingFails/2): $e");
@@ -79,26 +115,52 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
     });
   }
 
-  /// 🌟 安全自愈互斥锁：防止并发重复拉起引发 Future already completed
+  /// 常规自检
   Future<void> _checkAndHealTunnel() async {
     if (_cachedAtClient == null || isReconnecting.value) return;
 
     bool isAlive = false;
     try {
       if (_sshClient != null && isTunnelActive.value) {
-        await _sshClient!.ping().timeout(const Duration(seconds: 5));
+        await _sshClient!.ping().timeout(const Duration(seconds: 4));
         isAlive = true;
       }
     } catch (_) {
       isAlive = false;
     }
 
-    if (!isAlive && !isReconnecting.value) {
-      isReconnecting.value = true;
-      debugPrint("🔄 [AppSshTunnel] 触发平滑静默重连...");
+    if (!isAlive) {
+      _forceReconnectTunnel(reason: "心跳失效自愈");
+    }
+  }
+
+  /// 🌟 3. 强制重连执行器（带并发互斥锁与 DNS 预热）
+  Future<void> _forceReconnectTunnel({required String reason}) async {
+    if (_cachedAtClient == null || isReconnecting.value) return;
+
+    isReconnecting.value = true;
+    debugPrint("🔄 [AppSshTunnel] 开始执行 [$reason] 流程...");
+
+    try {
+      // 1. 立即强制断开死锁的旧 Socket
       await stopTunnel(silent: true);
-      await Future.delayed(const Duration(milliseconds: 500));
+
+      // 2. 快速探测外网 DNS 是否可达（确保新网卡能连外网）
+      for (int i = 0; i < 3; i++) {
+        try {
+          final ips = await InternetAddress.lookup('root.atsign.org').timeout(const Duration(seconds: 2));
+          if (ips.isNotEmpty) break;
+        } catch (_) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      }
+
+      // 3. 重新建立新网络下的 Atsign + SSH 隧道
       await startTunnel(_cachedAtClient!, silent: true);
+      debugPrint("✅ [AppSshTunnel] [$reason] 成功！新 SOCKS5 端口: ${currentSocks5Port.value}");
+    } catch (e) {
+      debugPrint("❌ [AppSshTunnel] [$reason] 异常: $e");
+    } finally {
       isReconnecting.value = false;
     }
   }
@@ -183,7 +245,7 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
       );
 
       final int socksPort = _dynamicForward!.port;
-      currentSocks5Port.value = socksPort;
+      currentSocks5Port.value = socksPort; // 🌟 触发 AppHttpOverrides 自动指向新端口
       debugPrint("🚀 [AppSshTunnel] SOCKS5 代理已就绪: 127.0.0.1:$socksPort");
 
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -202,7 +264,6 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
         }
       }
 
-      HttpOverrides.global = AppHttpOverrides(socks5Port: socksPort);
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
 
@@ -228,8 +289,6 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
   Future<void> stopTunnel({bool silent = false}) async {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
-
-    HttpOverrides.global = null;
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       try {
@@ -259,7 +318,7 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
 
     isTunnelActive.value = false;
     currentSocks5Port.value = 0;
-    debugPrint("🔌 [AppSshTunnel] 隧道已安全释放");
+    debugPrint("🔌 [AppSshTunnel] 隧道已释放");
     if (!silent) {
       _showToast("🔌 专用安全隧道已断开", const Color(0xFF424242));
     }
@@ -268,6 +327,8 @@ class AppSshTunnelService extends GetxService with WidgetsBindingObserver {
   @override
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
+    _connectivitySubscription?.cancel();
+    _networkDebounceTimer?.cancel();
     stopTunnel();
     super.onClose();
   }
