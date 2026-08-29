@@ -24,6 +24,9 @@ void main() async {
     debugPrint = (String? message, {int? wrapWidth}) {};
   }
 
+  // 🌟 调大图片内存缓存：最大 150MB，最大 200 张图片，滑动回看时 100% 命中内存，不走代理！
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 150 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 200;
   MediaKit.ensureInitialized();
 
   // 初始化多语言服务
