@@ -1,36 +1,41 @@
 // lib/network/api_logger_interceptor.dart
 import 'dart:convert';
+import 'dart:developer' as dev;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-/// 专门用于控制台友好打印的网络日志拦截器
+/// 高性能网络日志拦截器（瞬间整块打印，杜绝流式排队卡顿）
 class ApiLoggerInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (kDebugMode) {
-      debugPrint('\n==================== 网络请求 ====================');
-      debugPrint('➤ 请求方式  : ${options.method}');
-      debugPrint('➤ 请求地址  : ${options.baseUrl}${options.path}');
-      debugPrint('➤ 请求头    : ${options.headers}');
-      debugPrint('➤ 查询参数  : ${options.queryParameters}');
+      final sb = StringBuffer();
+      sb.writeln('==================== 网络请求 ====================');
+      sb.writeln('➤ 请求方式  : ${options.method}');
+      sb.writeln('➤ 请求地址  : ${options.baseUrl}${options.path}');
+      sb.writeln('➤ 请求头    : ${options.headers}');
+      sb.writeln('➤ 查询参数  : ${options.queryParameters}');
+      
       if (options.data != null) {
         if (options.data is FormData) {
-          debugPrint('➤ 请求体    : [FormData 文件上传]');
+          sb.writeln('➤ 请求体    : [FormData 文件上传]');
         } else if (options.data is List<int> || options.data is Uint8List) {
-          // 🌟 核心改动：遇到二进制大包直接跳过 JSON 序列化，释放手机 CPU！
           final int bytesLen = (options.data as dynamic).length ?? 0;
-          debugPrint('➤ 请求体    : [Binary 二进制数据流: ${(bytesLen / 1024 / 1024).toStringAsFixed(2)} MB]');
+          sb.writeln('➤ 请求体    : [Binary 二进制数据流: ${(bytesLen / 1024 / 1024).toStringAsFixed(2)} MB]');
         } else {
           try {
-            debugPrint('➤ 请求体    : ${jsonEncode(options.data)}');
+            sb.writeln('➤ 请求体    : ${jsonEncode(options.data)}');
           } catch (_) {
-            debugPrint('➤ 请求体    : [无法序列化的对象数据]');
+            sb.writeln('➤ 请求体    : [无法序列化的对象数据]');
           }
         }
       }
-      debugPrint('==================================================\n');
+      sb.write('==================================================');
+      
+      // 🌟 使用 dev.log 瞬间整块输出，绕开 debugPrintThrottled 节流队列
+      dev.log(sb.toString(), name: 'HTTP.Request');
     }
     handler.next(options);
   }
@@ -38,17 +43,19 @@ class ApiLoggerInterceptor extends Interceptor {
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     if (kDebugMode) {
-      debugPrint('\n==================== 网络响应 ====================');
-      debugPrint(
-        '➤ 请求地址  : ${response.requestOptions.baseUrl}${response.requestOptions.path}',
-      );
-      debugPrint('➤ 状态码    : ${response.statusCode}');
+      final sb = StringBuffer();
+      sb.writeln('==================== 网络响应 ====================');
+      sb.writeln('➤ 请求地址  : ${response.requestOptions.baseUrl}${response.requestOptions.path}');
+      sb.writeln('➤ 状态码    : ${response.statusCode}');
+      
       if (response.data is ResponseBody) {
-        debugPrint('➤ 返回数据    : [SSE Stream Body - 流式数据不予打印]');
+        sb.writeln('➤ 返回数据  : [SSE Stream Body - 流式数据不予打印]');
       } else {
-        debugPrint('➤ 返回数据    : ${_prettyPrintJson(response.data)}');
+        sb.writeln('➤ 返回数据  : ${_formatJson(response.data)}');
       }
-      debugPrint('==================================================\n');
+      sb.write('==================================================');
+      
+      dev.log(sb.toString(), name: 'HTTP.Response');
     }
     handler.next(response);
   }
@@ -56,26 +63,33 @@ class ApiLoggerInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (kDebugMode) {
-      debugPrint('\n==================== 网络错误 ====================');
-      debugPrint(
-        '➤ 请求地址  : ${err.requestOptions.baseUrl}${err.requestOptions.path}',
-      );
-      debugPrint('➤ 状态码    : ${err.response?.statusCode}');
-      debugPrint('➤ 错误类型  : ${err.type}');
-      debugPrint('➤ 错误信息  : ${err.message}');
-      debugPrint('➤ 返回数据  : ${err.response?.data}');
-      debugPrint('==================================================\n');
+      final sb = StringBuffer();
+      sb.writeln('==================== 网络错误 ====================');
+      sb.writeln('➤ 请求地址  : ${err.requestOptions.baseUrl}${err.requestOptions.path}');
+      sb.writeln('➤ 状态码    : ${err.response?.statusCode}');
+      sb.writeln('➤ 错误类型  : ${err.type}');
+      sb.writeln('➤ 错误信息  : ${err.message}');
+      sb.writeln('➤ 返回数据  : ${err.response?.data}');
+      sb.write('==================================================');
+      
+      dev.log(sb.toString(), name: 'HTTP.Error');
     }
     handler.next(err);
   }
 
-  /// 格式化 JSON 输出（美化打印）
-  String _prettyPrintJson(dynamic json) {
+  /// 智能格式化：短数据美化，超大包紧凑单行输出，兼顾美观与性能
+  String _formatJson(dynamic data) {
+    if (data == null) return 'null';
+    if (data is String) return data;
     try {
-      final encoder = const JsonEncoder.withIndent('  ');
-      return encoder.convert(json);
-    } catch (e) {
-      return json.toString();
+      final jsonStr = jsonEncode(data);
+      // 如果数据小于 2000 字符，进行带缩进的美化排版；超大响应采用紧凑格式，防止终端排队
+      if (jsonStr.length < 2000) {
+        return const JsonEncoder.withIndent('  ').convert(data);
+      }
+      return jsonStr;
+    } catch (_) {
+      return data.toString();
     }
   }
 }
