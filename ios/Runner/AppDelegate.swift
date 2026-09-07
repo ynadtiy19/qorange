@@ -7,17 +7,11 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GeneratedPluginRegistrant.register(with: self)
-    if let registrar = self.registrar(forPlugin: "VoiceChatPlugin") {
-      VoiceChatPlugin.register(with: registrar)
-    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VoiceChatPlugin") {
-      VoiceChatPlugin.register(with: registrar)
-    }
+    VoiceChatPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "VoiceChatPlugin"))
   }
 }
