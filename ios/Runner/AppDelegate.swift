@@ -12,6 +12,8 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    VoiceChatPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "VoiceChatPlugin"))
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VoiceChatPlugin") {
+      VoiceChatPlugin.register(with: registrar)
+    }
   }
 }
