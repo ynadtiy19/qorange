@@ -21,157 +21,169 @@ class CharacterMapper {
     }
 }
 
-// MARK: - AudioPlayer (对齐 Android AudioPlayer.kt)
-/// 负责 PCM 音频流式播放、Jitter Buffer 缓冲控制、Float32 渲染及时钟同步
-class AudioPlayer {
-    private let tag = "AudioPlayer"
+// MARK: - Unified Audio Engine (统一单引擎全双工架构)
+/// 彻底解决双引擎冲突、消除死锁卡顿与静默，硬件级无缝流式播放与录音
+class VoiceAudioEngine {
+    private let tag = "VoiceAudioEngine"
     
-    private let audioEngine = AVAudioEngine()
+    // 整个 App 共用单例引擎，避免多个 AVAudioEngine 争抢硬件资源导致麦克风/扬声器死锁
+    private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
     
-    private var sampleRate: Double
-    // AVAudioEngine 混合器节点底层严格要求 32-bit Float 格式
-    private var floatAudioFormat: AVAudioFormat
+    private var outputSampleRate: Double = 24000.0
+    private let inputTargetRate: Double = 16000.0
     
+    private var floatOutputFormat: AVAudioFormat!
+    
+    // Jitter 缓冲：起播前平滑缓冲 3 帧（约 120ms），起播后直接顺畅喂入硬件队列
+    private var prebufferQueue: [Data] = []
     private let queueLock = NSLock()
-    private var audioQueue: [Data] = []
+    private var isPlayingStarted = false
+    private let prebufferThreshold = 3
     
-    // Jitter Buffer 参数（与 Android 一致）
-    private var minBufferSize = 5       // 触发起播门限
-    private var targetBufferSize = 10   // 理想缓冲数
-    private var maxBufferSize = 20      // 丢弃旧分片上限（控延迟）
-    private var chunkDurationMs: Double = 0
+    // 录音状态与 VAD
+    private var isRecording = false
+    private var amplitudeThreshold: Double = 100.0
+    private var silenceCounter = 0
+    private let silenceLimit = 15
     
-    private var isPlaying = false
-    private var playbackStarted = false
-    private var expectedPlaybackTime: Double = 0
+    var onAudioRecorded: ((Data, Bool) -> Void)?
+    var onError: ((String) -> Void)?
     
-    var onErrorCallback: ((String) -> Void)?
-    
-    init(sampleRate: Int = 24000) {
-        self.sampleRate = Double(sampleRate)
-        self.floatAudioFormat = AVAudioFormat(standardFormatWithSampleRate: self.sampleRate, channels: 1)!
-        calculateTimingParameters()
+    init(serverSampleRate: Int = 24000) {
+        self.outputSampleRate = Double(serverSampleRate)
+        self.floatOutputFormat = AVAudioFormat(standardFormatWithSampleRate: self.outputSampleRate, channels: 1)!
     }
     
-    private func calculateTimingParameters() {
-        let chunkSamples = 1024.0
-        self.chunkDurationMs = (chunkSamples * 1000.0) / self.sampleRate
-        let targetLatencyMs = 200.0
-        let chunksForLatency = Int(targetLatencyMs / self.chunkDurationMs)
-        
-        self.minBufferSize = max(3, chunksForLatency / 3)
-        self.targetBufferSize = max(5, chunksForLatency / 2)
-        self.maxBufferSize = max(10, chunksForLatency)
-    }
-    
-    func startPlayback() -> Bool {
+    func start() -> Bool {
         do {
-            if !audioEngine.isRunning {
-                audioEngine.attach(playerNode)
-                audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: floatAudioFormat)
-                audioEngine.prepare()
-                try audioEngine.start()
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord,
+                                    mode: .voiceChat,
+                                    options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+            try session.overrideOutputAudioPort(.speaker)
+            try session.setPreferredIOBufferDuration(0.02)
+            try session.setActive(true)
+            
+            // 1. 配置播放节点
+            if !engine.attachedNodes.contains(playerNode) {
+                engine.attach(playerNode)
+                engine.connect(playerNode, to: engine.mainMixerNode, format: floatOutputFormat)
             }
             
-            isPlaying = true
-            playbackStarted = false
-            expectedPlaybackTime = 0
+            // 2. 配置麦克风录音 Tap（通过同个引擎进行采集）
+            setupMicrophoneTap()
             
-            startPlaybackLoop()
+            engine.prepare()
+            try engine.start()
+            
+            playerNode.play()
+            isPlayingStarted = false
+            
+            queueLock.lock()
+            prebufferQueue.removeAll()
+            queueLock.unlock()
+            
             return true
         } catch {
-            onErrorCallback?("Failed to start audio engine: \(error.localizedDescription)")
+            onError?("AudioEngine start failed: \(error.localizedDescription)")
             return false
         }
     }
     
-    func stopPlayback() {
-        isPlaying = false
-        playbackStarted = false
+    func stop() {
+        queueLock.lock()
+        prebufferQueue.removeAll()
+        isPlayingStarted = false
+        queueLock.unlock()
+        
         playerNode.stop()
-        audioEngine.stop()
-        
-        queueLock.lock()
-        audioQueue.removeAll()
-        queueLock.unlock()
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        isRecording = false
     }
     
-    func clearQueue() {
+    // 🌟 核心播放算法：流式缓冲入队，杜绝 pause() 造成的断续卡顿与永久静音
+    func queueAudioPlayback(_ data: Data) {
         queueLock.lock()
-        audioQueue.removeAll()
-        queueLock.unlock()
-    }
-    
-    func queueAudioData(_ data: Data) {
-        guard isPlaying else { return }
+        defer { queueLock.unlock() }
         
-        queueLock.lock()
-        // 1. 缓冲区防积压丢包：超过 maxBufferSize 抛弃最老帧
-        if audioQueue.count >= maxBufferSize {
-            audioQueue.removeFirst()
-        }
-        audioQueue.append(data)
-        let currentSize = audioQueue.count
-        
-        // 2. 蓄满 minBufferSize 起播
-        if !playbackStarted && currentSize >= minBufferSize {
-            playerNode.play()
-            playbackStarted = true
-            expectedPlaybackTime = Date().timeIntervalSince1970 * 1000.0
-        }
-        queueLock.unlock()
-    }
-    
-    private func startPlaybackLoop() {
-        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-            guard let self = self else { return }
-            
-            while self.isPlaying {
-                if !self.playbackStarted {
-                    usleep(10_000)
-                    continue
-                }
-                
-                self.queueLock.lock()
-                if self.audioQueue.isEmpty {
-                    self.playerNode.pause()
-                    self.playbackStarted = false
-                    self.expectedPlaybackTime = 0
-                    self.queueLock.unlock()
-                    usleep(20_000)
-                    continue
-                }
-                
-                let chunkData = self.audioQueue.removeFirst()
-                self.queueLock.unlock()
-                
-                let currentTime = Date().timeIntervalSince1970 * 1000.0
-                if currentTime < self.expectedPlaybackTime {
-                    let sleepMs = self.expectedPlaybackTime - currentTime
-                    if sleepMs > 0 && sleepMs < 100 {
-                        usleep(useconds_t(sleepMs * 1000))
+        if !isPlayingStarted {
+            prebufferQueue.append(data)
+            // 预缓冲蓄水达到阈值（3 帧约 120ms）时，批量提交播放，保证开头绝对平滑
+            if prebufferQueue.count >= prebufferThreshold {
+                for chunk in prebufferQueue {
+                    if let buffer = int16ToFloat32Buffer(chunk) {
+                        playerNode.scheduleBuffer(buffer, completionHandler: nil)
                     }
                 }
-                
-                // 核心关键：将 16-bit PCM 字节流转为 iOS 混合器原生支持的 Float32 PCMBuffer
-                if let pcmBuffer = self.int16ToFloat32Buffer(chunkData) {
-                    self.playerNode.scheduleBuffer(pcmBuffer, completionHandler: nil)
-                }
-                
-                self.expectedPlaybackTime += self.chunkDurationMs
-                if currentTime > self.expectedPlaybackTime + 100 {
-                    self.expectedPlaybackTime = currentTime
-                }
+                prebufferQueue.removeAll()
+                isPlayingStarted = true
+            }
+        } else {
+            // 已在起播状态：收到分片直接喂给底层硬件队列，让 CoreAudio 硬件时钟自动做到样本级无缝衔接
+            if let buffer = int16ToFloat32Buffer(data) {
+                playerNode.scheduleBuffer(buffer, completionHandler: nil)
             }
         }
     }
     
-    /// 解决 iOS 模拟器/真机无声音的核心：Int16 线性归一化到 Float32
+    private func setupMicrophoneTap() {
+        let inputNode = engine.inputNode
+        let inputFormat = inputNode.outputFormat(forBus: 0)
+        
+        guard inputFormat.sampleRate > 0 else { return }
+        
+        guard let intermediateFormat = AVAudioFormat(standardFormatWithSampleRate: inputTargetRate, channels: 1),
+              let converter = AVAudioConverter(from: inputFormat, to: intermediateFormat) else {
+            return
+        }
+        
+        inputNode.removeTap(onBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] (buffer, time) in
+            guard let self = self else { return }
+            
+            let ratio = self.inputTargetRate / inputFormat.sampleRate
+            let targetCapacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio + 10)
+            guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: intermediateFormat, frameCapacity: targetCapacity) else { return }
+            
+            var error: NSError?
+            var isDone = false
+            converter.convert(to: convertedBuffer, error: &error) { inNumPackets, outStatus in
+                if !isDone {
+                    outStatus.pointee = .haveData
+                    isDone = true
+                    return buffer
+                } else {
+                    outStatus.pointee = .noDataNow
+                    return nil
+                }
+            }
+            
+            if error != nil { return }
+            
+            let frameCount = Int(convertedBuffer.frameLength)
+            guard frameCount > 0, let floatData = convertedBuffer.floatChannelData?[0] else { return }
+            
+            var int16Data = Data(count: frameCount * 2)
+            int16Data.withUnsafeMutableBytes { rawOut in
+                let int16Ptr = rawOut.bindMemory(to: Int16.self)
+                for i in 0..<frameCount {
+                    let clamped = max(-1.0, min(1.0, floatData[i]))
+                    int16Ptr[i] = Int16(clamped * 32767.0)
+                }
+            }
+            
+            let hasVoice = self.detectVoiceActivity(int16Data)
+            self.onAudioRecorded?(int16Data, hasVoice)
+        }
+        isRecording = true
+    }
+    
     private func int16ToFloat32Buffer(_ data: Data) -> AVAudioPCMBuffer? {
         let sampleCount = data.count / 2
         guard sampleCount > 0,
-              let buffer = AVAudioPCMBuffer(pcmFormat: self.floatAudioFormat, frameCapacity: AVAudioFrameCount(sampleCount)) else {
+              let buffer = AVAudioPCMBuffer(pcmFormat: self.floatOutputFormat, frameCapacity: AVAudioFrameCount(sampleCount)) else {
             return nil
         }
         buffer.frameLength = AVAudioFrameCount(sampleCount)
@@ -180,118 +192,10 @@ class AudioPlayer {
         data.withUnsafeBytes { rawBuffer in
             let int16Ptr = rawBuffer.bindMemory(to: Int16.self)
             for i in 0..<sampleCount {
-                // 将 [-32768, 32767] 转换为 [-1.0, 1.0]
                 floatChannel[i] = Float(int16Ptr[i]) / 32768.0
             }
         }
         return buffer
-    }
-    
-    func updateSampleRate(_ newRate: Int) {
-        if Double(newRate) != self.sampleRate {
-            let wasPlaying = self.isPlaying
-            if wasPlaying { stopPlayback() }
-            self.sampleRate = Double(newRate)
-            self.floatAudioFormat = AVAudioFormat(standardFormatWithSampleRate: self.sampleRate, channels: 1)!
-            calculateTimingParameters()
-            if wasPlaying { _ = startPlayback() }
-        }
-    }
-}
-
-// MARK: - AudioManager (对齐 Android AudioManager.kt)
-/// 负责麦克风音频采集、转换为 16kHz 16-bit PCM 以及 RMS VAD 语音检测
-class AudioManager {
-    private let tag = "AudioManager"
-    private let targetSampleRate: Double = 16000.0
-    
-    private let audioEngine = AVAudioEngine()
-    private var isRecording = false
-    
-    private var amplitudeThreshold: Double = 100.0
-    private var silenceCounter = 0
-    private let silenceLimit = 15
-    
-    var onAudioDataCallback: ((Data, Bool) -> Void)?
-    var onErrorCallback: ((String) -> Void)?
-    
-    func startRecording() -> Bool {
-        guard !isRecording else { return true }
-        
-        do {
-            let inputNode = audioEngine.inputNode
-            let inputFormat = inputNode.outputFormat(forBus: 0)
-            
-            // 目标格式：16000Hz 单声道 Float32
-            guard let intermediateFormat = AVAudioFormat(standardFormatWithSampleRate: targetSampleRate, channels: 1) else {
-                onErrorCallback?("Failed to create intermediate format")
-                return false
-            }
-            
-            guard let converter = AVAudioConverter(from: inputFormat, to: intermediateFormat) else {
-                onErrorCallback?("Failed to create audio converter")
-                return false
-            }
-            
-            inputNode.removeTap(onBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] (buffer, time) in
-                guard let self = self, self.isRecording else { return }
-                
-                let ratio = self.targetSampleRate / inputFormat.sampleRate
-                let targetCapacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio + 10)
-                guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: intermediateFormat, frameCapacity: targetCapacity) else { return }
-                
-                var error: NSError?
-                var isDone = false
-                converter.convert(to: convertedBuffer, error: &error) { inNumPackets, outStatus in
-                    if !isDone {
-                        outStatus.pointee = .haveData
-                        isDone = true
-                        return buffer
-                    } else {
-                        outStatus.pointee = .noDataNow
-                        return nil
-                    }
-                }
-                
-                if let error = error {
-                    self.onErrorCallback?("Audio conversion error: \(error.localizedDescription)")
-                    return
-                }
-                
-                let frameCount = Int(convertedBuffer.frameLength)
-                guard frameCount > 0, let floatData = convertedBuffer.floatChannelData?[0] else { return }
-                
-                // 将 Float32 转换为 16-bit PCM 二进制
-                var int16Data = Data(count: frameCount * 2)
-                int16Data.withUnsafeMutableBytes { rawOut in
-                    let int16Ptr = rawOut.bindMemory(to: Int16.self)
-                    for i in 0..<frameCount {
-                        let clamped = max(-1.0, min(1.0, floatData[i]))
-                        int16Ptr[i] = Int16(clamped * 32767.0)
-                    }
-                }
-                
-                let hasVoice = self.detectVoiceActivity(int16Data)
-                self.onAudioDataCallback?(int16Data, hasVoice)
-            }
-            
-            audioEngine.prepare()
-            try audioEngine.start()
-            isRecording = true
-            silenceCounter = 0
-            return true
-        } catch {
-            onErrorCallback?("Audio recording start failed: \(error.localizedDescription)")
-            return false
-        }
-    }
-    
-    func stopRecording() {
-        guard isRecording else { return }
-        isRecording = false
-        audioEngine.inputNode.removeTap(onBus: 0)
-        audioEngine.stop()
     }
     
     private func detectVoiceActivity(_ data: Data) -> Bool {
@@ -316,12 +220,21 @@ class AudioManager {
             return silenceCounter < silenceLimit
         }
     }
+    
+    func setRoute(_ route: String) {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            if route.uppercased() == "EARPIECE" {
+                try session.overrideOutputAudioPort(.none)
+            } else {
+                try session.overrideOutputAudioPort(.speaker)
+            }
+        } catch {}
+    }
 }
 
-// MARK: - SesameWebSocket (对齐 Android SesameWebSocket.kt 全套协议)
-/// 负责与 Sesame AI 后端进行长连接、严格对齐所有握手与会话建立协议
+// MARK: - SesameWebSocket (心跳保活与完整协议栈)
 class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
-    private let tag = "SesameWebSocket"
     private let wsUrlString = "wss://sesameai.app/agent-service-0/v1/connect"
     
     private let idToken: String
@@ -330,6 +243,7 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
     
     private var webSocketTask: URLSessionWebSocketTask?
     private var session: URLSession?
+    private var pingTimer: Timer?
     
     var serverSampleRate: Int = 24000
     private var sessionId: String?
@@ -373,10 +287,12 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
         webSocketTask?.resume()
         
         listenForMessages()
+        startPingTimer()
         return true
     }
     
     func disconnect() {
+        stopPingTimer()
         if sessionId != nil && callId != nil {
             sendCallDisconnect()
         }
@@ -458,7 +374,6 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
                 audioBuffer.append(audioBytes)
                 bufferLock.unlock()
                 
-                // 核心对齐 Android：首次收到 AI 声音后发送 2 个包含 'A' 的初始化包
                 if !firstAudioReceived {
                     firstAudioReceived = true
                     let chunkOfAs = String(repeating: "A", count: 1707) + "="
@@ -477,6 +392,34 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
         }
     }
     
+    private func startPingTimer() {
+        stopPingTimer()
+        DispatchQueue.main.async { [weak self] in
+            self?.pingTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+                self?.sendPing()
+            }
+        }
+    }
+    
+    private func stopPingTimer() {
+        DispatchQueue.main.async { [weak self] in
+            self?.pingTimer?.invalidate()
+            self?.pingTimer = nil
+        }
+    }
+    
+    private func sendPing() {
+        guard let sid = sessionId, let cid = callId else { return }
+        let dict: [String: Any] = [
+            "type": "ping",
+            "session_id": sid,
+            "call_id": cid,
+            "request_id": UUID().uuidString,
+            "content": "ping"
+        ]
+        sendJson(dict)
+    }
+    
     private func sendClientLocationState() {
         guard let sid = sessionId else { return }
         let dict: [String: Any] = [
@@ -493,7 +436,6 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
         sendJson(dict)
     }
     
-    /// 核心对齐：完整的 call_connect 握手报文，解决后台无法建立会话的问题
     private func sendCallConnect() {
         guard let sid = sessionId else { return }
         
@@ -501,7 +443,10 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
             "language": "zh-CN",
             "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
             "mobile_browser": true,
-            "media_devices": getMediaDevicesJsonArray()
+            "media_devices": [
+                ["deviceId": "default", "kind": "audioinput", "label": "Default - Microphone", "groupId": "default"],
+                ["deviceId": "default", "kind": "audiooutput", "label": "Default - Speaker", "groupId": "default"]
+            ]
         ]
         
         let settings: [String: Any] = [
@@ -559,16 +504,9 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
         webSocketTask?.send(.string(str)) { _ in }
         return true
     }
-    
-    private func getMediaDevicesJsonArray() -> [[String: String]] {
-        return [
-            ["deviceId": "default", "kind": "audioinput", "label": "Default - Microphone", "groupId": "default"],
-            ["deviceId": "default", "kind": "audiooutput", "label": "Default - Speaker", "groupId": "default"]
-        ]
-    }
 }
 
-// MARK: - VoiceChatPlugin (对齐 Android MainActivity / VoiceChatPlugin)
+// MARK: - VoiceChatPlugin (对外接口与事件分发)
 @objc public class VoiceChatPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     private static let CHANNEL_CONTROL = "com.sesame.voicechat/control"
     private static let CHANNEL_EVENTS = "com.sesame.voicechat/events"
@@ -576,8 +514,7 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
     private var eventSink: FlutterEventSink?
     
     private var sesameWebSocket: SesameWebSocket?
-    private var audioPlayer: AudioPlayer?
-    private var audioRecordManager: AudioManager?
+    private var unifiedEngine: VoiceAudioEngine?
     
     private var isConnected = false
     private var isProcessingAudio = false
@@ -598,7 +535,6 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
             let args = call.arguments as? [String: Any]
             let token = args?["token"] as? String ?? ""
             let rawCharacter = args?["characterName"] as? String ?? "Kira"
-            // 核心映射：将前端角色名映射为后端真实受支持的标识（如 Kira -> Maya）
             let backendCharacter = CharacterMapper.getBackendCharacter(rawCharacter)
             
             if token.isEmpty {
@@ -620,18 +556,12 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
             } else {
                 isMuted = !isMuted
             }
-            
-            if isMuted {
-                audioRecordManager?.stopRecording()
-            } else {
-                _ = audioRecordManager?.startRecording()
-            }
             result(isMuted)
             
         case "setAudioRoute":
             let args = call.arguments as? [String: Any]
             let route = args?["route"] as? String ?? "AUTO"
-            setAudioRoute(route)
+            unifiedEngine?.setRoute(route)
             result(true)
             
         default:
@@ -653,7 +583,6 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
         if isConnected { return }
         
         sendEvent(type: "status", value: "Connecting...")
-        setupAudioSession()
         
         sesameWebSocket = SesameWebSocket(idToken: token, character: character)
         sesameWebSocket?.onConnectCallback = { [weak self] in
@@ -682,30 +611,14 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
         setupAudio()
     }
     
-    private func setupAudioSession() {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord,
-                                    mode: .voiceChat,
-                                    options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
-            // 解决模拟器和真机听筒无声：强制路由至扬声器播放
-            try session.overrideOutputAudioPort(.speaker)
-            try session.setPreferredIOBufferDuration(0.02)
-            try session.setActive(true)
-        } catch {
-            sendEvent(type: "error", value: "AudioSession setup error: \(error.localizedDescription)")
-        }
-    }
-    
     private func setupAudio() {
         let sampleRate = sesameWebSocket?.serverSampleRate ?? 24000
-        audioPlayer = AudioPlayer(sampleRate: sampleRate)
-        _ = audioPlayer?.startPlayback()
+        unifiedEngine = VoiceAudioEngine(serverSampleRate: sampleRate)
         
-        audioRecordManager = AudioManager()
-        audioRecordManager?.onAudioDataCallback = { [weak self] (audioData, hasVoice) in
+        unifiedEngine?.onAudioRecorded = { [weak self] (audioData, hasVoice) in
             guard let self = self else { return }
             
+            // 保持静默数据持续发送，这是 Sesame 维持对话长连接的关键！
             if self.isConnected && !self.isMuted {
                 if hasVoice {
                     _ = self.sesameWebSocket?.sendAudioData(audioData)
@@ -723,7 +636,7 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
             }
         }
         
-        _ = audioRecordManager?.startRecording()
+        _ = unifiedEngine?.start()
         startAudioProcessing()
     }
     
@@ -733,8 +646,10 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
             guard let self = self else { return }
             while self.isProcessingAudio && self.sesameWebSocket?.isConnected() == true {
                 if let audioChunk = self.sesameWebSocket?.getNextAudioChunk() {
-                    self.audioPlayer?.queueAudioData(audioChunk)
+                    // 送入统一引擎无缝流式播放
+                    self.unifiedEngine?.queueAudioPlayback(audioChunk)
                     
+                    // 24000Hz 3:2 线性抽取降频为 16000Hz，抛给 Flutter 进行同传翻译
                     let resampled = self.resample24to16(input: audioChunk)
                     DispatchQueue.main.async {
                         self.sendEvent(type: "ai_audio_data", value: [UInt8](resampled))
@@ -749,32 +664,14 @@ class SesameWebSocket: NSObject, URLSessionWebSocketDelegate {
     private func disconnect() {
         sendEvent(type: "status", value: "Disconnecting...")
         isProcessingAudio = false
-        audioRecordManager?.stopRecording()
-        audioPlayer?.stopPlayback()
+        unifiedEngine?.stop()
         sesameWebSocket?.disconnect()
         
-        audioRecordManager = nil
-        audioPlayer = nil
+        unifiedEngine = nil
         sesameWebSocket = nil
         isConnected = false
         
         sendEvent(type: "status", value: "Disconnected")
-    }
-    
-    private func setAudioRoute(_ route: String) {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            switch route.uppercased() {
-            case "SPEAKER":
-                try session.overrideOutputAudioPort(.speaker)
-            case "EARPIECE":
-                try session.overrideOutputAudioPort(.none)
-            default:
-                try session.overrideOutputAudioPort(.speaker)
-            }
-        } catch {
-            sendEvent(type: "error", value: "Set route error: \(error.localizedDescription)")
-        }
     }
     
     private func resample24to16(input: Data) -> Data {
